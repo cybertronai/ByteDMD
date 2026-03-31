@@ -29,11 +29,12 @@ The solution of Ding/Smith is to introduce the idea of "geometric stack", instea
 
 This cost model can be seen as a continuous approximation of Bill Dally's "manhattan distance" combined with an LRU cache.
 
+TODO(y): clean-up this diagram  
 [Colab](https://colab.research.google.com/drive/1Gt6DNTmnzQsqqL0twFdmKaAKQfP-hP_G#scrollTo=2XzD3vHE4t5E)
 
 ![][image4]
 
-The positions on the stack are indexed by bytes rather than abstract data-types because modern algorithm designs have freedom to improve the runtime of their algorithm by using a smaller data type for intermediate variables, we want our metric to be sensitive to such choices.
+The positions on the stack are indexed by bytes rather than abstract data-types because modern algorithm designs have freedom to improve the runtime of their algorithm by using a smaller data type for intermediate variables, whereas we want our metric to be sensitive to such choices.
 
 ## Computation model
 
