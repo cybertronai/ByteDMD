@@ -1,4 +1,6 @@
-# A metric of complexity for the 21st century: ByteDMD 
+# A metric of complexity for the 21st century: ByteDMD
+
+[Original Google Doc](https://docs.google.com/document/d/1sj5NqOg6Yqh10bXzGVEF5uIzSjFWAnqqTE75AMng2-s/edit?tab=t.0)
 
 ## Motivation
 
