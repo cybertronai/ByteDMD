@@ -1,5 +1,7 @@
 # A metric of complexity for the 21st century: ByteDMD
 
+[Original Google Doc](https://docs.google.com/document/d/1sj5NqOg6Yqh10bXzGVEF5uIzSjFWAnqqTE75AMng2-s/edit?tab=t.0#heading=h.ujy6ygk7sjmb)
+
 ## Motivation
 
 In modern architectures, energy cost of an algorithm is dominated by data movement, which is not captured by FLOP-count. Our objective is to define a more representative scalar measure.
