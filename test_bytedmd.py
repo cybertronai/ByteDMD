@@ -15,12 +15,13 @@ def test_myAdd_int8():
     assert result == np.int8(5)
 
 
-def test_myAdd_int8_dmd2():
+def test_myAdd_int8_dmd_squared():
     a, b, c, d = np.int8(1), np.int8(2), np.int8(3), np.int8(4)
     cost, result = measureDMDSquared(myAdd, a, b, c, d)
     assert cost == 3 + 2
 
 
+# Example of using a mixture of one byte and two byte data types. 
 def test_myAdd_hybrid_trace():
     a, b, c, d = np.int8(1), np.int16(2), np.int16(3), np.int8(4)
     trace, result = byteReadTrace(myAdd, a, b, c, d)
@@ -45,7 +46,7 @@ def test_myFunc2():
     assert cost == expected
 
 
-def test_myFunc2_dmd2():
+def test_myFunc2_dmd_squared():
     a, b, c, d = np.int8(1), np.int16(2), np.int16(3), np.int8(4)
     cost, result = measureDMDSquared(myFunc2, a, b, c, d)
     assert cost == 5 + 4 + 3 + 2 + 8 + 7 + 5 + 4 + 1
@@ -108,7 +109,7 @@ def matmul4_tiled(A, B):
     return C
 
 
-def test_matmul4_dmd2():
+def test_matmul4_dmd_squared():
     A = np.ones((4, 4), dtype=np.int8)
     B = np.ones((4, 4), dtype=np.int8)
     cost, result = measureDMDSquared(matmul4, A, B)
@@ -122,7 +123,7 @@ def test_matvec4():
     assert cost == pytest.approx(183.841928, abs=1e-4)
 
 
-def test_matvec4_dmd2():
+def test_matvec4_dmd_squared():
     A = np.ones((4, 4), dtype=np.int8)
     x = np.ones(4, dtype=np.int8)
     cost, result = measureDMDSquared(matvec4, A, x)
@@ -136,14 +137,14 @@ def test_vecmat4():
     assert cost == pytest.approx(181.741063, abs=1e-4)
 
 
-def test_vecmat4_dmd2():
+def test_vecmat4_dmd_squared():
     A = np.ones((4, 4), dtype=np.int8)
     x = np.ones(4, dtype=np.int8)
     cost, result = measureDMDSquared(vecmat4, A, x)
     assert cost == 768
 
 
-def test_matmul4_tiled_dmd2():
+def test_matmul4_tiled_dmd_squared():
     A = np.ones((4, 4), dtype=np.int8)
     B = np.ones((4, 4), dtype=np.int8)
     cost, result = measureDMDSquared(matmul4_tiled, A, B)
