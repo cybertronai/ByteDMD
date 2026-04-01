@@ -2,25 +2,25 @@
 
 ## Motivation
 
-In modern computational architectures, execution time and energy consumption are overwhelmingly dominated by data movement, making FLOP-count an obsolete heuristic. Our objective is to define a computation model and cost function that realistically measures data locality.
+In modern architectures, energy cost of an algorithm is dominated by data movement, which is not captured by FLOP-count. Our objective is to define a more representative scalar measure.
 
-Bill Dally ([ACM Opinion](https://cacm.acm.org/opinion/on-the-model-of-computation-point/)) proposed a spatial model where bytes live on a 2D grid, penalizing movement based on the Manhattan distance to the processor. Manually specifying spatial $x, y$ coordinates is a big step away from classical algorithm designer, so we compromise by using an automatic placement strategy.
+Bill Dally ([ACM Opinion](https://cacm.acm.org/opinion/on-the-model-of-computation-point/)) proposed a spatial model where bytes live on a 2D grid, penalizing movement based on the Manhattan distance to the processor. Manually specifying spatial $x, y$ coordinates makes it inapplicable to classical algorithms, we compromise by using an automatic placement strategy.
 
 An elegant solution comes from the "geometric stack" introduced by Ding and Smith ([Beyond Time Complexity, 2022](https://arxiv.org/abs/2203.02536)). Modern processors rely on automated cache replacement policies. Sleator and Tarjan's classic competitive analysis (1985) proved that an automatic LRU (Least Recently Used) policy is strictly competitive with optimal offline caching.
 
-Instead of defining a rigid cache hierarchy (L1/L2/L3) which creates hardware-specific metrics, the geometric stack models an *infinitely layered* LRU stack. The cost to access data at depth $d$ is $\sqrt{d}$. This acts as a continuous 1D approximation of Dally's Manhattan distance combined with an LRU cache.
+Instead of defining a rigid cache hierarchy (L1/L2/L3) which creates hardware-specific metrics, the geometric stack models an *infinitely layered* LRU stack. The cost to access data at depth $d$ is $\sqrt{d}$. This acts as a continuous approximation of Dally's Manhattan distance combined with an LRU cache arranged as an L1 spiral in 2D.
 
 **The Byte-Level Extension:**
 The original DMD metric models abstract variables. However, modern algorithms frequently optimize runtime by downcasting intermediate variables to smaller data types (e.g., `int8` vs `float32`). **ByteDMD** extends the geometric stack by treating variables as contiguous blocks of bytes and tracking distances strictly at the *byte level*. This mathematically rewards the use of smaller data types.
 
 ## Computation Model
 
-We model an idealized processor with infinite registers and a byte-aware LRU stack. Writes are free, but reads incur a cost based on the depth of the bytes being read.
+We model an idealized processor with infinite registers, a byte-aware LRU stack and a list of valid instructions. Writes are free, but reads incur a cost based on the depth of the bytes being read. Each instruction has 1 or more unque inputs and 0 or more outputs.
 
 Execution proceeds as follows:
-1. **Initialization:** The scheduler sequentially loads function arguments (and flattened array elements) onto the LRU stack at 0 cost. The most recently added byte is at the top of the stack (distance 1).
+1. **Initialization:** The scheduler loads function arguments onto the LRU stack at 0 cost. The most recently added byte is at the top of the stack (distance 1).
 2. **Instruction Execution:** For each instruction, the processor:
-   - **Calculates Cost:** Deduplicates unique input operands. The depth $d$ of *every individual byte* is calculated based on the *current* stack state. Reading a byte incurs a cost of $\sqrt{d}$ (or the squared variant $d = (\sqrt{d})^2$ via `measureDMDSquared`).
+   - **Calculates Cost:**  The depth $d$ of *every individual byte* is calculated based on the *current* stack state. Reading a byte incurs a cost of $\sqrt{d}$
    - **Updates LRU:** The accessed variables are moved to the top of the stack in the order they were read. Multi-byte variables are moved as a single contiguous block.
    - **Pushes Result:** A new variable representing the instruction's output (e.g., `_r0`) is allocated and pushed to the top of the stack at 0 cost.
 
@@ -58,9 +58,9 @@ Push the new computed value (allocated as _r0): [a, d, b, c, _r0]
 
 (This cost can be measured programmatically in Python via `cost, result = measureDMD(add, a, b, c, d)`).
 
-### 2. Multi-Byte Variables (The "Byte" in ByteDMD)
+### 2. Multi-Byte Variables
 
-To illustrate why byte-level tracking is powerful, consider executing `b + c` where `b` and `c` are 2-byte `int16` integers, while `a` and `d` are 1-byte `int8` integers.
+Consider executing `b + c` where `b` and `c` are 2-byte `int16` integers, while `a` and `d` are 1-byte `int8` integers.
 
 Initial Stack Distances (Top-Down):
 - d (1 byte): distance 1
@@ -76,7 +76,7 @@ The total operation cost is $\sqrt{5} + \sqrt{4} + \sqrt{3} + \sqrt{2}$.
 
 ### 3. Read Order Matters
 
-Because the LRU stack updates sequentially based on the order variables are read, instruction ordering natively impacts the final stack state and the cost of subsequent operations:
+Because the LRU stack updates sequentially based on the order variables are read, argument ordering impacts the final stack state
 
 - `return b + c` $\rightarrow$ final stack: [a, d, b, c, _r0]
 - `return c + b` $\rightarrow$ final stack: [a, d, c, b, _r0]
@@ -85,8 +85,8 @@ Because the LRU stack updates sequentially based on the order variables are read
 
 ### Bits vs. Bytes
 
-ByteDMD currently operates on byte boundaries because bit-level operations are not readily exposed in standard high-level runtimes. Future iterations could adjust the metric to evaluate at the bit level for greater precision when analyzing extreme quantization models.
+ByteDMD currently operates on byte boundaries because bit-level operations are not readily exposed in standard high-level runtimes. One could consider BitDMD metric which works on bit-level boundaries. 
 
 ### Extending to Parallel Execution
 
-The current model assumes 0 cost for initial argument loading. In multi-processor systems, we may introduce a location-aware scheduler that incurs a load penalty dependent on the physical or networked distribution of the original data source.
+The current model assumes 0 cost for loading function argument arguments onto the stack. In multi-processor systems, we may introduce a location-aware scheduler that incurs a load penalty dependent on the physical location of processor relative to the original data source.
