@@ -41,13 +41,15 @@ with `right = top/Most Recently Used` gives depths `d=1`, `c=2`, `b=3`, `a=4` wh
 
 ### Cost of reading a value
 
+To avoid floating-point arithmetic, we compute the cost using the ceiling of the square root, denoted $\lceil\sqrt{d}\rceil$. This is implemented as `isqrt_ceil(x) = isqrt(x - 1) + 1`.
+
 If a value $x$ occupies byte depths $D(x)$, then reading $x$ costs
 
 $$
-C(x) = \sum_{d \in D(x)} \sqrt{d}.
+C(x) = \sum_{d \in D(x)} \lceil\sqrt{d}\rceil.
 $$
 
-A 1-byte value at depth 3 costs $\sqrt{3}$. A 2-byte value spanning depths 4 and 5 costs $\sqrt{4} + \sqrt{5}$.
+A 1-byte value at depth 3 costs $\lceil\sqrt{3}\rceil = 2$. A 2-byte value spanning depths 4 and 5 costs $\lceil\sqrt{4}\rceil + \lceil\sqrt{5}\rceil = 2 + 3 = 5$.
 
 ### Instruction semantics
 
@@ -88,14 +90,10 @@ with `right = top/Most Recently Used`, so `d=1`, `c=2`, `b=3`, `a=4`.
 
 **Read cost of `b + c`**
 
-- read `b`: cost $\sqrt{3}$
-- read `c`: cost $\sqrt{2}$
+- read `b`: cost $\lceil\sqrt{3}\rceil = 2$
+- read `c`: cost $\lceil\sqrt{2}\rceil = 2$
 
-Total cost:
-
-$$
-\sqrt{3} + \sqrt{2}.
-$$
+Total cost: $2 + 2 = 4$.
 
 **Update stack**
 
@@ -125,7 +123,7 @@ The initial stack contains 6 bytes total:
 Executing `b + c` charges
 
 $$
-C(b) + C(c) = (\sqrt{4} + \sqrt{5}) + (\sqrt{2} + \sqrt{3}).
+C(b) + C(c) = (\lceil\sqrt{4}\rceil + \lceil\sqrt{5}\rceil) + (\lceil\sqrt{2}\rceil + \lceil\sqrt{3}\rceil) = (2 + 3) + (2 + 2) = 9.
 $$
 
 The post-instruction block order is still
@@ -165,14 +163,6 @@ A[i][j] * A[i][j]
 the value `A[i][j]` contributes its read cost twice.
 
 Under the convention above, both charges are computed from the stack state at the start of the instruction, and the block is moved to the top only once when recency is updated.
-
-### 5. Numeric considerations
-
-To avoid floating point arithmetic we use the ceiling of the square root function (aka "upper integer square root") defined as follows
-```python
-def isqrt_ceil(x):
-    return math.isqrt(x - 1) + 1
-```
 
 ## Future work
 
