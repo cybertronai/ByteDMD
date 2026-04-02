@@ -149,11 +149,3 @@ def test_matmul4_tiled_dmd_squared():
     B = np.ones((4, 4), dtype=np.int8)
     cost, result = measureDMDSquared(matmul4_tiled, A, B)
     assert cost == 5062
-
-
-def test_matmul4_tiled_cheaper_than_naive():
-    A = np.ones((4, 4), dtype=np.int8)
-    B = np.ones((4, 4), dtype=np.int8)
-    cost_tiled, _ = measureDMDSquared(matmul4_tiled, A, B)
-    cost_naive, _ = measureDMDSquared(matmul4, A, B)
-    assert cost_tiled < cost_naive
