@@ -2,97 +2,182 @@
 
 [Original Google Doc](https://docs.google.com/document/d/1sj5NqOg6Yqh10bXzGVEF5uIzSjFWAnqqTE75AMng2-s/edit?tab=t.0#heading=h.ujy6ygk7sjmb)
 
+TLDR;
+- memory wall means that reducing the amount of data movement is more important than reducing amount of arithmetic
+- implement a cost function which measures the cost of data movement 
+- use VLSI heuristic that cost of reading from cache of size $L$ on a 2D chip is $\propto \sqrt{L}$.
+
 ## Motivation
 
-In modern architectures, the energy cost of an algorithm is dominated by data movement, which is not captured by FLOP counts. Our objective is to define a more representative scalar measure.
+Modern architectures spend energy moving data than doing arithmetic, hence FLOP counts miss an important part of algorithmic cost. ByteDMD is intended as a simple scalar replacement of FLOP count. 
 
-Bill Dally ([ACM Opinion](https://cacm.acm.org/opinion/on-the-model-of-computation-point/)) proposed a spatial model where bytes live on a 2D grid, penalizing movement based on the Manhattan distance to the processor. Manually specifying spatial $x, y$ coordinates makes it inapplicable to classical algorithms; we address this by introducing an automatic placement strategy.
+Bill Dally ([ACM Opinion](https://cacm.acm.org/opinion/on-the-model-of-computation-point/)) proposed a spatial model in which bytes live on a 2D grid and movement is penalized by Manhattan distance to the processor. Manually assigning spatial coordinates makes that model awkward for classical algorithms, so we replace manual placement with an automatic rule.
 
-An elegant solution comes from the "geometric stack" introduced by Ding and Smith ([Beyond Time Complexity, 2022](https://arxiv.org/abs/2203.02536)). Modern processors rely on automated cache replacement policies. Sleator and Tarjan's classic competitive analysis (1985) proved that an automatic LRU (Least Recently Used) policy is strictly competitive with optimal offline caching.
+A natural starting point is the "geometric stack" introduced by Ding and Smith ([Beyond Time Complexity, 2022](https://arxiv.org/abs/2203.02536)). In that model, memory is represented as an infinitely layered LRU stack, and accessing depth $d$ costs $\sqrt{d}$. This can be viewed as as Dally's Manhattan distance approach applied to cache arranged in concentric circles in 2D.
 
-Instead of defining a cache hierarchy (L1/L2/L3) which creates a family of metrics, the geometric stack models an *infinitely layered* LRU stack which provides us with a single natural metric. The cost to access data at depth $d$ is $\sqrt{d}$. This acts as a continuous approximation of Dally's Manhattan distance combined with an LRU cache arranged in a two-dimensional layout.
-
-**The Byte-Level Extension:**
-The original DMD metric models abstract variables. Modern algorithms often optimize runtime by downcasting intermediate variables to smaller data types (e.g., `int8` vs `float32`). **ByteDMD** treats scalar entries as contiguous blocks of bytes and tracks distances at the *byte level* to reward this optimization.
+The original DMD treats values abstractly. ByteDMD refines the model to the byte level: a $k$-byte value occupies $k$ consecutive positions in the stack. This lets the metric reward algorithms that prefer smaller data-types like `int8` instead of `float32`.
 
 ![ByteDMD](dmd.png)
 
-## Computation Model
+## Computation model
 
-We model an idealized processor with infinite registers, a byte-level LRU stack, and a list of valid instructions. Writes are free, execution is free, while reads incur a cost based on the depth of the target byte in the LRU stack. Each instruction accepts 1 or more inputs and produces 0 or more outputs.
+We model an idealized single processor with infinite registers, a byte-level LRU stack, and a fixed set of instructions. Instructions and writes are free. The only charged operation is reading existing bytes from the stack.
 
-Execution proceeds as follows:
-1. **Initialization:** The scheduler loads function arguments onto the LRU stack at 0 cost. The most recently added byte is at the top of the stack (distance 1).
-2. **Instruction Execution:** For each instruction, the processor:
-   - **Reads inputs into the registers:**  Reading a byte incurs a cost of $\sqrt{d}$ where $d$ is the position in the LRU stack.
-   - **Updates LRU:** Inputs are moved to the top of the stack in the order they were read. Multi-byte inputs are moved as a single contiguous block.
-   - **Pushes Result:** A new value or values representing the instruction's output are allocated and pushed to the top of the stack at 0 cost.
+### Stack state
 
-## Example Walkthrough
+The stack is ordered from least recently used on the left to most recently used on the right. Distances are counted in bytes from the top, so the rightmost byte has depth 1.
 
-### 1. Basic Execution (`int8` Variables)
-Consider calling the following function with four 1-byte (`int8`) values:
+Each live value $x$ of size $|x|$ bytes occupies a contiguous block of $|x|$ byte positions.
+
+### Initialization
+
+On function entry, the arguments are placed on the stack in call order, so the last argument is closest to the top. For example,
+
+```text
+[a, b, c, d]
+```
+
+with `right = top/Most Recently Used` gives depths `d=1`, `c=2`, `b=3`, `a=4` when each argument is 1 byte.
+
+### Cost of reading a value
+
+If a value $x$ occupies byte depths $D(x)$, then reading $x$ costs
+
+$$
+C(x) = \sum_{d \in D(x)} \sqrt{d}.
+$$
+
+A 1-byte value at depth 3 costs $\sqrt{3}$. A 2-byte value spanning depths 4 and 5 costs $\sqrt{4} + \sqrt{5}$.
+
+### Instruction semantics
+
+Consider an instruction with input list $x_1, \ldots, x_m$ and outputs $y_1, \ldots, y_n$.
+
+1. **Price the reads.** Each input occurrence $x_j$ is charged against the stack state at the **start** of the instruction:
+
+   $$
+   \mathrm{cost} = \sum_{j=1}^{m} C(x_j).
+   $$
+
+   If the same input appears twice, it is charged twice.
+
+2. **Update recency.** After all read costs are computed, move each distinct input block to the top of the stack, preserving the order of its last occurrence in the input list.
+
+3. **Push outputs.** Allocate the outputs as fresh blocks and push them onto the top of the stack at zero cost.
+
+## Example walkthrough
+
+### 1. Basic execution (`int8` variables)
+
+Consider
 
 ```python
-def myAdd(a, b, c, d):
+def add(a, b, c, d):
     return b + c
 ```
 
-**1. Initialization**
+with 1-byte arguments.
 
-Stack (right is top/MRU): [a, b, c, d]
+**Initial stack**
 
-Distances: d=1, c=2, b=3, a=4
+```text
+[a, b, c, d]
+```
 
-Cost: 0
+with `right = top/Most Recently Used`, so `d=1`, `c=2`, `b=3`, `a=4`.
 
-**2. Instruction Execution** (`b + c`)
+**Read cost of `b + c`**
 
-- **Reads inputs into the registers:** (Distances are evaluated before the stack updates)
-  - Read b: distance 3 $\rightarrow$ cost $\sqrt{3}$
-  - Read c: distance 2 $\rightarrow$ cost $\sqrt{2}$
-  - Total Read Cost: $\sqrt{3} + \sqrt{2}$
+- read `b`: cost $\sqrt{3}$
+- read `c`: cost $\sqrt{2}$
 
-- **Updates LRU:**
-  - Move inputs to the top of the stack in order of reading: [a, d, b, c]
+Total cost:
 
-- **Pushes Result:**
-  - Push the new computed value to the top of the stack (allocated as _r0): [a, d, b, c, _r0]
+$$
+\sqrt{3} + \sqrt{2}.
+$$
 
-(This cost can be measured programmatically in Python via `cost, result = measureDMD(myAdd, a, b, c, d)`).
+**Update stack**
 
-### 2. Multi-Byte Variables
+Remove the referenced inputs and append them in read order:
 
-Consider executing `myAdd(a,b,c,d)` where `b` and `c` are 2-byte `int16` integers, while `a` and `d` are 1-byte `int8` integers.
+```text
+[a, d, b, c]
+```
 
-Initial Stack Distances (Top-Down):
-- d (1 byte): distance 1
-- c (2 bytes): distances 2, 3
-- b (2 bytes): distances 4, 5
-- a (1 byte): distance 6
+Then push the result `_r0`:
 
-Executing `b + c` reads b then c.
+```text
+[a, d, b, c, _r0]
+```
 
-Trace of byte distances read: [5, 4, 3, 2].
+### 2. Multi-byte values
 
-The total operation cost is $\sqrt{5} + \sqrt{4} + \sqrt{3} + \sqrt{2}$.
+Now let `a` and `d` be 1-byte values, and let `b` and `c` be 2-byte values.
 
-### 3. Read Order Matters
+The initial stack contains 6 bytes total:
 
-Because the LRU stack updates sequentially based on the order variables are read, argument ordering impacts the final stack state:
+- `d` occupies depth `{1}`
+- `c` occupies depths `{2, 3}`
+- `b` occupies depths `{4, 5}`
+- `a` occupies depth `{6}`
 
-- `return b + c` $\rightarrow$ final stack: [a, d, b, c, _r0]
-- `return c + b` $\rightarrow$ final stack: [a, d, c, b, _r0]
+Executing `b + c` charges
 
-## Notes
-If an instruction repeats the argument, the cost is charged multiple times. For example, `A[i][j] * A[i][j]` will load `A[i][j]` twice into the stack, incurring the data movement cost twice.
+$$
+C(b) + C(c) = (\sqrt{4} + \sqrt{5}) + (\sqrt{2} + \sqrt{3}).
+$$
 
-## Future Work
+Equivalently,
 
-### Bits vs. Bytes
+$$
+\sqrt{5} + \sqrt{4} + \sqrt{3} + \sqrt{2}.
+$$
 
-ByteDMD currently operates on byte boundaries because bit-level operations are not readily exposed in standard high-level runtimes. One could consider a BitDMD metric which works on bit-level boundaries. 
+The post-instruction block order is still
 
-### Extending to Parallel Execution
+```text
+[a, d, b, c, _r0]
+```
 
-The current model assumes 0 cost for loading function arguments onto the stack. In multi-processor systems, we may use a different number, which replaces 0 cost with a distance based measure incorporating the physical location of the processor relative to the original data source.
+where `b`, `c`, and `_r0` are now multi-byte blocks.
+
+### 3. Read order matters
+
+Because recency is updated from the operand list, operand order changes the final stack state:
+
+- `return b + c` gives
+
+  ```text
+  [a, d, b, c, _r0]
+  ```
+
+- `return c + b` gives
+
+  ```text
+  [a, d, c, b, _r0]
+  ```
+
+For a fixed set of distinct operands, the read cost of the current instruction is unchanged; what changes is the stack state seen by later instructions.
+
+### 4. Repeated operands
+
+If an instruction reads the same value twice, it is charged twice because the input list contains two read events. For example, in
+
+```python
+A[i][j] * A[i][j]
+```
+
+the value `A[i][j]` contributes its read cost twice.
+
+Under the convention above, both charges are computed from the stack state at the start of the instruction, and the block is moved to the top only once when recency is updated.
+
+## Future work
+
+### Bits vs. bytes
+
+ByteDMD works at byte granularity because byte-level objects are directly exposed in most high-level runtimes. A finer BitDMD variant could charge at the bit level.
+
+### Parallel execution
+
+The current model gives function-entry argument placement zero cost. In a multi-processor setting, that step could instead be charged according to the distance from the original data location to the processor executing the computation.
