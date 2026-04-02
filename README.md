@@ -15,6 +15,8 @@ Instead of defining a cache hierarchy (L1/L2/L3) which creates a family of metri
 **The Byte-Level Extension:**
 The original DMD metric models abstract variables. Modern algorithms often optimize runtime by downcasting intermediate variables to smaller data types (e.g., `int8` vs `float32`). **ByteDMD** treats scalar entries as contiguous blocks of bytes and tracks distances at the *byte level* to reward this optimization.
 
+![ByteDMD](dmd.png)
+
 ## Computation Model
 
 We model an idealized processor with infinite registers, a byte-level LRU stack, and a list of valid instructions. Writes are free, execution is free, while reads incur a cost based on the depth of the target byte in the LRU stack. Each instruction accepts 1 or more inputs and produces 0 or more outputs.
