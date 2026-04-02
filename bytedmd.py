@@ -1,10 +1,16 @@
 import math
 import operator
 
+
+def isqrt_ceil(x):
+    if x <= 0:
+        return 0
+    return math.isqrt(x - 1) + 1
+
 """
 Implements ByteDMD metric from README.md
 
-measureDMD(sum, 1, 2) calls sum(1, 2) and returns (sqrt(1) + sqrt(2), 3) where sqrt(1) + sqrt(2) is DMD cost and 3 is the result of running the function
+measureDMD(sum, 1, 2) calls sum(1, 2) and returns (isqrt_ceil(1) + isqrt_ceil(2), 3) where isqrt_ceil(1) + isqrt_ceil(2) is DMD cost and 3 is the result of running the function
 
 These are provided for additional testing:
 measureDMDSquared omits square root in distance calculations, giving integer-valued distance measure
@@ -136,7 +142,7 @@ def _simulate(func, args):
 
 def measureDMD(func, *args):
     accesses, result = _simulate(func, args)
-    return sum(math.sqrt(d) for d in accesses), result
+    return sum(isqrt_ceil(d) for d in accesses), result
 
 
 def measureDMDSquared(func, *args):

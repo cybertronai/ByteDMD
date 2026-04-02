@@ -172,6 +172,10 @@ the value `A[i][j]` contributes its read cost twice.
 
 Under the convention above, both charges are computed from the stack state at the start of the instruction, and the block is moved to the top only once when recency is updated.
 
+### 5. Numeric considerations
+
+To avoid floating point arithmetic we replace all floating square roots with smallest integer upper bounds.
+
 ## Future work
 
 ### Bits vs. bytes
