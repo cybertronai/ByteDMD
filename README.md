@@ -3,13 +3,13 @@
 [Original Google Doc](https://docs.google.com/document/d/1sj5NqOg6Yqh10bXzGVEF5uIzSjFWAnqqTE75AMng2-s/edit?tab=t.0#heading=h.ujy6ygk7sjmb)
 
 TLDR;
-- memory wall means that reducing the amount of data movement is more important than reducing amount of arithmetic
-- implement a cost function which measures the cost of data movement 
-- use VLSI heuristic that cost of reading from cache of size $L$ on a 2D chip is $\propto \sqrt{L}$.
+- Memory wall means that reducing data movement is more important than reducing arithmetic
+- Implement a cost function which measures the cost of data movement 
+- Apply VLSI heuristic that cost of reading from cache of size $L$ on a 2D chip scales in proportion to $\sqrt{L}$.
 
 ## Motivation
 
-Modern architectures spend energy moving data than doing arithmetic, hence FLOP counts miss an important part of algorithmic cost. ByteDMD is intended as a simple scalar replacement of FLOP count. 
+Modern architectures spend energy moving data than doing arithmetic, hence FLOP count is no longer representative of algorithmic cost. ByteDMD is intended as a simple scalar replacement of FLOP count. 
 
 Bill Dally ([ACM Opinion](https://cacm.acm.org/opinion/on-the-model-of-computation-point/)) proposed a spatial model in which bytes live on a 2D grid and movement is penalized by Manhattan distance to the processor. Manually assigning spatial coordinates makes that model awkward for classical algorithms, so we replace manual placement with an automatic rule.
 

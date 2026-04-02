@@ -2,7 +2,7 @@ import math
 import operator
 
 """
-Implements ByteDMD metric from README.md: measureDMD, measureDMDSquared, and byteReadTrace.
+Implements ByteDMD metric from README.md
 
 measureDMD(sum, 1, 2) calls sum(1, 2) and returns (sqrt(1) + sqrt(2), 3) where sqrt(1) + sqrt(2) is DMD cost and 3 is the result of running the function
 
