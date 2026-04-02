@@ -6,9 +6,9 @@ def usqrt(x):
     return math.isqrt(x - 1) + 1
 
 """
-Implements ByteDMD metric from README.md
+Implements ByteDMD cost model from README.md
 
-measure_dmd(add, (1, 2)) calls add(1, 2) and returns (usqrt(1) + usqrt(2), 3) where usqrt(1) + usqrt(2) is DMD cost and 3 is the result of running the function, and usqrt is the upper integer square root
+measure_dmd(add, (1, 2)) calls add(1, 2) and returns (ByteDMD_cost, 3)
 """
 
 class _TrackedContext:

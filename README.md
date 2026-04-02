@@ -1,9 +1,9 @@
-# A metric of complexity for the 21st century: ByteDMD
+# A cost model of complexity for the 21st century: ByteDMD
 
 TLDR;
 - Memory wall means that reducing data movement is more important than reducing arithmetic
-- Implement a cost function which measures the cost of data movement 
-- Apply VLSI heuristic that cost of reading from cache of size $L$ scales in proportion to $\sqrt{L}$.
+- Implement a cost function which captures the cost of data movement 
+- Use 2D VLSI heuristic where cost of accessing a cache of size $L$ scales in proportion to $\sqrt{L}$.
 
 ## Motivation
 
@@ -13,7 +13,7 @@ Bill Dally ([ACM Opinion](https://cacm.acm.org/opinion/on-the-model-of-computati
 
 A natural starting point is the "geometric stack" introduced by Ding and Smith ([Beyond Time Complexity, 2022](https://arxiv.org/abs/2203.02536)). In that model, memory is represented as an infinitely layered LRU stack, and accessing depth $d$ costs $\sqrt{d}$. This can be viewed as as Dally's Manhattan distance approach applied to cache arranged in concentric circles in 2D.
 
-The original DMD treats values abstractly. ByteDMD refines the model to the byte level: a $k$-byte value occupies $k$ consecutive positions in the stack. This lets the metric reward algorithms that prefer smaller data-types like `int8` instead of `float32`.
+The original DMD treats values abstractly. ByteDMD refines the model to the byte level: a $k$-byte value occupies $k$ consecutive positions in the stack. This reward algorithms that prefer smaller data-types like `int8` instead of `float32`.
 
 ![ByteDMD](dmd.png)
 
