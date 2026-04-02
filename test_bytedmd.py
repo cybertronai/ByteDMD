@@ -1,50 +1,38 @@
 import numpy as np
-from bytedmd import measureDMD, measureDMDSquared, byteReadTrace
+from bytedmd import measure_dmd, traced_eval
 
 
-def myAdd(a, b, c, d):
+def my_add(a, b, c, d):
     return b + c
 
 
-def test_myAdd_int8():
+def test_my_add_int8():
     a, b, c, d = np.int8(1), np.int8(2), np.int8(3), np.int8(4)
-    cost, result = measureDMD(myAdd, a, b, c, d)
+    cost, result = measure_dmd(my_add, (a, b, c, d))
     assert cost == 4
     assert result == np.int8(5)
 
 
-def test_myAdd_int8_dmd_squared():
-    a, b, c, d = np.int8(1), np.int8(2), np.int8(3), np.int8(4)
-    cost, result = measureDMDSquared(myAdd, a, b, c, d)
-    assert cost == 3 + 2
-
-
 # Example of using a mixture of one byte and two byte data types.
-def test_myAdd_hybrid_trace():
+def test_my_add_hybrid_trace():
     a, b, c, d = np.int8(1), np.int16(2), np.int16(3), np.int8(4)
-    trace, result = byteReadTrace(myAdd, a, b, c, d)
+    trace, result = traced_eval(my_add, (a, b, c, d))
     assert trace == [5, 4, 3, 2]
     assert result == np.int16(5)
 
 
-def myFunc2(a, b, c, d):
+def my_func2(a, b, c, d):
     e = b + c
     f = a + d
     return e > f
 
 
-def test_myFunc2():
+def test_my_func2():
     a, b, c, d = np.int8(1), np.int16(2), np.int16(3), np.int8(4)
-    trace, result = byteReadTrace(myFunc2, a, b, c, d)
+    trace, result = traced_eval(my_func2, (a, b, c, d))
     assert trace == [5, 4, 3, 2, 8, 7, 5, 4, 1]
-    cost, result = measureDMD(myFunc2, a, b, c, d)
+    cost, result = measure_dmd(my_func2, (a, b, c, d))
     assert cost == 21
-
-
-def test_myFunc2_dmd_squared():
-    a, b, c, d = np.int8(1), np.int16(2), np.int16(3), np.int8(4)
-    cost, result = measureDMDSquared(myFunc2, a, b, c, d)
-    assert cost == 5 + 4 + 3 + 2 + 8 + 7 + 5 + 4 + 1
 
 
 # --- For-loop array-based functions (runtime tracing) ---
@@ -104,43 +92,31 @@ def matmul4_tiled(A, B):
     return C
 
 
-def test_matmul4_dmd_squared():
+def test_matmul4():
     A = np.ones((4, 4), dtype=np.int8)
     B = np.ones((4, 4), dtype=np.int8)
-    cost, result = measureDMDSquared(matmul4, A, B)
-    assert cost == 5166
+    cost, result = measure_dmd(matmul4, (A, B))
+    assert cost == 948
+
+
+def test_matmul4_tiled():
+    A = np.ones((4, 4), dtype=np.int8)
+    B = np.ones((4, 4), dtype=np.int8)
+    cost, result = measure_dmd(matmul4_tiled, (A, B))
+    assert cost == 947
 
 
 def test_matvec4():
     A = np.ones((4, 4), dtype=np.int8)
     x = np.ones(4, dtype=np.int8)
-    cost, result = measureDMD(matvec4, A, x)
+    cost, result = measure_dmd(matvec4, (A, x))
     assert cost == 194
-
-
-def test_matvec4_dmd_squared():
-    A = np.ones((4, 4), dtype=np.int8)
-    x = np.ones(4, dtype=np.int8)
-    cost, result = measureDMDSquared(matvec4, A, x)
-    assert cost == 792
 
 
 def test_vecmat4():
     A = np.ones((4, 4), dtype=np.int8)
     x = np.ones(4, dtype=np.int8)
-    cost, result = measureDMD(vecmat4, A, x)
+    cost, result = measure_dmd(vecmat4, (A, x))
     assert cost == 191
 
 
-def test_vecmat4_dmd_squared():
-    A = np.ones((4, 4), dtype=np.int8)
-    x = np.ones(4, dtype=np.int8)
-    cost, result = measureDMDSquared(vecmat4, A, x)
-    assert cost == 768
-
-
-def test_matmul4_tiled_dmd_squared():
-    A = np.ones((4, 4), dtype=np.int8)
-    B = np.ones((4, 4), dtype=np.int8)
-    cost, result = measureDMDSquared(matmul4_tiled, A, B)
-    assert cost == 5062

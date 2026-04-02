@@ -1,7 +1,5 @@
 # A metric of complexity for the 21st century: ByteDMD
 
-[Original Google Doc](https://docs.google.com/document/d/1sj5NqOg6Yqh10bXzGVEF5uIzSjFWAnqqTE75AMng2-s/edit?tab=t.0#heading=h.ujy6ygk7sjmb)
-
 TLDR;
 - Memory wall means that reducing data movement is more important than reducing arithmetic
 - Implement a cost function which measures the cost of data movement 
@@ -9,7 +7,7 @@ TLDR;
 
 ## Motivation
 
-Modern architectures spend energy moving data than doing arithmetic, hence FLOP count is no longer representative of algorithmic cost. ByteDMD is intended as a simple scalar replacement of FLOP count. 
+Modern architectures spend more energy moving data than doing arithmetic, hence FLOP count is no longer representative of real-life cost. ByteDMD is intended as a more represenative scalar replacement of FLOP count. 
 
 Bill Dally ([ACM Opinion](https://cacm.acm.org/opinion/on-the-model-of-computation-point/)) proposed a spatial model in which bytes live on a 2D grid and movement is penalized by Manhattan distance to the processor. Manually assigning spatial coordinates makes that model awkward for classical algorithms, so we replace manual placement with an automatic rule.
 
@@ -41,7 +39,7 @@ with `right = top/Most Recently Used` gives depths `d=1`, `c=2`, `b=3`, `a=4` wh
 
 ### Cost of reading a value
 
-To avoid floating-point arithmetic, we compute the cost using the ceiling of the square root, denoted $\lceil\sqrt{d}\rceil$. This is implemented as `isqrt_ceil(x) = isqrt(x - 1) + 1`.
+To avoid floating-point arithmetic, we compute the cost using the ceiling of the square root, denoted $\lceil\sqrt{d}\rceil$. This is implemented as `usqrt(x) = isqrt(x - 1) + 1` where `isqrt` is the standard integer (floor) square root.
 
 If a value $x$ occupies byte depths $D(x)$, then reading $x$ costs
 
@@ -74,7 +72,7 @@ $$
 Consider
 
 ```python
-def add(a, b, c, d):
+def my_add(a, b, c, d):
     return b + c
 ```
 
@@ -173,3 +171,6 @@ ByteDMD works at byte granularity because byte-level objects are directly expose
 ### Parallel execution
 
 The current model gives function-entry argument placement zero cost. In a multi-processor setting, that step could instead be charged according to the distance from the original data location to the processor executing the computation.
+
+
+[Original Google Doc](https://docs.google.com/document/d/1sj5NqOg6Yqh10bXzGVEF5uIzSjFWAnqqTE75AMng2-s/edit?tab=t.0#heading=h.ujy6ygk7sjmb)

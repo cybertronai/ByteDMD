@@ -2,17 +2,13 @@ import math
 import operator
 
 
-def isqrt_ceil(x):
+def usqrt(x):
     return math.isqrt(x - 1) + 1
 
 """
 Implements ByteDMD metric from README.md
 
-measureDMD(sum, 1, 2) calls sum(1, 2) and returns (isqrt_ceil(1) + isqrt_ceil(2), 3) where isqrt_ceil(1) + isqrt_ceil(2) is DMD cost and 3 is the result of running the function
-
-These are provided for additional testing:
-measureDMDSquared omits square root in distance calculations, giving integer-valued distance measure
-byteReadTrace: instead of distance, gives a list of integers with byte-access distances
+measure_dmd(add, (1, 2)) calls add(1, 2) and returns (usqrt(1) + usqrt(2), 3) where usqrt(1) + usqrt(2) is DMD cost and 3 is the result of running the function, and usqrt is the upper integer square root
 """
 
 class _TrackedContext:
@@ -21,7 +17,7 @@ class _TrackedContext:
     def __init__(self):
         self.stack = []     # LRU stack (rightmost = MRU)
         self.sizes = {}     # key -> size in bytes
-        self.accesses = []  # list of distance accesses
+        self.trace = []  # list of byte-access distances
         self._counter = 0
 
     def allocate(self, size):
@@ -41,7 +37,7 @@ class _TrackedContext:
             size = self.sizes[key]
             for k in reversed(self.stack):
                 if k == key:
-                    self.accesses.extend(range(depth + size, depth, -1))
+                    self.trace.extend(range(depth + size, depth, -1))
                     break
                 depth += self.sizes[k]
                 
@@ -127,26 +123,20 @@ def _unwrap(val):
     return val
 
 
-def _simulate(func, args):
+def traced_eval(func, args):
     """Run func with traced arguments.
-    Returns (accesses, result) where accesses is a list of distances.
+    Returns (trace, result) where trace is a list of distances.
     """
     ctx = _TrackedContext()
     traced_args = [_wrap(ctx, val) for val in args]
     
     ret = func(*traced_args)
-    return ctx.accesses, _unwrap(ret)
+    return ctx.trace, _unwrap(ret)
 
 
-def measureDMD(func, *args):
-    accesses, result = _simulate(func, args)
-    return sum(isqrt_ceil(d) for d in accesses), result
+def measure_dmd(func, args):
+    trace, result = traced_eval(func, args)
+    return sum(usqrt(d) for d in trace), result
 
 
-def measureDMDSquared(func, *args):
-    accesses, result = _simulate(func, args)
-    return sum(accesses), result
 
-
-def byteReadTrace(func, *args):
-    return _simulate(func, args)
