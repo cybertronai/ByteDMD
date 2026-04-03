@@ -12,18 +12,15 @@
 
 Modern architectures spend more energy moving data than doing arithmetic, making FLOP counts an outdated cost metric. Bill Dally ([ACM Opinion](https://cacm.acm.org/opinion/on-the-model-of-computation-point/)) proposed penalizing data movement based on 2D spatial distance to the processor. To avoid manual spatial mapping, Ding and Smith ([Beyond Time Complexity, 2022](https://arxiv.org/abs/2203.02536)) automated this via Data Movement Distance (DMD): a rule treating memory as an LRU stack where reading depth $d$ costs $\sqrt{d}$, modeling a cache laid out in 2D.
 
-The original DMD treats values abstractly. ByteDMD refines this to the byte level: a $k$-byte value occupies $k$ consecutive stack positions, intrinsically favoring smaller data types.
+The original DMD treats values abstractly. ByteDMD refines this to the element level: each scalar occupies one stack position, and a configurable `bits_per_element` parameter (default 8) scales distances to model different data-type widths.
 
 ## Computation Model
 
-An idealized processor operates directly on a byte-level LRU stack. **Computations and writes are free; only memory reads incur a cost.**
+An idealized processor operates directly on an element-level LRU stack. **Computations and writes are free; only memory reads incur a cost.**
 
-- **Stack State:** Ordered from least recently used (bottom) to most recently used (top). Depth is measured in bytes from the top (topmost byte = depth 1). A $k$-byte value occupies $k$ contiguous depths.
+- **Stack State:** Ordered from least recently used (bottom) to most recently used (top). Depth is measured in elements from the top (topmost element = depth 1). Each scalar occupies one position.
 - **Initialization:** On function entry, arguments are pushed to the top in call order.
-- **Read Cost:** Reading a value $x$ spanning byte depths $D(x)$ costs:
-
-$$C(x) = \sum_{d \in D(x)} \lceil\sqrt{d}\rceil$$
-
+- **Read Cost:** Reading a value at element depth $d$ costs $\lceil\sqrt{d \cdot B/8}\rceil$ where $B$ is `bits_per_element` (default 8).
 
 ### Instruction Semantics
 
@@ -35,7 +32,7 @@ For an instruction with inputs $x_1, \dots, x_m$ and outputs $y_1, \dots, y_n$:
 
 ## Example Walkthrough
 
-Consider the following function with 1-byte arguments `a`, `d` and 2-byte arguments `b`, `c`:
+Consider the following function with four scalar arguments:
 
 ```python
 def my_add(a, b, c, d):
@@ -43,29 +40,25 @@ def my_add(a, b, c, d):
 ```
 
 **1. Initial Stack** 
-Arguments are pushed in call order `[a, b, c, d]`, yielding these stack depths from the top:
-- `d`: `{1}`
-- `c`: `{2, 3}`
-- `b`: `{4, 5}`
-- `a`: `{6}`
+Arguments are pushed in call order `[a, b, c, d]`, yielding element depths from the top:
+- `d`: depth 1
+- `c`: depth 2
+- `b`: depth 3
+- `a`: depth 4
 
 **2. Read Cost**  
-Inputs are priced simultaneously against the initial stack state:
+Inputs are priced simultaneously against the initial stack state (with default `bits_per_element=8`, each element is 1 byte):
 
-$$C(b) + C(c) = (\lceil\sqrt{4}\rceil + \lceil\sqrt{5}\rceil) + (\lceil\sqrt{2}\rceil + \lceil\sqrt{3}\rceil) = (2 + 3) + (2 + 2) = 9$$
+$$C(b) + C(c) = \lceil\sqrt{3}\rceil + \lceil\sqrt{2}\rceil = 2 + 2 = 4$$
 
 **3. Update Stack**  
-Inputs move to the top sequentially in read order (`b`, then `c`), followed by the new `result` block being pushed:
+Inputs move to the top sequentially in read order (`b`, then `c`), followed by the new `result` being pushed:
 ```text
 [a, d, b, c, result]
 ```
 
 
 ## Future Work
-### Bits vs. Bytes
-
-ByteDMD operates at byte granularity because bytes are exposed directly in high-level runtimes. A finer BitDMD variant could charge at the bit level.
-
 ### Parallel Execution
 
 Currently, initializing a function's arguments on the stack is considered a free operation. To model parallelism we could introduce multiple processors with their own LRU stacks. Initializing arguments onto the stack could incur a cost proportional to the distance between the data's original location and the location of the LRU stack.

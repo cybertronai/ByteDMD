@@ -18,34 +18,31 @@ class _TrackedContext:
 
     def __init__(self):
         self.stack = []     # LRU stack (rightmost = MRU)
-        self.sizes = {}     # key -> size in bytes
-        self.trace = []  # list of byte-access distances
+        self.trace = []  # list of access distances
         self._counter = 0
 
-    def allocate(self, size):
-        """Allocate a new block at the top of the stack and return its key."""
+    def allocate(self):
+        """Allocate a new entry at the top of the stack and return its key."""
         self._counter += 1
         key = self._counter
-        self.sizes[key] = size
         self.stack.append(key)
         return key
 
     def read_all_then_move(self, keys):
         """Read all operands at current distances, then move all to top."""
         for key in keys:
-            if key not in self.sizes:
+            if key is None:
                 continue
             depth = 0
-            size = self.sizes[key]
             for k in reversed(self.stack):
                 if k == key:
-                    self.trace.extend(range(depth + size, depth, -1))
+                    self.trace.append(depth + 1)
                     break
-                depth += self.sizes[k]
-                
+                depth += 1
+
         # Update LRU stack
         for key in keys:
-            if key in self.sizes:
+            if key is not None:
                 self.stack.remove(key)
                 self.stack.append(key)
 
@@ -53,11 +50,10 @@ class _TrackedContext:
 class _TrackedValue:
     """A scalar value that records read operations on a shared LRU stack."""
 
-    def __init__(self, ctx, key, value, nbytes=1):
+    def __init__(self, ctx, key, value):
         self._ctx = ctx
         self._key = key
         self.value = value
-        self.nbytes = nbytes
 
     def _do_op(self, other, op_func, reverse=False):
         if isinstance(other, _TrackedValue):
@@ -71,14 +67,8 @@ class _TrackedValue:
 
         val1, val2 = (other_val, self.value) if reverse else (self.value, other_val)
         res_val = op_func(val1, val2)
-        res_size = getattr(res_val, 'nbytes', 1)
-        
-        return _TrackedValue(
-            self._ctx, 
-            self._ctx.allocate(res_size), 
-            res_val, 
-            res_size
-        )
+
+        return _TrackedValue(self._ctx, self._ctx.allocate(), res_val)
 
     def __add__(self, o): return self._do_op(o, operator.add)
     def __radd__(self, o): return self._do_op(o, operator.add, reverse=True)
@@ -97,21 +87,14 @@ class _TrackedValue:
     def __neg__(self):
         self._ctx.read_all_then_move([self._key])
         res_val = -self.value
-        res_size = getattr(res_val, 'nbytes', 1)
-        return _TrackedValue(
-            self._ctx, 
-            self._ctx.allocate(res_size), 
-            res_val, 
-            res_size
-        )
+        return _TrackedValue(self._ctx, self._ctx.allocate(), res_val)
 
 
 def _wrap(ctx, val):
     """Recursively convert ndarrays/lists of items into nested lists of tracked scalars."""
     if getattr(val, 'ndim', 0) > 0 or isinstance(val, (list, tuple)):
         return [_wrap(ctx, v) for v in val]
-    size = getattr(val, 'nbytes', 1)
-    return _TrackedValue(ctx, ctx.allocate(size), val, size)
+    return _TrackedValue(ctx, ctx.allocate(), val)
 
 
 def _unwrap(val):
@@ -136,9 +119,10 @@ def traced_eval(func, args):
     return ctx.trace, _unwrap(ret)
 
 
-def bytedmd(func, args):
+def bytedmd(func, args, bits_per_element=8):
     trace, result = traced_eval(func, args)
-    return sum(usqrt(d) for d in trace)
+    bytes_per_element = bits_per_element / 8
+    return sum(usqrt(int(d * bytes_per_element)) for d in trace)
 
 
 

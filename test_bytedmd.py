@@ -7,18 +7,9 @@ def my_add(a, b, c, d):
     return b + c
 
 
-def test_my_add_int8():
-    a, b, c, d = np.int8(1), np.int8(2), np.int8(3), np.int8(4)
-    cost = bytedmd(my_add, (a, b, c, d))
+def test_my_add():
+    cost = bytedmd(my_add, (1, 2, 3, 4))
     assert cost == 4
-
-
-# Example of using a mixture of one byte and two byte data types.
-def test_my_add_hybrid_trace():
-    a, b, c, d = np.int8(1), np.int16(2), np.int16(3), np.int8(4)
-    trace, result = traced_eval(my_add, (a, b, c, d))
-    assert trace == [5, 4, 3, 2]
-    assert result == np.int16(5)
 
 
 def my_composite_func(a, b, c, d):
@@ -28,11 +19,10 @@ def my_composite_func(a, b, c, d):
 
 
 def test_my_composite_func():
-    a, b, c, d = np.int8(1), np.int16(2), np.int16(3), np.int8(4)
-    trace, result = traced_eval(my_composite_func, (a, b, c, d))
-    assert trace == [5, 4, 3, 2, 8, 7, 5, 4, 1]
-    cost = bytedmd(my_composite_func, (a, b, c, d))
-    assert cost == 21
+    trace, result = traced_eval(my_composite_func, (1, 2, 3, 4))
+    assert trace == [3, 2, 5, 4, 4, 1]
+    cost = bytedmd(my_composite_func, (1, 2, 3, 4))
+    assert cost == 12
 
 
 # --- For-loop array-based functions (runtime tracing) ---
@@ -93,31 +83,52 @@ def matmul4_tiled(A, B):
 
 
 def test_matmul4():
-    A = np.ones((4, 4), dtype=np.int8)
-    B = np.ones((4, 4), dtype=np.int8)
+    A = np.ones((4, 4))
+    B = np.ones((4, 4))
     cost = bytedmd(matmul4, (A, B))
     assert cost == 948
 
 
 def test_matmul4_tiled():
-    A = np.ones((4, 4), dtype=np.int8)
-    B = np.ones((4, 4), dtype=np.int8)
+    A = np.ones((4, 4))
+    B = np.ones((4, 4))
     cost = bytedmd(matmul4_tiled, (A, B))
     assert cost == 947
 
 
 def test_matvec4():
-    A = np.ones((4, 4), dtype=np.int8)
-    x = np.ones(4, dtype=np.int8)
+    A = np.ones((4, 4))
+    x = np.ones(4)
     cost = bytedmd(matvec4, (A, x))
     assert cost == 194
 
 
 def test_vecmat4():
-    A = np.ones((4, 4), dtype=np.int8)
-    x = np.ones(4, dtype=np.int8)
+    A = np.ones((4, 4))
+    x = np.ones(4)
     cost = bytedmd(vecmat4, (A, x))
     assert cost == 191
+
+
+def dot(a, b):
+    """Dot product of two vectors."""
+    s = a[0] * b[0]
+    for i in range(1, len(a)):
+        s = s + a[i] * b[i]
+    return s
+
+
+def matmul4_functional(A, B):
+    """4x4 matrix multiply C = A @ B, functional style."""
+    n = len(A)
+    return [[dot(A[i], [B[k][j] for k in range(n)]) for j in range(n)] for i in range(n)]
+
+
+def test_matmul4_functional():
+    A = np.ones((4, 4))
+    B = np.ones((4, 4))
+    cost = bytedmd(matmul4_functional, (A, B))
+    assert cost == 948
 
 
 if __name__ == "__main__":
