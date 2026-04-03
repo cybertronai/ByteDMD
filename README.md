@@ -23,7 +23,6 @@ An idealized processor operates directly on a byte-level LRU stack. **Computatio
 
 $$C(x) = \sum_{d \in D(x)} \lceil\sqrt{d}\rceil$$
 
-  *(e.g., a 2-byte value spanning depths 4 and 5 costs $\lceil\sqrt{4}\rceil + \lceil\sqrt{5}\rceil = 2 + 3 = 5$)*
 
 ### Instruction Semantics
 
