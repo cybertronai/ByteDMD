@@ -1,7 +1,7 @@
 """
 Implements ByteDMD cost model
 
-bytedmd(add, (1, 2)) calls add(1, 2) and returns (ByteDMD_cost, 3)
+bytedmd(add, (1, 2)) calls add(1, 2) and returns ByteDMD_cost
 """
 
 import math
@@ -138,7 +138,7 @@ def traced_eval(func, args):
 
 def bytedmd(func, args):
     trace, result = traced_eval(func, args)
-    return sum(usqrt(d) for d in trace), result
+    return sum(usqrt(d) for d in trace)
 
 
 
