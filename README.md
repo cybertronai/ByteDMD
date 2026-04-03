@@ -3,7 +3,8 @@
 **TL;DR**
 - The memory wall makes reducing data movement more important than reducing arithmetic.
 - Instead of FLOP count, focus on the cost of data movement.
-- Assume a fine-grained LRU cache in 2D and use wire length to model the cost of accessing faraway bytes.
+- Use wire length to model the cost of reads, place data automatically according to LRU heuristic
+
 
 ![ByteDMD](docs/dmd_animated.gif)
 
@@ -34,7 +35,12 @@ For an instruction with inputs $x_1, \dots, x_m$ and outputs $y_1, \dots, y_n$:
 
 ## Example Walkthrough
 
-Consider 1-byte arguments `a`, `d`, and 2-byte arguments `b`, `c`. Execute `return b + c`.
+Consider the following function with 1-byte arguments `a`, `d` and 2-byte arguments `b`, `c`:
+
+```python
+def my_add(a, b, c, d):
+    return b + c
+```
 
 **1. Initial Stack** 
 Arguments are pushed in call order `[a, b, c, d]`, yielding these stack depths from the top:
@@ -46,7 +52,7 @@ Arguments are pushed in call order `[a, b, c, d]`, yielding these stack depths f
 **2. Read Cost**  
 Inputs are priced simultaneously against the initial stack state:
 
-$$\mathrm{cost} = C(b) + C(c) = (\lceil\sqrt{4}\rceil + \lceil\sqrt{5}\rceil) + (\lceil\sqrt{2}\rceil + \lceil\sqrt{3}\rceil) = (2 + 3) + (2 + 2) = 9$$
+$$C(b) + C(c) = (\lceil\sqrt{4}\rceil + \lceil\sqrt{5}\rceil) + (\lceil\sqrt{2}\rceil + \lceil\sqrt{3}\rceil) = (2 + 3) + (2 + 2) = 9$$
 
 **3. Update Stack**  
 Inputs move to the top sequentially in read order (`b`, then `c`), followed by the new `result` block being pushed:
