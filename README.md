@@ -22,13 +22,12 @@ print("ByteDMD cost: ", bytedmd(dot, (a, b))) # 14
 
 ## Motivation
 
-![ByteDMD](docs/illustration.gif)
-
-
 **TL;DR**
 - The memory wall makes reducing data movement more important than reducing arithmetic.
 - Instead of FLOP count, focus on the cost of data movement.
 - Manage data using continuous LRU stack, use wire length in 2D to model the cost of reads
+
+![ByteDMD](docs/illustration.gif)
 
 
 Modern architectures spend more energy moving data than doing arithmetic, making FLOP counts an outdated cost metric. Bill Dally ([ACM Opinion](https://cacm.acm.org/opinion/on-the-model-of-computation-point/)) proposed penalizing data movement based on 2D spatial distance to the processor. To avoid manual spatial mapping, Ding and Smith ([Beyond Time Complexity, 2022](https://arxiv.org/abs/2203.02536)) automated this via Data Movement Distance (DMD): a rule treating memory as an LRU stack where reading depth $d$ costs $\sqrt{d}$, modeling a cache laid out in 2D.
