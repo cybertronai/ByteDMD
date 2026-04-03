@@ -22,17 +22,17 @@ def test_my_add_hybrid_trace():
     assert result == np.int16(5)
 
 
-def my_func2(a, b, c, d):
+def my_composite_func(a, b, c, d):
     e = b + c
     f = a + d
     return e > f
 
 
-def test_my_func2():
+def test_my_composite_func():
     a, b, c, d = np.int8(1), np.int16(2), np.int16(3), np.int8(4)
-    trace, result = traced_eval(my_func2, (a, b, c, d))
+    trace, result = traced_eval(my_composite_func, (a, b, c, d))
     assert trace == [5, 4, 3, 2, 8, 7, 5, 4, 1]
-    cost, result = measure_dmd(my_func2, (a, b, c, d))
+    cost, result = measure_dmd(my_composite_func, (a, b, c, d))
     assert cost == 21
 
 
