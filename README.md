@@ -3,7 +3,7 @@
 **TL;DR**
 - The memory wall makes reducing data movement more important than reducing arithmetic.
 - Instead of FLOP count, focus on the cost of data movement.
-- Incorporate 2D wire-length heuristic to model the cost of accessing faraway bytes.
+- Assume a fine-grained LRU cache in 2D and use wire length to model the cost of accessing faraway bytes.
 
 ![ByteDMD](docs/dmd_animated.gif)
 
@@ -20,7 +20,9 @@ An idealized processor operates directly on a byte-level LRU stack. **Computatio
 - **Stack State:** Ordered from least recently used (bottom) to most recently used (top). Depth is measured in bytes from the top (topmost byte = depth 1). A $k$-byte value occupies $k$ contiguous depths.
 - **Initialization:** On function entry, arguments are pushed to the top in call order.
 - **Read Cost:** Reading a value $x$ spanning byte depths $D(x)$ costs:
-  $$ C(x) = \sum_{d \in D(x)} \lceil\sqrt{d}\rceil $$
+
+$$C(x) = \sum_{d \in D(x)} \lceil\sqrt{d}\rceil$$
+
   *(e.g., a 2-byte value spanning depths 4 and 5 costs $\lceil\sqrt{4}\rceil + \lceil\sqrt{5}\rceil = 2 + 3 = 5$)*
 
 ### Instruction Semantics
@@ -44,7 +46,8 @@ Arguments are pushed in call order `[a, b, c, d]`, yielding these stack depths f
 
 **2. Read Cost**  
 Inputs are priced simultaneously against the initial stack state:
-$$ \mathrm{cost} = C(b) + C(c) = (\lceil\sqrt{4}\rceil + \lceil\sqrt{5}\rceil) + (\lceil\sqrt{2}\rceil + \lceil\sqrt{3}\rceil) = (2 + 3) + (2 + 2) = 9 $$
+
+$$\mathrm{cost} = C(b) + C(c) = (\lceil\sqrt{4}\rceil + \lceil\sqrt{5}\rceil) + (\lceil\sqrt{2}\rceil + \lceil\sqrt{3}\rceil) = (2 + 3) + (2 + 2) = 9$$
 
 **3. Update Stack**  
 Inputs move to the top sequentially in read order (`b`, then `c`), followed by the new `result` block being pushed:
