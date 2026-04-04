@@ -27,13 +27,13 @@ assert bytedmd(dot, (a, b)) == 14
 ## Motivation
 
 
-Modern architectures spend more energy moving data than doing arithmetic, making FLOP counts an outdated cost metric. Bill Dally ([ACM Opinion](https://cacm.acm.org/opinion/on-the-model-of-computation-point/)) proposed penalizing data movement based on 2D spatial distance to the processor. To avoid manual spatial mapping, Ding and Smith ([Beyond Time Complexity, 2022](https://arxiv.org/abs/2203.02536)) automated this via Data Movement Distance (DMD): a rule treating memory as an LRU stack where reading depth $d$ costs $\sqrt{d}$, modeling a cache laid out in 2D.
+Modern architectures spend more energy moving data than doing arithmetic, making FLOP counts an outdated cost metric. Bill Dally ([ACM Opinion](https://cacm.acm.org/opinion/on-the-model-of-computation-point/)) proposed penalizing data movement based on 2D spatial distance to the processor. To avoid manual spatial mapping, Ding and Smith ([Beyond Time Complexity, 2022](https://arxiv.org/abs/2203.02536)) automated this via Data Movement Distance (DMD): a rule treating memory as an LRU stack where reading a byte at depth $d$ costs $\sqrt{d}$, modeling a cache laid out in 2D.
 
 To avoid floating point issues, we round up to the nearest integer.
 
 ![ByteDMD](docs/ceil_figure.png)
 
-This rounding corresponds to wire length on a 2D grid with LRU stack arranged in the following order.
+This rounding corresponds to routing wire length on a 2D grid with LRU stack arranged in the following order.
 
 ![ByteDMD](docs/manhattan_figure.png)
 
@@ -84,7 +84,7 @@ Inputs move to the top sequentially in read order (`b`, then `c`), followed by t
 
 
 ## Future Work
-### bit-level 
+
 ### Parallel Execution
 
 Currently, initializing a function's arguments on the stack is considered a free operation. To model parallelism we could introduce multiple processors with their own LRU stacks. Initializing arguments onto the stack incurs a cost proportional to the distance between the data's original location and the location of the LRU stack.
