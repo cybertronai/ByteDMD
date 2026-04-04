@@ -112,6 +112,6 @@ def render_frame(d, n_short=40, table_size=13):
 # GENERATE PNG
 # ==================================================
 fig = render_frame(12)
-fig.savefig('manhattan_figure.png', format='png', bbox_inches='tight', dpi=150)
+fig.savefig('manhattan_figure.svg', bbox_inches='tight')
 plt.close(fig)
-print("Saved manhattan_figure.png")
+print("Saved manhattan_figure.svg")

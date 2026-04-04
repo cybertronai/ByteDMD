@@ -30,6 +30,6 @@ ax.grid(True, linestyle=':', alpha=0.7)
 ax.xaxis.set_major_locator(MultipleLocator(1))
 ax.yaxis.set_major_locator(MultipleLocator(1))
 
-plt.savefig('ceil_figure.png', bbox_inches='tight')
+plt.savefig('ceil_figure.svg', bbox_inches='tight')
 plt.close()
-print("Saved ceil_figure.png")
+print("Saved ceil_figure.svg")

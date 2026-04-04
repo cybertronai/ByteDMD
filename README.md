@@ -1,8 +1,8 @@
 # A cost model of complexity for the 21st century: ByteDMD
 
-Data movement matters more than FLOPs. Recently accessed bytes can be cached, so penalize reads using the following cost model:
+Data movement matters more than FLOPs. Recently accessed bytes can be cached, penalize "non-local" reads using the following cost model:
 
-$$\text{cost of read}=\sum_{b \in bytes} \sqrt{D(b)}$$
+$$C=\sum_{b \in bytes} \sqrt{D(b)}$$
 
 where $D(b)$ is the depth of byte $b$ in the LRU stack. Square-root is motivated by VLSI routing cost in 2D.
 
@@ -31,11 +31,11 @@ Modern architectures spend more energy moving data than doing arithmetic, making
 
 To avoid floating point issues, we round up to the nearest integer.
 
-![ByteDMD](docs/ceil_figure.png)
+![ByteDMD](docs/ceil_figure.svg)
 
 This rounding corresponds to routing wire length on a 2D grid with LRU stack arranged in the following order.
 
-![ByteDMD](docs/manhattan_figure.png)
+![ByteDMD](docs/manhattan_figure.svg)
 
 The original DMD treats values abstractly. ByteDMD counts accesses at byte level. This rewards algorithms that use smaller data types.
 
@@ -82,12 +82,6 @@ Inputs move to the top sequentially in read order (`b`, then `c`), followed by t
 [a, d, b, c, result]
 ```
 
-
-## Future Work
-
-### Parallel Execution
-
-Currently, initializing a function's arguments on the stack is considered a free operation. To model parallelism we could introduce multiple processors with their own LRU stacks. Initializing arguments onto the stack incurs a cost proportional to the distance between the data's original location and the location of the LRU stack.
 
 [Original Google Doc](https://docs.google.com/document/d/1sj5NqOg6Yqh10bXzGVEF5uIzSjFWAnqqTE75AMng2-s/edit?tab=t.0#heading=h.ujy6ygk7sjmb)
 
