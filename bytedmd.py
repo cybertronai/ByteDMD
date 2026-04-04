@@ -121,7 +121,7 @@ def _sum_usqrt(N):
     return (M - 1) * M * (4 * M - 5) // 6 + M * (N - (M - 1)**2)
 
 
-def trace_to_cost(trace, bytes_per_element):
+def trace_to_bytedmd(trace, bytes_per_element):
     """Convert a trace (list of element depths) to ByteDMD cost."""
     return sum(
         _sum_usqrt(d * bytes_per_element) - _sum_usqrt((d - 1) * bytes_per_element)
@@ -132,5 +132,5 @@ def trace_to_cost(trace, bytes_per_element):
 def bytedmd(func, args, bytes_per_element=1):
     """Evaluate ByteDMD cost of running func with args."""
     trace, _ = traced_eval(func, args)
-    return trace_to_cost(trace, bytes_per_element)
+    return trace_to_bytedmd(trace, bytes_per_element)
     

@@ -1,6 +1,6 @@
 # A cost model of complexity for the 21st century: ByteDMD
 
-Data movement matters more than FLOPs. Recently accessed bytes can be cached, penalize "non-local" reads using the following cost model:
+Data movement matters more than FLOPs. Recently accessed bytes can be cached, penalize non-local reads using the following cost model:
 
 $$C=\sum_{b \in bytes} \sqrt{D(b)}$$
 
@@ -43,9 +43,9 @@ The original DMD treats values abstractly. ByteDMD counts accesses at byte level
 
 An idealized processor operates directly on an element-level LRU stack. **Computations and writes are free; only memory reads incur a cost.**
 
-- **Stack State:** Ordered from least recently used (bottom) to most recently used (top). Depth is measured in elements from the top (topmost element = depth 1). Each scalar occupies one position.
+- **Stack State:** Ordered from least recently used (bottom) to most recently used (top). Depth is measured in bytes from the top (topmost byte = depth 1). Multi-byte scalars are treated as a contiguous blocks of bytes.
 - **Initialization:** On function entry, arguments are pushed to the top in call order.
-- **Read Cost:** Reading a byte at element depth $d$ costs $\lceil\sqrt{d}\rceil$.
+- **Read Cost:** Reading a byte at depth $d$ costs $\lceil\sqrt{d}\rceil$.
 
 ### Instruction Semantics
 
@@ -85,10 +85,17 @@ Inputs move to the top sequentially in read order (`b`, then `c`), followed by t
 
 ## ByteDMD Costs for 4x4 Linear Algebra
 
+### Matrix-vector (4x4 matrix, 4-vector)
+
 | Algorithm | Operation | ByteDMD Cost |
 |-----------|-----------|-------------|
 | matvec (i-j) | y = A @ x | 194 |
 | vecmat (j-i) | y = x^T @ A | 191 |
+
+### Matrix multiply (4x4)
+
+| Algorithm | Operation | ByteDMD Cost |
+|-----------|-----------|-------------|
 | matmul (i-j-k) | C = A @ B | 948 |
 | matmul (i-k-j) | C = A @ B | 1016 |
 | matmul (snake-j) | C = A @ B | 906 |

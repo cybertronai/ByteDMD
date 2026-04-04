@@ -315,6 +315,31 @@ def test_matmul4_snake():
     cost = bytedmd(matmul4_snake_j, (A, B))
     assert cost == 906
 
+def matmul4_tsp(A, B):
+    n = 4
+    C = [[None] * n for _ in range(n)]
+    
+    # Pre-calculated schedule to minimize LRU depth
+    optimal_schedule = [
+        (0, 2), (0, 1), (0, 0), (0, 3), 
+        (1, 3), (1, 2), (1, 1), (1, 0), 
+        (2, 0), (2, 2), (2, 1), (2, 3), 
+        (3, 3), (3, 2), (3, 1), (3, 0)
+    ]
+    
+    for i, j in optimal_schedule:
+        s = A[i][0] * B[0][j]
+        for k in range(1, n):
+            s = s + A[i][k] * B[k][j]
+        C[i][j] = s
+        
+    return C
+
+def test_matmul4_tsp():
+    A = np.ones((4, 4))
+    B = np.ones((4, 4))
+    cost = bytedmd(matmul4_tsp, (A, B))
+    assert cost == 895
 
 if __name__ == "__main__":
     import pytest
