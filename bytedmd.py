@@ -120,8 +120,9 @@ def traced_eval(func, args):
 
 
 def bytedmd(func, args, bytes_per_element=1):
+    assert bytes_per_element == 1, "ByteDMD currently only supports 1 byte per element"
     trace, result = traced_eval(func, args)
-    return sum(usqrt(int(d * bytes_per_element)) for d in trace)
+    return sum(usqrt(d) for d in trace)
 
 
 

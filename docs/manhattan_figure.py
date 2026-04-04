@@ -2,9 +2,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 from matplotlib.ticker import MultipleLocator
 from mpl_toolkits.axes_grid1 import make_axes_locatable
-from PIL import Image
 import math
-import io
 
 # ==================================================
 # CORE LOGIC
@@ -35,32 +33,32 @@ def render_frame(d, n_short=40, table_size=13):
 
     short_pts = PTS[:n_short]
 
+    # Draw directed arrows showing the path order
+    u = np.diff(short_pts[:, 0])
+    v = np.diff(short_pts[:, 1])
+    ax1.quiver(short_pts[:n_short-1, 0], short_pts[:n_short-1, 1], u, v,
+               angles='xy', scale_units='xy', scale=1,
+               color='gray', alpha=0.6, width=0.005, headwidth=4, headlength=6, zorder=1)
+
+    # Plot the nodes
     ax1.scatter(short_pts[:, 0], short_pts[:, 1], c=T_VALS[:n_short],
                 cmap='plasma', s=40, zorder=2)
 
-    spine_y_vals = short_pts[short_pts[:, 0] == 0][:, 1]
-    if len(spine_y_vals) > 0:
-        ax1.plot([0, 0], [spine_y_vals.min(), spine_y_vals.max()],
-                 color='gray', alpha=0.4, lw=1.5, zorder=1)
-
-    unique_ys = np.unique(short_pts[:, 1])
-    for y_lvl in unique_ys:
-        x_at_y = short_pts[short_pts[:, 1] == y_lvl][:, 0]
-        if len(x_at_y) > 0:
-            ax1.plot([x_at_y.min(), x_at_y.max()], [y_lvl, y_lvl],
-                     color='gray', alpha=0.4, lw=1.5, zorder=1)
-
+    # Label the first 15 points
     for i in range(15):
         is_current = (i + 1 == d)
         weight = 'bold' if is_current else 'normal'
         alpha = 1.0 if is_current else 0.4
+        x_offset = 5 if (i + 1) in (1, 3) else 0
         ax1.annotate(f"{i+1}", (short_pts[i, 0], short_pts[i, 1]),
-                     textcoords="offset points", xytext=(6, 6),
-                     ha='left', va='bottom', fontsize=9, fontweight=weight, color='black', alpha=alpha, zorder=4,
+                     textcoords="offset points", xytext=(x_offset, 10),
+                     ha='center', va='bottom', fontsize=9, fontweight=weight, color='black', alpha=alpha, zorder=4,
                      bbox=dict(boxstyle='round,pad=0.15', fc='white', ec='none', alpha=0.7 if is_current else 0.3))
 
+    # Highlight the processor at origin
     ax1.plot(0, 0, marker='o', color='red', ms=12, mec='black', zorder=5)
 
+    # Draw path from origin to target
     target_x, target_y = PTS[d - 1]
     ax1.plot([0, 0], [0, target_y], color='red', lw=3, zorder=3)
     ax1.plot([0, target_x], [target_y, target_y], color='red', lw=3, zorder=3)
@@ -111,20 +109,9 @@ def render_frame(d, n_short=40, table_size=13):
 
 
 # ==================================================
-# GENERATE ANIMATED GIF
+# GENERATE PNG
 # ==================================================
-d_values = list(range(1, 14)) + list(range(12, 1, -1))
-
-frames = []
-for d in d_values:
-    fig = render_frame(d)
-    buf = io.BytesIO()
-    fig.savefig(buf, format='png', bbox_inches='tight', dpi=150)
-    plt.close(fig)
-    buf.seek(0)
-    frames.append(Image.open(buf).copy())
-    buf.close()
-
-frames[0].save('illustration.gif', save_all=True, append_images=frames[1:],
-               duration=1000, loop=0)
-print("Saved illustration.gif")
+fig = render_frame(12)
+fig.savefig('manhattan_figure.png', format='png', bbox_inches='tight', dpi=150)
+plt.close(fig)
+print("Saved manhattan_figure.png")
