@@ -83,5 +83,18 @@ Inputs move to the top sequentially in read order (`b`, then `c`), followed by t
 ```
 
 
+## ByteDMD Costs for 4x4 Linear Algebra
+
+| Algorithm | Operation | ByteDMD Cost |
+|-----------|-----------|-------------|
+| matvec (i-j) | y = A @ x | 194 |
+| vecmat (j-i) | y = x^T @ A | 191 |
+| matmul (i-j-k) | C = A @ B | 948 |
+| matmul (i-k-j) | C = A @ B | 1016 |
+| matmul (snake-j) | C = A @ B | 906 |
+| matmul (2x2 tiled) | C = A @ B | 947 |
+| Strassen (leaf=1) | C = A @ B | 2435 |
+| Winograd | C = A @ B | 2178 |
+
 [Original Google Doc](https://docs.google.com/document/d/1sj5NqOg6Yqh10bXzGVEF5uIzSjFWAnqqTE75AMng2-s/edit?tab=t.0#heading=h.ujy6ygk7sjmb)
 

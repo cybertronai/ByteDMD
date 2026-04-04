@@ -292,7 +292,28 @@ def test_matmul4_winograd():
     A = np.ones((4, 4))
     B = np.ones((4, 4))
     cost = bytedmd(matmul_4x4_winograd, (A, B))
-    assert cost == 2178 
+    assert cost == 2178
+
+def matmul4_snake_j(A, B):
+    n = len(A)
+    C = [[None] * n for _ in range(n)]
+    for i in range(n):
+        # Traverse normally for even rows, traverse backwards for odd rows
+        js = range(n) if i % 2 == 0 else range(n - 1, -1, -1)
+        
+        for j in js:
+            s = A[i][0] * B[0][j]
+            for k in range(1, n):
+                s = s + A[i][k] * B[k][j]
+            C[i][j] = s
+    return C
+
+
+def test_matmul4_snake():
+    A = np.ones((4, 4))
+    B = np.ones((4, 4))
+    cost = bytedmd(matmul4_snake_j, (A, B))
+    assert cost == 906
 
 
 if __name__ == "__main__":
