@@ -4,7 +4,7 @@ Python gotchas: Because we implement ByteDMD in Python by wrapping Python object
 our Python framework deviates from idealized description in the README
 for certain cases, illustrated by tests below.
 
-Future variants of ByteDMD metric may choose to implement this behavior differently.
+Future release of ByteDMD metric may fix this to be more faithful to the README.md
 """
 import math
 import numpy as np
@@ -39,66 +39,27 @@ def test_gotcha_pure_memory_movement_is_free_trace():
     assert trace == []
     assert result == [[1, 3], [2, 4]]
 
-def test_gotcha_implicit_boolean_bypass_trace():
+
+
+def test_short_circuit_gotcha():
     """
-    WEAKNESS 1: Implicit truthiness evaluation bypasses the trace.
-    Python evaluates an object's truthiness using `__bool__`. Because `_TrackedValue`
-    does not override it, Python treats ALL wrapped values as `True` (since they are objects).
-    This silently executes the wrong branch AND completely bypasses the read trace.
-    """
-    def implicit_branch(a):
-        if a:  # Wrongly evaluates to True for a=0, generates NO trace!
-            return a + 10
-        return a
-
-    def explicit_branch(a):
-        if a != 0:  # Correctly evaluates to False for a=0, generates trace!
-            return a + 10
-        return a
-
-    trace_implicit, result_implicit = traced_eval(implicit_branch, (0,))
-    # Misses the condition check entirely, only tracking the `a + 10` execution!
-    assert trace_implicit == [1]
-    assert result_implicit == 10
-
-    trace_explicit, result_explicit = traced_eval(explicit_branch, (0,))
-    # Correctly traces the explicit `a != 0` check
-    assert trace_explicit == [1]
-    assert result_explicit == 0
-
-def test_gotcha_short_circuit_logic_bypass_trace():
-    """
-    WEAKNESS 2: Python's `and` / `or` keywords do not invoke magic methods.
-    They rely on implicit truthiness, completely circumventing read tracing and
-    returning incorrect mathematical results.
+    Python short-circuit operation means that we may only have 1 operand that is traced rather than both. 
     """
     def logical_and(a, b):
         return a and b
 
     trace, result = traced_eval(logical_and, (0, 5))
-    assert trace == []
-    assert result == 5
+    assert trace == [2]
+    assert result == 0
 
-def test_gotcha_not_uses_implicit_truthiness():
-    """
-    Missing from current gotchas: `not a` also bypasses tracing because `_TrackedValue`
-    does not implement `__bool__`.
-    """
-    trace, result = traced_eval(lambda a: not a, (0,))
-    assert trace == []
-    assert result is False  # raw Python would return True
-
-
-def test_gotcha_or_uses_implicit_truthiness():
-    """Current suite checks `and`, but `or` is wrong for the same reason."""
     trace, result = traced_eval(lambda a, b: a or b, (0, 5))
-    assert trace == []
-    assert result == 0  # raw Python would return 5
+    assert trace == [2]
+    assert result == 5
 
 
 def test_gotcha_comparison_untracking_trace():
     """
-    WEAKNESS 3: Native Booleans escape the LRU Stack.
+    Native Booleans escape the LRU Stack.
     To allow standard Python control flow (`if a > b:`), comparison operators
     intentionally evaluate directly to native Python booleans. If an algorithm
     subsequently uses these booleans mathematically, they are completely untracked.
@@ -118,35 +79,25 @@ def test_gotcha_comparison_untracking_trace():
     assert result == 6
 
 
-def test_gotcha_missing_index_protocol_breaks_range_and_indexing():
-    """
-    `_TrackedValue` has no `__index__`, so algorithms using input-derived loop bounds or
-    indices fail instead of being traced.
-    """
-    with pytest.raises(TypeError):
-        traced_eval(lambda n: [i for i in range(n)], (3,))
-
-    with pytest.raises(TypeError):
-        traced_eval(lambda xs, i: xs[i], ([10, 20, 30], 1))
 
 
-def test_gotcha_math_module_functions_are_not_supported():
+def test_math_module_functions_work():
     """
-    Only a small set of numeric magic methods are implemented; `math.*` calls that expect
-    real numbers fail on `_TrackedValue`.
+    __float__ is now implemented, so math.* functions that call float() work correctly.
+    The trace records the read but the result is an unwrapped float (escapes tracking).
     """
-    with pytest.raises(TypeError):
-        traced_eval(lambda a: math.sqrt(a), (4,))
+    trace, result = traced_eval(lambda a: math.sqrt(a), (4,))
+    assert trace == [1]
+    assert result == 2.0
 
 
-def test_gotcha_tuple_inputs_are_coerced_to_lists():
+def test_tuple_inputs_are_preserved():
     """
-    `_wrap` recursively converts tuples/ndarrays into Python lists, so tuple-specific
-    behavior is lost.
+    _wrap now preserves tuples as tuples instead of converting to lists.
     """
     trace, result = traced_eval(lambda t: isinstance(t, tuple), ((1, 2),))
     assert trace == []
-    assert result is False
+    assert result is True
 
 
 def test_gotcha_numpy_outputs_are_not_fully_unwrapped():

@@ -80,6 +80,50 @@ def test_divmod_tuple_allocation_trace():
     assert trace == [2, 1, 2, 1, 1, 5]
 
 
+def test_implicit_boolean_is_traced():
+    """
+    `if a:` now correctly calls __bool__, recording a read and evaluating truthiness properly.
+    Both implicit and explicit branches produce the same result for a=0.
+    """
+    def implicit_branch(a):
+        if a:
+            return a + 10
+        return a
+
+    def explicit_branch(a):
+        if a != 0:
+            return a + 10
+        return a
+
+    trace_implicit, result_implicit = traced_eval(implicit_branch, (0,))
+    # __bool__ reads a, then takes the else branch returning a (no further read)
+    assert trace_implicit == [1]
+    assert result_implicit == 0
+
+    trace_explicit, result_explicit = traced_eval(explicit_branch, (0,))
+    assert trace_explicit == [1]
+    assert result_explicit == 0
+
+
+def test_index_protocol_works():
+    trace, result = traced_eval(lambda n: [i for i in range(n)], (3,))
+    assert trace == [1]
+    assert result == [0, 1, 2]
+
+    trace, result = traced_eval(lambda xs, i: xs[i], ([10, 20, 30], 1))
+    assert trace == [1]
+    assert result == 20
+
+
+def test_not_is_traced():
+    """
+    `not a` now invokes __bool__, generating a read trace and returning the correct result.
+    """
+    trace, result = traced_eval(lambda a: not a, (0,))
+    assert trace == [1]
+    assert result is True
+
+
 if __name__ == "__main__":
     import pytest
     pytest.main([__file__, "-v"])

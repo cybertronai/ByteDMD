@@ -6,7 +6,11 @@ bytedmd(add, (1, 2)) calls add(1, 2) and returns ByteDMD_cost
 """
 
 import math
-import numpy as np
+import operator
+
+def usqrt(x):
+    """Ceiling of square root."""
+    return math.isqrt(x - 1) + 1 if x > 0 else 0
 
 
 class _TrackedContext:
@@ -26,6 +30,8 @@ class _TrackedContext:
     def read_all_then_move(self, keys):
         """Read all operands at current distances, then sequentially move all to top."""
         valid_keys = [k for k in keys if k is not None]
+        if not valid_keys:
+            return
         
         # Calculate element depth relative to top (MRU)
         self.trace.extend(len(self.stack) - self.stack.index(k) for k in valid_keys)
@@ -43,6 +49,23 @@ class _TrackedValue:
         self._ctx = ctx
         self._key = key
         self.value = value
+
+    # --- Type-Casting & Control-Flow Hooks ---
+    def __bool__(self):
+        self._ctx.read_all_then_move([self._key])
+        return bool(self.value)
+
+    def __int__(self):
+        self._ctx.read_all_then_move([self._key])
+        return int(self.value)
+
+    def __float__(self):
+        self._ctx.read_all_then_move([self._key])
+        return float(self.value)
+
+    def __index__(self):
+        self._ctx.read_all_then_move([self._key])
+        return operator.index(self.value)
 
 
 def _make_method(op, is_cmp=False, is_rev=False):
@@ -80,20 +103,22 @@ for _op in 'eq ne lt le gt ge'.split():
 
 
 def _wrap(ctx, val):
-    """Recursively convert ndarrays/lists of items into nested lists of tracked scalars."""
-    if getattr(val, 'ndim', 0) > 0 or isinstance(val, (list, tuple)):
+    """Recursively convert ndarrays/lists/tuples into nested structures of tracked scalars."""
+    if getattr(val, 'ndim', 0) > 0 or isinstance(val, list):
         return [_wrap(ctx, v) for v in val]
+    if isinstance(val, tuple):
+        return tuple(_wrap(ctx, v) for v in val)
     return _TrackedValue(ctx, ctx.allocate(), val)
 
 
 def _unwrap(val):
     """Recursively safely unwrap returned _TrackedValue scalars back to python primitives."""
+    if isinstance(val, _TrackedValue):
+        return val.value
     if isinstance(val, list):
         return [_unwrap(v) for v in val]
     if isinstance(val, tuple):
         return tuple(_unwrap(v) for v in val)
-    if isinstance(val, _TrackedValue):
-        return val.value
     return val
 
 
@@ -101,12 +126,6 @@ def traced_eval(func, args):
     """Run func with traced arguments. Returns (trace, result)."""
     ctx = _TrackedContext()
     return ctx.trace, _unwrap(func(*[_wrap(ctx, val) for val in args]))
-
-
-
-def usqrt(x):
-    """Ceiling of square root."""
-    return math.isqrt(x - 1) + 1 if x > 0 else 0
 
 
 def _sum_usqrt(N):
@@ -123,6 +142,10 @@ def _sum_usqrt(N):
 
 def trace_to_bytedmd(trace, bytes_per_element):
     """Convert a trace (list of element depths) to ByteDMD cost."""
+    # Fast path: avoids redundant evaluations of algebraic integral step functions 
+    if bytes_per_element == 1:
+        return sum(usqrt(d) for d in trace)
+        
     return sum(
         _sum_usqrt(d * bytes_per_element) - _sum_usqrt((d - 1) * bytes_per_element)
         for d in trace
@@ -133,4 +156,6 @@ def bytedmd(func, args, bytes_per_element=1):
     """Evaluate ByteDMD cost of running func with args."""
     trace, _ = traced_eval(func, args)
     return trace_to_bytedmd(trace, bytes_per_element)
-    
+
+if __name__ == "__main__":
+    pass
