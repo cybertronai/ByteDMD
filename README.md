@@ -85,7 +85,9 @@ Inputs move to the top sequentially in read order (`b`, then `c`), followed by t
 ```
 
 
-## ByteDMD Costs for higher-level ops
+## ByteDMD benchmarks
+
+See "benchmarks/" folder
 
 ### Matrix-vector (4x4 matrix, 4-vector)
 
