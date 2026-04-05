@@ -1,7 +1,121 @@
-#!/usr/bin/env python3
-
 import math
 import operator
+
+def assert_noescape(func, args):
+    """
+    Performs a 'dry-run' of func(args) in a strict tracking sandbox.
+    Asserts if any data movement escapes the ByteDMD tracking model.
+    """
+    def _block(msg):
+        def method(self, *a, **kw): assert False, msg
+        return method
+
+    class StrictTracked:
+        __slots__ = ('_val',) 
+        def __init__(self, val): 
+            object.__setattr__(self, '_val', val)
+
+        def __getattribute__(self, name):
+            # 1. Block direct extraction of tracked state
+            if name in ('val', '_ctx', '_key', 'trace'):
+                assert False, f"ByteDMD Leak: Direct access to internal attribute '{name}' bypasses tracking."
+            try: 
+                return object.__getattribute__(self, name)
+            except AttributeError:
+                # 6. Block untracked object methods like a.conjugate()
+                assert False, f"ByteDMD Leak: Untracked object method or attribute '{name}' accessed."
+
+        # 2 & 3. Block implicit unboxing to primitives & C-extensions (math, etc.)
+        __int__ = _block("ByteDMD Leak: Primitive unboxing via __int__ (e.g., int() or math module).")
+        __float__ = _block("ByteDMD Leak: Primitive unboxing via __float__ (e.g., float() or C-extensions).")
+        __bool__ = _block("ByteDMD Leak: Primitive unboxing via __bool__ (e.g., 'if' statements bypass tracking).")
+        __index__ = _block("ByteDMD Leak: Primitive unboxing via __index__.")
+        __complex__ = _block("ByteDMD Leak: Primitive unboxing via __complex__.")
+        __iter__ = _block("ByteDMD Leak: Implicit iteration unboxing.")
+        __array__ = _block("ByteDMD Leak: Implicit conversion to NumPy array.")
+        __array_ufunc__ = _block("ByteDMD Leak: NumPy ufunc execution unboxes values.")
+        
+        # 4. Block string coercion bypassing cost checks
+        __str__ = _block("ByteDMD Leak: Untracked string coercion via __str__.")
+        __repr__ = _block("ByteDMD Leak: Untracked string coercion via __repr__.")
+        __format__ = _block("ByteDMD Leak: Untracked string coercion via f-string.")
+        __hash__ = _block("ByteDMD Leak: Hashing unboxes value (e.g., dict keys).")
+
+    def _make_strict_op(op, rev=False):
+        def method(self, *args_op):
+            vals = [object.__getattribute__(a, '_val') if isinstance(a, StrictTracked) else a for a in args_op]
+            my_val = object.__getattribute__(self, '_val')
+            try:
+                res = op(vals[0], my_val, *vals[1:]) if rev else op(my_val, *vals)
+            except AssertionError:
+                raise
+            except Exception as e:
+                # 5. Block Exception short-circuiting that bypasses trace logging
+                assert False, f"ByteDMD Leak: Exception {type(e).__name__} during math allows short-circuiting read costs."
+            return res if res is NotImplemented else _strict_wrap(res)
+        return method
+
+    _STRICT_OPS = {
+        **{k: getattr(operator, k) for k in 'add sub mul truediv floordiv mod lshift rshift xor matmul neg pos abs invert eq ne lt le gt ge'.split()},
+        'and': operator.and_, 'or': operator.or_, 'divmod': divmod, 'pow': pow,
+        'trunc': math.trunc, 'ceil': math.ceil, 'floor': math.floor, 'round': round
+    }
+
+    for n, f in _STRICT_OPS.items():
+        setattr(StrictTracked, f'__{n}__', _make_strict_op(f))
+        if n in 'add sub mul truediv floordiv mod divmod pow lshift rshift and xor or matmul'.split():
+            setattr(StrictTracked, f'__r{n}__', _make_strict_op(f, rev=True))
+
+    class StrictList(list):
+        # 6. Block container mutations
+        def _mut(self, *a, **kw): assert False, "ByteDMD Leak: Container mutation can insert untracked primitives."
+        append = extend = insert = remove = pop = clear = __setitem__ = __delitem__ = __iadd__ = _mut
+
+    def _strict_wrap(val, memo=None):
+        if memo is None: memo = {}
+        if isinstance(val, StrictTracked): return val
+        vid = id(val)
+        if vid in memo: return memo[vid]
+        
+        is_prim = type(val) in (int, float, bool, complex, str)
+        if isinstance(val, dict):
+            assert False, "ByteDMD Leak: Dictionaries are skipped by wrap, hiding contents inside an opaque proxy."
+            
+        if type(val).__name__ == 'ndarray':
+            import numpy as np
+            res = np.empty_like(val, dtype=object)
+            if not is_prim: memo[vid] = res
+            for idx in np.ndindex(val.shape):
+                v = val[idx]
+                res[idx] = _strict_wrap(v.item() if hasattr(v, 'item') and not isinstance(v, np.ndarray) else v, memo)
+            res.flags.writeable = False # Hardware-lock numpy arrays to prevent mutation
+            return res
+
+        if isinstance(val, list):
+            res = StrictList()
+            if not is_prim: memo[vid] = res
+            list.extend(res, (_strict_wrap(v, memo) for v in val))
+            return res
+
+        if isinstance(val, tuple):
+            res = tuple(_strict_wrap(v, memo) for v in val)
+            if not is_prim: memo[vid] = res
+            return res
+
+        res = StrictTracked(val)
+        if not is_prim: memo[vid] = res
+        return res
+
+    try:
+        func(*[_strict_wrap(a) for a in args])
+    except AssertionError:
+        raise
+    except ValueError as e:
+        if "read-only" in str(e):
+            assert False, "ByteDMD Leak: Array mutation can insert untracked primitives."
+    except Exception:
+        pass # Ignore standard unhandled native Exceptions, let them naturally fail in the main tracking run
+
 
 class _Context:
     __slots__ = ('stack', 'trace', 'sync', 'memo', 'counter')
@@ -43,14 +157,13 @@ class _Tracked:
 
 def _make_op(op, rev=False):
     def method(self, *args):
-        # Naturally drops unmanaged constants allowing them to act as perfectly free reads
         keys = [a._key if isinstance(a, _Tracked) else None for a in args]
         vals = [a.val if isinstance(a, _Tracked) else a for a in args]
-        
+
         read_keys = [keys[0], self._key] + keys[1:] if rev else [self._key] + keys
         res = op(vals[0], self.val, *vals[1:]) if rev else op(self.val, *vals)
         self._ctx.read(read_keys)
-        
+
         return res if res is NotImplemented else _wrap(self._ctx, res)
     return method
 
@@ -68,11 +181,10 @@ for n, f in _OPS.items():
 
 
 def _wrap(ctx, val):
-    """Recursively convert primitives avoiding structural interceptors so indexing is free."""
     if isinstance(val, _Tracked): return val
     vid = id(val)
     if vid in ctx.memo: return ctx.memo[vid]
-    
+
     is_prim = type(val) in (int, float, bool, complex, str)
     if type(val).__name__ == 'ndarray':
         import numpy as np
@@ -107,7 +219,7 @@ def _unwrap(val, memo=None):
     if memo is None: memo = {}
     vid = id(val)
     if vid in memo: return memo[vid]
-    
+
     is_prim = type(val) in (int, float, bool, complex, str)
     if isinstance(val, list):
         res = []
@@ -144,7 +256,7 @@ def _sum_usqrt(N):
 
 
 def traced_eval(func, args):
-    """Run func with internally aliased tracked arguments. Returns (trace, result)."""
+    """Run func with tracked arguments. Returns (trace, result)."""
     ctx = _Context()
     res = func(*(_wrap(ctx, a) for a in args))
     memo = {}
@@ -163,5 +275,6 @@ def trace_to_bytedmd(trace, bytes_per_element):
 
 def bytedmd(func, args, bytes_per_element=1):
     """Evaluate ByteDMD cost of running func with args."""
+    assert_noescape(func, args)
     trace, _ = traced_eval(func, args)
     return trace_to_bytedmd(trace, bytes_per_element)

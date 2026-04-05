@@ -1,12 +1,14 @@
 #!/usr/bin/env python3
 """
-ByteDMD cost measurement for a single forward pass of Karpathy's microGPT.
+Measure ByteDMD cost for a single forward pass of Karpathy's microGPT.
 https://gist.github.com/karpathy/8627fe009c40f57531cb18360106ce95
 
-Uses a tiny configuration (vocab=4, embd=4, heads=2, layers=1, block_size=4)
-to keep the test fast while exercising the full GPT architecture.
+Uses a tiny configuration (vocab=4, embd=4, heads=2, layers=1, block_size=4).
 """
-from bytedmd import bytedmd, traced_eval
+import sys, os
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
+
+from bytedmd import bytedmd
 
 
 # --- microGPT components (from Karpathy's microgpt.py) ---
@@ -45,16 +47,13 @@ def gpt_forward(wte, wpe, lm_head,
     q = linear(x, attn_wq)
     k = linear(x, attn_wk)
     v = linear(x, attn_wv)
-    # Single position: keys/values are just [k], [v]
     x_attn = []
     for h in range(n_head):
         hs = h * head_dim
         q_h = q[hs:hs+head_dim]
         k_h = k[hs:hs+head_dim]
         v_h = v[hs:hs+head_dim]
-        # Single position: attention is just softmax([q·k / sqrt(d)]) = [1.0]
         attn_score = sum(q_h[j] * k_h[j] for j in range(head_dim)) / head_dim**0.5
-        # With single position, softmax([x]) = [1], so head_out = v_h
         head_out = v_h
         x_attn.extend(head_out)
     x = linear(x_attn, attn_wo)
@@ -64,7 +63,7 @@ def gpt_forward(wte, wpe, lm_head,
     x_residual = x
     x = rmsnorm(x)
     x = linear(x, mlp_fc1)
-    x = [xi * (1 if xi > 0 else 0) for xi in x]  # relu
+    x = [xi * (xi > 0) for xi in x]  # relu
     x = linear(x, mlp_fc2)
     x = [a + b for a, b in zip(x, x_residual)]
 
@@ -84,7 +83,7 @@ N_HEAD = 2
 HEAD_DIM = N_EMBD // N_HEAD
 
 
-def test_microgpt_single_token():
+if __name__ == '__main__':
     wte = make_matrix(VOCAB_SIZE, N_EMBD)
     wpe = make_matrix(BLOCK_SIZE, N_EMBD)
     lm_head = make_matrix(VOCAB_SIZE, N_EMBD)
@@ -102,9 +101,10 @@ def test_microgpt_single_token():
                           token_id=0, pos_id=0, n_head=N_HEAD, head_dim=HEAD_DIM)
 
     cost = bytedmd(forward, (wte, wpe, lm_head, attn_wq, attn_wk, attn_wv, attn_wo, mlp_fc1, mlp_fc2))
-    assert cost == 7047
+    assert cost == 7047, f"expected 7047, got {cost}"
 
-
-if __name__ == "__main__":
-    import pytest
-    pytest.main([__file__, "-v"])
+    print(f"{'Algorithm':<35} {'Operation':<25} {'ByteDMD Cost':>12}")
+    print("-" * 75)
+    print(f"{'microGPT (1 layer, embd=4)':<35} {'single token forward':<25} {cost:>12}")
+    print()
+    print(f"Config: vocab={VOCAB_SIZE}, embd={N_EMBD}, heads={N_HEAD}, head_dim={HEAD_DIM}, 1 layer, block_size={BLOCK_SIZE}")
