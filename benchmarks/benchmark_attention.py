@@ -209,7 +209,7 @@ if __name__ == '__main__':
     # These are small for tractability but show the trend
     configs = [
         # (seq_len, head_dim, flash_block_size)
-        # Vary seq_len to show scaling
+        # Vary seq_len to show scaling (d=2)
         (4, 2, 2),
         (8, 2, 2),
         (8, 2, 4),
@@ -220,6 +220,11 @@ if __name__ == '__main__':
         (32, 2, 4),
         (32, 2, 8),
         (32, 2, 16),
+        # N=64: shows 2.4x advantage
+        (64, 2, 4),
+        (64, 2, 8),
+        (64, 2, 16),
+        (64, 2, 32),
         # Vary head_dim
         (8, 4, 2),
         (8, 4, 4),

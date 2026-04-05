@@ -35,7 +35,7 @@
     "flash_flops": 688,
     "bytedmd_ratio": 1.1605,
     "flop_ratio": 0.8256,
-    "measurement_time_naive": 0.009,
+    "measurement_time_naive": 0.008,
     "measurement_time_flash": 0.008
   },
   {
@@ -48,8 +48,8 @@
     "flash_flops": 3968,
     "bytedmd_ratio": 1.2154,
     "flop_ratio": 0.5766,
-    "measurement_time_naive": 0.11,
-    "measurement_time_flash": 0.161
+    "measurement_time_naive": 0.109,
+    "measurement_time_flash": 0.158
   },
   {
     "seq_len": 16,
@@ -61,8 +61,8 @@
     "flash_flops": 3008,
     "bytedmd_ratio": 1.3534,
     "flop_ratio": 0.7606,
-    "measurement_time_naive": 0.117,
-    "measurement_time_flash": 0.127
+    "measurement_time_naive": 0.113,
+    "measurement_time_flash": 0.117
   },
   {
     "seq_len": 16,
@@ -74,8 +74,8 @@
     "flash_flops": 2528,
     "bytedmd_ratio": 1.4245,
     "flop_ratio": 0.9051,
-    "measurement_time_naive": 0.117,
-    "measurement_time_flash": 0.093
+    "measurement_time_naive": 0.111,
+    "measurement_time_flash": 0.101
   },
   {
     "seq_len": 32,
@@ -87,8 +87,8 @@
     "flash_flops": 16384,
     "bytedmd_ratio": 1.5848,
     "flop_ratio": 0.5605,
-    "measurement_time_naive": 1.624,
-    "measurement_time_flash": 2.46
+    "measurement_time_naive": 1.725,
+    "measurement_time_flash": 2.573
   },
   {
     "seq_len": 32,
@@ -100,8 +100,8 @@
     "flash_flops": 12544,
     "bytedmd_ratio": 1.7264,
     "flop_ratio": 0.7321,
-    "measurement_time_naive": 1.639,
-    "measurement_time_flash": 1.819
+    "measurement_time_naive": 1.7,
+    "measurement_time_flash": 1.864
   },
   {
     "seq_len": 32,
@@ -113,8 +113,8 @@
     "flash_flops": 10624,
     "bytedmd_ratio": 1.7944,
     "flop_ratio": 0.8645,
-    "measurement_time_naive": 1.725,
-    "measurement_time_flash": 1.528
+    "measurement_time_naive": 1.749,
+    "measurement_time_flash": 1.609
   },
   {
     "seq_len": 32,
@@ -126,8 +126,60 @@
     "flash_flops": 9664,
     "bytedmd_ratio": 1.7725,
     "flop_ratio": 0.9503,
-    "measurement_time_naive": 1.691,
-    "measurement_time_flash": 1.362
+    "measurement_time_naive": 1.848,
+    "measurement_time_flash": 1.466
+  },
+  {
+    "seq_len": 64,
+    "head_dim": 2,
+    "flash_block_size": 4,
+    "naive_bytedmd": 1953613,
+    "flash_bytedmd": 851710,
+    "naive_flops": 36800,
+    "flash_flops": 51200,
+    "bytedmd_ratio": 2.2938,
+    "flop_ratio": 0.7188,
+    "measurement_time_naive": 27.896,
+    "measurement_time_flash": 31.187
+  },
+  {
+    "seq_len": 64,
+    "head_dim": 2,
+    "flash_block_size": 8,
+    "naive_bytedmd": 1953613,
+    "flash_bytedmd": 827047,
+    "naive_flops": 36800,
+    "flash_flops": 43520,
+    "bytedmd_ratio": 2.3622,
+    "flop_ratio": 0.8456,
+    "measurement_time_naive": 28.899,
+    "measurement_time_flash": 26.074
+  },
+  {
+    "seq_len": 64,
+    "head_dim": 2,
+    "flash_block_size": 16,
+    "naive_bytedmd": 1953613,
+    "flash_bytedmd": 822108,
+    "naive_flops": 36800,
+    "flash_flops": 39680,
+    "bytedmd_ratio": 2.3763,
+    "flop_ratio": 0.9274,
+    "measurement_time_naive": 28.703,
+    "measurement_time_flash": 22.953
+  },
+  {
+    "seq_len": 64,
+    "head_dim": 2,
+    "flash_block_size": 32,
+    "naive_bytedmd": 1953613,
+    "flash_bytedmd": 864383,
+    "naive_flops": 36800,
+    "flash_flops": 37760,
+    "bytedmd_ratio": 2.2601,
+    "flop_ratio": 0.9746,
+    "measurement_time_naive": 27.947,
+    "measurement_time_flash": 22.112
   },
   {
     "seq_len": 8,
@@ -139,7 +191,7 @@
     "flash_flops": 1664,
     "bytedmd_ratio": 0.8774,
     "flop_ratio": 0.6394,
-    "measurement_time_naive": 0.02,
+    "measurement_time_naive": 0.019,
     "measurement_time_flash": 0.026
   },
   {
@@ -152,8 +204,8 @@
     "flash_flops": 1264,
     "bytedmd_ratio": 0.9967,
     "flop_ratio": 0.8418,
-    "measurement_time_naive": 0.019,
-    "measurement_time_flash": 0.021
+    "measurement_time_naive": 0.02,
+    "measurement_time_flash": 0.02
   },
   {
     "seq_len": 16,
@@ -165,8 +217,8 @@
     "flash_flops": 7104,
     "bytedmd_ratio": 0.971,
     "flop_ratio": 0.6059,
-    "measurement_time_naive": 0.273,
-    "measurement_time_flash": 0.398
+    "measurement_time_naive": 0.276,
+    "measurement_time_flash": 0.403
   },
   {
     "seq_len": 16,
@@ -178,7 +230,7 @@
     "flash_flops": 5504,
     "bytedmd_ratio": 1.0694,
     "flop_ratio": 0.782,
-    "measurement_time_naive": 0.27,
-    "measurement_time_flash": 0.286
+    "measurement_time_naive": 0.28,
+    "measurement_time_flash": 0.309
   }
 ]
