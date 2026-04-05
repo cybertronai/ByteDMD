@@ -232,5 +232,38 @@
     "flop_ratio": 0.782,
     "measurement_time_naive": 0.28,
     "measurement_time_flash": 0.309
+  },
+  {
+    "seq_len": 128,
+    "head_dim": 2,
+    "flash_block_size": 8,
+    "naive_bytedmd": 13705802,
+    "flash_bytedmd": 4221808,
+    "naive_flops": 147328,
+    "flash_flops": 176128,
+    "bytedmd_ratio": 3.2464,
+    "flop_ratio": 0.8365
+  },
+  {
+    "seq_len": 128,
+    "head_dim": 2,
+    "flash_block_size": 16,
+    "naive_bytedmd": 13705802,
+    "flash_bytedmd": 4227227,
+    "naive_flops": 147328,
+    "flash_flops": 160768,
+    "bytedmd_ratio": 3.2423,
+    "flop_ratio": 0.9164
+  },
+  {
+    "seq_len": 128,
+    "head_dim": 2,
+    "flash_block_size": 32,
+    "naive_bytedmd": 13705802,
+    "flash_bytedmd": 4350268,
+    "naive_flops": 147328,
+    "flash_flops": 153088,
+    "bytedmd_ratio": 3.1506,
+    "flop_ratio": 0.9624
   }
 ]
