@@ -13,21 +13,21 @@ import pytest
 from bytedmd import traced_eval
 
 
-def test_gotcha_constant_ops():
+def test_constant_ops_are_tracked():
     """
-    Limitation of Python model: constants are not tracked
+    Constants are now tracked on the LRU stack via const_keys cache.
+    `a * 10` reads [a, const_10], then `10 - result` reads [const_10 (cached), result].
     """
     def f(a):
         return 10 - a * 10
 
     trace, _ = traced_eval(f, (5,))
-    assert trace == [1, 1]
+    assert trace == [2, 1, 2, 1]
 
 
-def test_gotcha_pure_memory_movement_is_free_trace():
+def test_pure_memory_movement_is_now_traced():
     """
-    Limitation of Python model: pure list index without computation does not trigger math magic methods,
-    hence generating no read trace.
+    _TrackedList intercepts __getitem__ and __iter__, so pure list indexing now generates traces.
     """
     def transpose(A):
         n = len(A)
@@ -36,7 +36,7 @@ def test_gotcha_pure_memory_movement_is_free_trace():
     A = [[1, 2], [3, 4]]
     trace, result = traced_eval(transpose, (A,))
 
-    assert trace == []
+    assert trace == [2, 2, 2, 2, 4, 3, 4, 4, 4, 3, 4, 4, 4, 4, 6, 6]
     assert result == [[1, 3], [2, 4]]
 
 
@@ -57,23 +57,22 @@ def test_short_circuit_gotcha():
     assert result == 5
 
 
-def test_gotcha_comparison_untracking_trace():
+def test_comparison_results_are_now_tracked():
     """
-    Native Booleans escape the LRU Stack.
-    To allow standard Python control flow (`if a > b:`), comparison operators
-    intentionally evaluate directly to native Python booleans. If an algorithm
-    subsequently uses these booleans mathematically, they are completely untracked.
+    Comparisons now return _TrackedValue instead of raw booleans.
+    The comparison result stays on the LRU stack and is properly tracked when used later.
     """
     def compare_and_use(a, b):
-        c = a > b  # 'c' escapes the tracker and becomes a raw Python boolean (True)
-        return c + a # 'c' is mathematically used, but its read generates no cost!
+        c = a > b  # c is now a _TrackedValue wrapping True
+        return c + a  # both c and a are tracked
 
     trace, result = traced_eval(compare_and_use, (5, 3))
 
     # Trace logic:
-    # 1. `a > b` triggers trace [2, 1] (a is depth 2, b is depth 1)
-    # 2. `c + a` reads 'a' at depth 2 ('c' generates NO trace because it is a raw boolean)
-    assert trace == [2, 1, 2]
+    # 1. `a > b` reads [a, b] -> trace [2, 1]
+    # 2. __bool__ on result for truthiness check in + doesn't happen here
+    # 3. `c + a` reads [c, a] -> trace [1, 3]
+    assert trace == [2, 1, 1, 3]
 
     # Result is 6 (True + 5)
     assert result == 6
@@ -100,24 +99,22 @@ def test_tuple_inputs_are_preserved():
     assert result is True
 
 
-def test_gotcha_numpy_outputs_are_not_fully_unwrapped():
+def test_numpy_outputs_are_properly_unwrapped():
     """
-    `_unwrap` handles only lists/tuples/_TrackedValue, so ndarray outputs can leak wrapped
-    scalars back to the caller.
+    _unwrap now handles ndarray with object dtype, properly unwrapping to native arrays.
     """
     trace, result = traced_eval(
         lambda a, b: np.add(a, b),
         (np.array([1, 2]), np.array([3, 4])),
     )
     assert isinstance(result, np.ndarray)
-    assert result.dtype == object
-    assert [x.value for x in result.tolist()] == [4, 6]
+    assert result.dtype != object
+    np.testing.assert_array_equal(result, [4, 6])
 
 
-def test_gotcha_argument_aliasing_and_mutation_are_not_preserved():
+def test_argument_aliasing_and_mutation_are_preserved():
     """
-    `_wrap` rebuilds containers recursively, so shared-object aliasing disappears and
-    in-place mutation does not affect the caller's objects.
+    _wrap now preserves aliasing via memo dict, and mutations are synced back to originals.
     """
     def mutate_alias(a, b):
         a[0] = 7
@@ -129,12 +126,12 @@ def test_gotcha_argument_aliasing_and_mutation_are_not_preserved():
 
     wrapped = [1]
     trace, result = traced_eval(mutate_alias, (wrapped, wrapped))
-    assert trace == []
-    assert result == 1
-    assert wrapped == [1]
+    # _TrackedList.__getitem__ reads the element, __setitem__ wraps the new value
+    assert trace == [1, 1]
+    assert result == 7
+    assert wrapped == [7]
 
 
-@pytest.mark.xfail(reason="_make_method ignores the 3rd argument to __pow__")
 def test_pow_with_modulo_should_be_traced_and_match_python():
     """
     This is a real semantic bug, not just a gotcha: `pow(a, b, m)` currently ignores `m`,
