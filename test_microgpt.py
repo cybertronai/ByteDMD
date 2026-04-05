@@ -72,16 +72,8 @@ def gpt_forward(wte, wpe, lm_head,
     return logits
 
 
-def make_matrix(nout, nin, start=0.1, step=0.01):
-    val = start
-    m = []
-    for i in range(nout):
-        row = []
-        for j in range(nin):
-            row.append(val)
-            val += step
-        m.append(row)
-    return m
+def make_matrix(nout, nin):
+    return [[1.0] * nin for _ in range(nout)]
 
 
 # Tiny config
@@ -93,15 +85,15 @@ HEAD_DIM = N_EMBD // N_HEAD
 
 
 def test_microgpt_single_token():
-    wte = make_matrix(VOCAB_SIZE, N_EMBD, start=0.1)
-    wpe = make_matrix(BLOCK_SIZE, N_EMBD, start=0.5)
-    lm_head = make_matrix(VOCAB_SIZE, N_EMBD, start=0.9)
-    attn_wq = make_matrix(N_EMBD, N_EMBD, start=1.3)
-    attn_wk = make_matrix(N_EMBD, N_EMBD, start=1.7)
-    attn_wv = make_matrix(N_EMBD, N_EMBD, start=2.1)
-    attn_wo = make_matrix(N_EMBD, N_EMBD, start=2.5)
-    mlp_fc1 = make_matrix(4 * N_EMBD, N_EMBD, start=2.9)
-    mlp_fc2 = make_matrix(N_EMBD, 4 * N_EMBD, start=3.3)
+    wte = make_matrix(VOCAB_SIZE, N_EMBD)
+    wpe = make_matrix(BLOCK_SIZE, N_EMBD)
+    lm_head = make_matrix(VOCAB_SIZE, N_EMBD)
+    attn_wq = make_matrix(N_EMBD, N_EMBD)
+    attn_wk = make_matrix(N_EMBD, N_EMBD)
+    attn_wv = make_matrix(N_EMBD, N_EMBD)
+    attn_wo = make_matrix(N_EMBD, N_EMBD)
+    mlp_fc1 = make_matrix(4 * N_EMBD, N_EMBD)
+    mlp_fc2 = make_matrix(N_EMBD, 4 * N_EMBD)
 
     def forward(wte, wpe, lm_head, attn_wq, attn_wk, attn_wv, attn_wo, mlp_fc1, mlp_fc2):
         return gpt_forward(wte, wpe, lm_head,

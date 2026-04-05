@@ -105,6 +105,12 @@ Inputs move to the top sequentially in read order (`b`, then `c`), followed by t
 | Strassen (leaf=1) | C = A @ B | 2435 |
 | Winograd | C = A @ B | 2178 |
 
+## microGPT Forward Pass
+
+ByteDMD cost of a single-token forward pass through a tiny GPT ([Karpathy's microGPT](https://gist.github.com/karpathy/8627fe009c40f57531cb18360106ce95)):
+
+![microGPT Architecture](docs/microgpt_figure.svg)
+
 # Python Gotcha's
 This version implements ByteDMD by wrapping Python objects. This means that "Instruction Set" of this metric corresponds to Python built-ins, documented under docs/python_instruction_set.md.
 
