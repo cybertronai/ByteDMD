@@ -1,0 +1,512 @@
+[
+  {
+    "algorithm": "naive",
+    "N": 2,
+    "strategy": "unmanaged",
+    "cost": 71,
+    "n_reads": 24,
+    "peak_stack": 20,
+    "flops": 12,
+    "wall_seconds": 0.0
+  },
+  {
+    "algorithm": "naive",
+    "N": 2,
+    "strategy": "tombstone",
+    "cost": 76,
+    "n_reads": 24,
+    "peak_stack": 14,
+    "flops": 12,
+    "wall_seconds": 0.0
+  },
+  {
+    "algorithm": "naive",
+    "N": 2,
+    "strategy": "aggressive",
+    "cost": 67,
+    "n_reads": 24,
+    "peak_stack": 14,
+    "flops": 12,
+    "wall_seconds": 0.0
+  },
+  {
+    "algorithm": "rmm",
+    "N": 2,
+    "strategy": "unmanaged",
+    "cost": 71,
+    "n_reads": 24,
+    "peak_stack": 20,
+    "flops": 12,
+    "wall_seconds": 0.0
+  },
+  {
+    "algorithm": "rmm",
+    "N": 2,
+    "strategy": "tombstone",
+    "cost": 76,
+    "n_reads": 24,
+    "peak_stack": 14,
+    "flops": 12,
+    "wall_seconds": 0.0
+  },
+  {
+    "algorithm": "rmm",
+    "N": 2,
+    "strategy": "aggressive",
+    "cost": 67,
+    "n_reads": 24,
+    "peak_stack": 14,
+    "flops": 12,
+    "wall_seconds": 0.0
+  },
+  {
+    "algorithm": "strassen",
+    "N": 2,
+    "strategy": "unmanaged",
+    "cost": 159,
+    "n_reads": 50,
+    "peak_stack": 33,
+    "flops": 25,
+    "wall_seconds": 0.0001
+  },
+  {
+    "algorithm": "strassen",
+    "N": 2,
+    "strategy": "tombstone",
+    "cost": 157,
+    "n_reads": 50,
+    "peak_stack": 18,
+    "flops": 25,
+    "wall_seconds": 0.0001
+  },
+  {
+    "algorithm": "strassen",
+    "N": 2,
+    "strategy": "aggressive",
+    "cost": 141,
+    "n_reads": 50,
+    "peak_stack": 18,
+    "flops": 25,
+    "wall_seconds": 0.0001
+  },
+  {
+    "algorithm": "naive",
+    "N": 4,
+    "strategy": "unmanaged",
+    "cost": 997,
+    "n_reads": 224,
+    "peak_stack": 144,
+    "flops": 112,
+    "wall_seconds": 0.0003
+  },
+  {
+    "algorithm": "naive",
+    "N": 4,
+    "strategy": "tombstone",
+    "cost": 905,
+    "n_reads": 224,
+    "peak_stack": 50,
+    "flops": 112,
+    "wall_seconds": 0.0003
+  },
+  {
+    "algorithm": "naive",
+    "N": 4,
+    "strategy": "aggressive",
+    "cost": 837,
+    "n_reads": 224,
+    "peak_stack": 50,
+    "flops": 112,
+    "wall_seconds": 0.0002
+  },
+  {
+    "algorithm": "rmm",
+    "N": 4,
+    "strategy": "unmanaged",
+    "cost": 1043,
+    "n_reads": 224,
+    "peak_stack": 144,
+    "flops": 112,
+    "wall_seconds": 0.0003
+  },
+  {
+    "algorithm": "rmm",
+    "N": 4,
+    "strategy": "tombstone",
+    "cost": 961,
+    "n_reads": 224,
+    "peak_stack": 56,
+    "flops": 112,
+    "wall_seconds": 0.0003
+  },
+  {
+    "algorithm": "rmm",
+    "N": 4,
+    "strategy": "aggressive",
+    "cost": 860,
+    "n_reads": 224,
+    "peak_stack": 56,
+    "flops": 112,
+    "wall_seconds": 0.0003
+  },
+  {
+    "algorithm": "strassen",
+    "N": 4,
+    "strategy": "unmanaged",
+    "cost": 2486,
+    "n_reads": 494,
+    "peak_stack": 279,
+    "flops": 247,
+    "wall_seconds": 0.0007
+  },
+  {
+    "algorithm": "strassen",
+    "N": 4,
+    "strategy": "tombstone",
+    "cost": 2228,
+    "n_reads": 494,
+    "peak_stack": 74,
+    "flops": 247,
+    "wall_seconds": 0.0007
+  },
+  {
+    "algorithm": "strassen",
+    "N": 4,
+    "strategy": "aggressive",
+    "cost": 1935,
+    "n_reads": 494,
+    "peak_stack": 74,
+    "flops": 247,
+    "wall_seconds": 0.0006
+  },
+  {
+    "algorithm": "naive",
+    "N": 8,
+    "strategy": "unmanaged",
+    "cost": 13356,
+    "n_reads": 1920,
+    "peak_stack": 1088,
+    "flops": 960,
+    "wall_seconds": 0.0072
+  },
+  {
+    "algorithm": "naive",
+    "N": 8,
+    "strategy": "tombstone",
+    "cost": 10343,
+    "n_reads": 1920,
+    "peak_stack": 194,
+    "flops": 960,
+    "wall_seconds": 0.0039
+  },
+  {
+    "algorithm": "naive",
+    "N": 8,
+    "strategy": "aggressive",
+    "cost": 9862,
+    "n_reads": 1920,
+    "peak_stack": 194,
+    "flops": 960,
+    "wall_seconds": 0.0034
+  },
+  {
+    "algorithm": "rmm",
+    "N": 8,
+    "strategy": "unmanaged",
+    "cost": 13047,
+    "n_reads": 1920,
+    "peak_stack": 1088,
+    "flops": 960,
+    "wall_seconds": 0.007
+  },
+  {
+    "algorithm": "rmm",
+    "N": 8,
+    "strategy": "tombstone",
+    "cost": 10490,
+    "n_reads": 1920,
+    "peak_stack": 224,
+    "flops": 960,
+    "wall_seconds": 0.0054
+  },
+  {
+    "algorithm": "rmm",
+    "N": 8,
+    "strategy": "aggressive",
+    "cost": 9418,
+    "n_reads": 1920,
+    "peak_stack": 224,
+    "flops": 960,
+    "wall_seconds": 0.0045
+  },
+  {
+    "algorithm": "strassen",
+    "N": 8,
+    "strategy": "unmanaged",
+    "cost": 30955,
+    "n_reads": 4034,
+    "peak_stack": 2145,
+    "flops": 2017,
+    "wall_seconds": 0.0244
+  },
+  {
+    "algorithm": "strassen",
+    "N": 8,
+    "strategy": "tombstone",
+    "cost": 24988,
+    "n_reads": 4034,
+    "peak_stack": 298,
+    "flops": 2017,
+    "wall_seconds": 0.0119
+  },
+  {
+    "algorithm": "strassen",
+    "N": 8,
+    "strategy": "aggressive",
+    "cost": 20930,
+    "n_reads": 4034,
+    "peak_stack": 298,
+    "flops": 2017,
+    "wall_seconds": 0.0092
+  },
+  {
+    "algorithm": "naive",
+    "N": 16,
+    "strategy": "unmanaged",
+    "cost": 178324,
+    "n_reads": 15872,
+    "peak_stack": 8448,
+    "flops": 7936,
+    "wall_seconds": 0.3052
+  },
+  {
+    "algorithm": "naive",
+    "N": 16,
+    "strategy": "tombstone",
+    "cost": 121869,
+    "n_reads": 15872,
+    "peak_stack": 770,
+    "flops": 7936,
+    "wall_seconds": 0.086
+  },
+  {
+    "algorithm": "naive",
+    "N": 16,
+    "strategy": "aggressive",
+    "cost": 117935,
+    "n_reads": 15872,
+    "peak_stack": 770,
+    "flops": 7936,
+    "wall_seconds": 0.0733
+  },
+  {
+    "algorithm": "rmm",
+    "N": 16,
+    "strategy": "unmanaged",
+    "cost": 154251,
+    "n_reads": 15872,
+    "peak_stack": 8448,
+    "flops": 7936,
+    "wall_seconds": 0.3054
+  },
+  {
+    "algorithm": "rmm",
+    "N": 16,
+    "strategy": "tombstone",
+    "cost": 106395,
+    "n_reads": 15872,
+    "peak_stack": 896,
+    "flops": 7936,
+    "wall_seconds": 0.0985
+  },
+  {
+    "algorithm": "rmm",
+    "N": 16,
+    "strategy": "aggressive",
+    "cost": 95462,
+    "n_reads": 15872,
+    "peak_stack": 896,
+    "flops": 7936,
+    "wall_seconds": 0.0835
+  },
+  {
+    "algorithm": "strassen",
+    "N": 16,
+    "strategy": "unmanaged",
+    "cost": 353207,
+    "n_reads": 30542,
+    "peak_stack": 15783,
+    "flops": 15271,
+    "wall_seconds": 1.1499
+  },
+  {
+    "algorithm": "strassen",
+    "N": 16,
+    "strategy": "tombstone",
+    "cost": 250051,
+    "n_reads": 30542,
+    "peak_stack": 1194,
+    "flops": 15271,
+    "wall_seconds": 0.2481
+  },
+  {
+    "algorithm": "strassen",
+    "N": 16,
+    "strategy": "aggressive",
+    "cost": 204752,
+    "n_reads": 30542,
+    "peak_stack": 1194,
+    "flops": 15271,
+    "wall_seconds": 0.2009
+  },
+  {
+    "algorithm": "naive",
+    "N": 32,
+    "strategy": "unmanaged",
+    "cost": 2506679,
+    "n_reads": 129024,
+    "peak_stack": 66560,
+    "flops": 64512,
+    "wall_seconds": 19.7798
+  },
+  {
+    "algorithm": "naive",
+    "N": 32,
+    "strategy": "tombstone",
+    "cost": 1605531,
+    "n_reads": 129024,
+    "peak_stack": 3074,
+    "flops": 64512,
+    "wall_seconds": 2.253
+  },
+  {
+    "algorithm": "naive",
+    "N": 32,
+    "strategy": "aggressive",
+    "cost": 1573593,
+    "n_reads": 129024,
+    "peak_stack": 3074,
+    "flops": 64512,
+    "wall_seconds": 2.196
+  },
+  {
+    "algorithm": "rmm",
+    "N": 32,
+    "strategy": "unmanaged",
+    "cost": 1779356,
+    "n_reads": 129024,
+    "peak_stack": 66560,
+    "flops": 64512,
+    "wall_seconds": 19.7179
+  },
+  {
+    "algorithm": "rmm",
+    "N": 32,
+    "strategy": "tombstone",
+    "cost": 1029446,
+    "n_reads": 129024,
+    "peak_stack": 3584,
+    "flops": 64512,
+    "wall_seconds": 2.9067
+  },
+  {
+    "algorithm": "rmm",
+    "N": 32,
+    "strategy": "aggressive",
+    "cost": 923846,
+    "n_reads": 129024,
+    "peak_stack": 3584,
+    "flops": 64512,
+    "wall_seconds": 2.5078
+  },
+  {
+    "algorithm": "strassen",
+    "N": 32,
+    "strategy": "unmanaged",
+    "cost": 3866327,
+    "n_reads": 223010,
+    "peak_stack": 113553,
+    "flops": 111505,
+    "wall_seconds": 57.4837
+  },
+  {
+    "algorithm": "strassen",
+    "N": 32,
+    "strategy": "tombstone",
+    "cost": 2352062,
+    "n_reads": 223010,
+    "peak_stack": 4778,
+    "flops": 111505,
+    "wall_seconds": 6.1547
+  },
+  {
+    "algorithm": "strassen",
+    "N": 32,
+    "strategy": "aggressive",
+    "cost": 1895375,
+    "n_reads": 223010,
+    "peak_stack": 4778,
+    "flops": 111505,
+    "wall_seconds": 5.5616
+  },
+  {
+    "algorithm": "naive",
+    "N": 64,
+    "strategy": "tombstone",
+    "cost": 22063993,
+    "n_reads": 1040384,
+    "peak_stack": 12290,
+    "flops": 520192,
+    "wall_seconds": 57.8539
+  },
+  {
+    "algorithm": "naive",
+    "N": 64,
+    "strategy": "aggressive",
+    "cost": 21805502,
+    "n_reads": 1040384,
+    "peak_stack": 12290,
+    "flops": 520192,
+    "wall_seconds": 59.2015
+  },
+  {
+    "algorithm": "rmm",
+    "N": 64,
+    "strategy": "tombstone",
+    "cost": 9655664,
+    "n_reads": 1040384,
+    "peak_stack": 14336,
+    "flops": 520192,
+    "wall_seconds": 18.438
+  },
+  {
+    "algorithm": "rmm",
+    "N": 64,
+    "strategy": "aggressive",
+    "cost": 8667228,
+    "n_reads": 1040384,
+    "peak_stack": 14336,
+    "flops": 520192,
+    "wall_seconds": 15.915
+  },
+  {
+    "algorithm": "strassen",
+    "N": 64,
+    "strategy": "tombstone",
+    "cost": 21279954,
+    "n_reads": 1597934,
+    "peak_stack": 19114,
+    "flops": 798967,
+    "wall_seconds": 49.9008
+  },
+  {
+    "algorithm": "strassen",
+    "N": 64,
+    "strategy": "aggressive",
+    "cost": 16947590,
+    "n_reads": 1597934,
+    "peak_stack": 19114,
+    "flops": 798967,
+    "wall_seconds": 35.4297
+  }
+]
