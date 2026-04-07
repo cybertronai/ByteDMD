@@ -19,21 +19,54 @@ Strategy 3: Aggressive (Instant compaction)
     UP toward MRU. Models an idealized compacting GC where dead bytes get
     instantly returned to faster cache.
 
-The cost model is element-level (bytes_per_element=1). Reading at depth d
-costs ceil(sqrt(d)). Reuses _Context semantics from bytedmd.py.
+The cost model is element-level (bytes_per_element=1). Two cost variants
+are computed for every trace:
+  - DISCRETE: cost = sum(ceil(sqrt(depth))). The original bytedmd.py form.
+  - CONTINUOUS: cost = sum( (2/3) * (d^1.5 - (d-1)^1.5) ) per read,
+    which is the exact integral form ∫_{d-1}^{d} sqrt(x) dx for one
+    element. This matches the "Continuous ByteDMD model" used in the
+    closed-form analytical formulas (Gemini's analysis), where reading
+    a block of volume V starting at depth D costs
+        ∫_D^{D+V} sqrt(x) dx  =  (2/3) [(D+V)^1.5 − D^1.5].
+    Summing the per-element form over a block of V elements located at
+    depths D+1, D+2, ..., D+V gives exactly that integral, so the
+    per-read continuous cost is internally consistent with the analytical
+    block model.
 """
 
 import math
 
 
 def usqrt(d):
-    """ceil(sqrt(d)) for d > 0."""
+    """ceil(sqrt(d)) for d > 0 (discrete ByteDMD per-element cost)."""
     return math.isqrt(d - 1) + 1 if d > 0 else 0
 
 
-def trace_to_cost(trace):
-    """Total ByteDMD cost = sum of ceil(sqrt(depth)) over all reads."""
+def trace_to_cost_discrete(trace):
+    """Total discrete ByteDMD cost = sum(ceil(sqrt(d))) over all reads."""
     return sum(usqrt(d) for d in trace)
+
+
+def trace_to_cost_continuous(trace):
+    """Total continuous ByteDMD cost = sum( ∫_{d-1}^{d} sqrt(x) dx ).
+
+    Each per-element read at integer depth d contributes the exact
+    integral (2/3) (d^1.5 - (d-1)^1.5). Summing across consecutive
+    contiguous reads is equivalent to the block integral
+    (2/3) ((D+V)^1.5 - D^1.5).
+    """
+    return sum((2.0 / 3.0) * (d ** 1.5 - (d - 1) ** 1.5) for d in trace)
+
+
+# Default cost function: continuous, since this experiment is comparing
+# against the continuous closed-form formulas. The discrete form is also
+# computed and reported for completeness.
+def trace_to_cost(trace, mode='continuous'):
+    if mode == 'discrete':
+        return trace_to_cost_discrete(trace)
+    elif mode == 'continuous':
+        return trace_to_cost_continuous(trace)
+    raise ValueError(f"Unknown mode: {mode}")
 
 
 class Context:
@@ -153,13 +186,23 @@ def wrap_matrix(ctx, mat):
     return [[Tracked(ctx, ctx.allocate(), v) for v in row] for row in mat]
 
 
-def measure(matmul_fn, A, B, strategy):
-    """Run matmul_fn(A, B) under the given strategy and return (cost, n_reads, peak_stack)."""
+def measure(matmul_fn, A, B, strategy, inplace=False):
+    """Run matmul_fn under `strategy` and report cost+footprint.
+
+    If inplace=False, the function signature is matmul_fn(A, B) -> C and
+    we measure the entire computation including the construction of C.
+
+    If inplace=True, the function signature is matmul_fn(A, B, C) where
+    C is a pre-allocated zero matrix and the result accumulates into C.
+    The measurement covers the in-place call.
+    """
     ctx = Context(strategy=strategy)
     A_w = wrap_matrix(ctx, A)
     B_w = wrap_matrix(ctx, B)
-    # Track the peak live stack length so we can correlate with footprint
-    # bounds in the asymptotic analysis.
+    if inplace:
+        C_init = [[0] * len(A) for _ in range(len(A))]
+        C_w = wrap_matrix(ctx, C_init)
+
     peak = [len(ctx.stack)]
     orig_alloc = ctx.allocate
     def tracking_alloc():
@@ -168,13 +211,18 @@ def measure(matmul_fn, A, B, strategy):
         return k
     ctx.allocate = tracking_alloc
 
-    result = matmul_fn(A_w, B_w)
-    # Force the result to drop so its temporaries are reclaimed before we
-    # snapshot the trace. Without this, GC of the result happens after we
-    # already returned from this function — the trace is unaffected, but
-    # peak stack would not include the result-cleanup steps.
-    del result
+    if inplace:
+        matmul_fn(A_w, B_w, C_w)
+        del C_w
+    else:
+        result = matmul_fn(A_w, B_w)
+        del result
     del A_w
     del B_w
 
-    return trace_to_cost(ctx.trace), len(ctx.trace), peak[0]
+    return {
+        'cost_discrete': trace_to_cost_discrete(ctx.trace),
+        'cost_continuous': trace_to_cost_continuous(ctx.trace),
+        'n_reads': len(ctx.trace),
+        'peak_stack': peak[0],
+    }

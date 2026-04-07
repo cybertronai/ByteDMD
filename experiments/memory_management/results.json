@@ -3,7 +3,8 @@
     "algorithm": "naive",
     "N": 2,
     "strategy": "unmanaged",
-    "cost": 71,
+    "cost_discrete": 71,
+    "cost_continuous": 60.93671117476814,
     "n_reads": 24,
     "peak_stack": 20,
     "flops": 12,
@@ -13,7 +14,8 @@
     "algorithm": "naive",
     "N": 2,
     "strategy": "tombstone",
-    "cost": 76,
+    "cost_discrete": 76,
+    "cost_continuous": 63.64611305839015,
     "n_reads": 24,
     "peak_stack": 14,
     "flops": 12,
@@ -23,7 +25,8 @@
     "algorithm": "naive",
     "N": 2,
     "strategy": "aggressive",
-    "cost": 67,
+    "cost_discrete": 67,
+    "cost_continuous": 54.99390088953346,
     "n_reads": 24,
     "peak_stack": 14,
     "flops": 12,
@@ -33,7 +36,8 @@
     "algorithm": "rmm",
     "N": 2,
     "strategy": "unmanaged",
-    "cost": 71,
+    "cost_discrete": 71,
+    "cost_continuous": 60.93671117476814,
     "n_reads": 24,
     "peak_stack": 20,
     "flops": 12,
@@ -43,7 +47,8 @@
     "algorithm": "rmm",
     "N": 2,
     "strategy": "tombstone",
-    "cost": 76,
+    "cost_discrete": 76,
+    "cost_continuous": 63.64611305839015,
     "n_reads": 24,
     "peak_stack": 14,
     "flops": 12,
@@ -53,17 +58,85 @@
     "algorithm": "rmm",
     "N": 2,
     "strategy": "aggressive",
-    "cost": 67,
+    "cost_discrete": 67,
+    "cost_continuous": 54.99390088953346,
     "n_reads": 24,
     "peak_stack": 14,
     "flops": 12,
+    "wall_seconds": 0.0001
+  },
+  {
+    "algorithm": "rmm_inplace_lex",
+    "N": 2,
+    "strategy": "unmanaged",
+    "cost_discrete": 108,
+    "cost_continuous": 91.18066373675816,
+    "n_reads": 32,
+    "peak_stack": 28,
+    "flops": 12,
+    "wall_seconds": 0.0001
+  },
+  {
+    "algorithm": "rmm_inplace_lex",
+    "N": 2,
+    "strategy": "tombstone",
+    "cost_discrete": 101,
+    "cost_continuous": 87.02525099197877,
+    "n_reads": 32,
+    "peak_stack": 14,
+    "flops": 12,
+    "wall_seconds": 0.0001
+  },
+  {
+    "algorithm": "rmm_inplace_lex",
+    "N": 2,
+    "strategy": "aggressive",
+    "cost_discrete": 94,
+    "cost_continuous": 76.25735099121378,
+    "n_reads": 32,
+    "peak_stack": 14,
+    "flops": 12,
+    "wall_seconds": 0.0001
+  },
+  {
+    "algorithm": "rmm_inplace_gray",
+    "N": 2,
+    "strategy": "unmanaged",
+    "cost_discrete": 106,
+    "cost_continuous": 88.87877898055278,
+    "n_reads": 32,
+    "peak_stack": 28,
+    "flops": 12,
     "wall_seconds": 0.0
+  },
+  {
+    "algorithm": "rmm_inplace_gray",
+    "N": 2,
+    "strategy": "tombstone",
+    "cost_discrete": 96,
+    "cost_continuous": 84.84856779194965,
+    "n_reads": 32,
+    "peak_stack": 14,
+    "flops": 12,
+    "wall_seconds": 0.0001
+  },
+  {
+    "algorithm": "rmm_inplace_gray",
+    "N": 2,
+    "strategy": "aggressive",
+    "cost_discrete": 91,
+    "cost_continuous": 73.88008108366806,
+    "n_reads": 32,
+    "peak_stack": 14,
+    "flops": 12,
+    "wall_seconds": 0.0001
   },
   {
     "algorithm": "strassen",
     "N": 2,
     "strategy": "unmanaged",
-    "cost": 159,
+    "cost_discrete": 159,
+    "cost_continuous": 133.63945435181844,
     "n_reads": 50,
     "peak_stack": 33,
     "flops": 25,
@@ -73,7 +146,8 @@
     "algorithm": "strassen",
     "N": 2,
     "strategy": "tombstone",
-    "cost": 157,
+    "cost_discrete": 157,
+    "cost_continuous": 133.62777671530836,
     "n_reads": 50,
     "peak_stack": 18,
     "flops": 25,
@@ -83,7 +157,8 @@
     "algorithm": "strassen",
     "N": 2,
     "strategy": "aggressive",
-    "cost": 141,
+    "cost_discrete": 141,
+    "cost_continuous": 117.31989074727609,
     "n_reads": 50,
     "peak_stack": 18,
     "flops": 25,
@@ -93,137 +168,217 @@
     "algorithm": "naive",
     "N": 4,
     "strategy": "unmanaged",
-    "cost": 997,
+    "cost_discrete": 997,
+    "cost_continuous": 900.9216540482706,
     "n_reads": 224,
     "peak_stack": 144,
     "flops": 112,
-    "wall_seconds": 0.0003
+    "wall_seconds": 0.0004
   },
   {
     "algorithm": "naive",
     "N": 4,
     "strategy": "tombstone",
-    "cost": 905,
+    "cost_discrete": 905,
+    "cost_continuous": 783.7523292070457,
     "n_reads": 224,
     "peak_stack": 50,
     "flops": 112,
-    "wall_seconds": 0.0003
+    "wall_seconds": 0.0004
   },
   {
     "algorithm": "naive",
     "N": 4,
     "strategy": "aggressive",
-    "cost": 837,
+    "cost_discrete": 837,
+    "cost_continuous": 713.0520261533819,
     "n_reads": 224,
     "peak_stack": 50,
     "flops": 112,
-    "wall_seconds": 0.0002
+    "wall_seconds": 0.0004
   },
   {
     "algorithm": "rmm",
     "N": 4,
     "strategy": "unmanaged",
-    "cost": 1043,
+    "cost_discrete": 1043,
+    "cost_continuous": 934.3178444337022,
     "n_reads": 224,
     "peak_stack": 144,
     "flops": 112,
-    "wall_seconds": 0.0003
+    "wall_seconds": 0.0005
   },
   {
     "algorithm": "rmm",
     "N": 4,
     "strategy": "tombstone",
-    "cost": 961,
+    "cost_discrete": 961,
+    "cost_continuous": 841.7471463048256,
     "n_reads": 224,
     "peak_stack": 56,
     "flops": 112,
-    "wall_seconds": 0.0003
+    "wall_seconds": 0.0005
   },
   {
     "algorithm": "rmm",
     "N": 4,
     "strategy": "aggressive",
-    "cost": 860,
+    "cost_discrete": 860,
+    "cost_continuous": 750.317614839241,
     "n_reads": 224,
     "peak_stack": 56,
     "flops": 112,
-    "wall_seconds": 0.0003
+    "wall_seconds": 0.0004
   },
   {
-    "algorithm": "strassen",
+    "algorithm": "rmm_inplace_lex",
     "N": 4,
     "strategy": "unmanaged",
-    "cost": 2486,
-    "n_reads": 494,
-    "peak_stack": 279,
-    "flops": 247,
-    "wall_seconds": 0.0007
-  },
-  {
-    "algorithm": "strassen",
-    "N": 4,
-    "strategy": "tombstone",
-    "cost": 2228,
-    "n_reads": 494,
-    "peak_stack": 74,
-    "flops": 247,
-    "wall_seconds": 0.0007
-  },
-  {
-    "algorithm": "strassen",
-    "N": 4,
-    "strategy": "aggressive",
-    "cost": 1935,
-    "n_reads": 494,
-    "peak_stack": 74,
-    "flops": 247,
+    "cost_discrete": 1287,
+    "cost_continuous": 1136.8682096481928,
+    "n_reads": 256,
+    "peak_stack": 176,
+    "flops": 112,
     "wall_seconds": 0.0006
   },
   {
+    "algorithm": "rmm_inplace_lex",
+    "N": 4,
+    "strategy": "tombstone",
+    "cost_discrete": 1046,
+    "cost_continuous": 933.528592242493,
+    "n_reads": 256,
+    "peak_stack": 50,
+    "flops": 112,
+    "wall_seconds": 0.0005
+  },
+  {
+    "algorithm": "rmm_inplace_lex",
+    "N": 4,
+    "strategy": "aggressive",
+    "cost_discrete": 958,
+    "cost_continuous": 838.7113604550677,
+    "n_reads": 256,
+    "peak_stack": 50,
+    "flops": 112,
+    "wall_seconds": 0.0005
+  },
+  {
+    "algorithm": "rmm_inplace_gray",
+    "N": 4,
+    "strategy": "unmanaged",
+    "cost_discrete": 1246,
+    "cost_continuous": 1096.0643970816357,
+    "n_reads": 256,
+    "peak_stack": 176,
+    "flops": 112,
+    "wall_seconds": 0.0005
+  },
+  {
+    "algorithm": "rmm_inplace_gray",
+    "N": 4,
+    "strategy": "tombstone",
+    "cost_discrete": 984,
+    "cost_continuous": 896.3492359008683,
+    "n_reads": 256,
+    "peak_stack": 50,
+    "flops": 112,
+    "wall_seconds": 0.0005
+  },
+  {
+    "algorithm": "rmm_inplace_gray",
+    "N": 4,
+    "strategy": "aggressive",
+    "cost_discrete": 922,
+    "cost_continuous": 799.1312342088618,
+    "n_reads": 256,
+    "peak_stack": 50,
+    "flops": 112,
+    "wall_seconds": 0.0005
+  },
+  {
+    "algorithm": "strassen",
+    "N": 4,
+    "strategy": "unmanaged",
+    "cost_discrete": 2486,
+    "cost_continuous": 2233.7216064444756,
+    "n_reads": 494,
+    "peak_stack": 279,
+    "flops": 247,
+    "wall_seconds": 0.0012
+  },
+  {
+    "algorithm": "strassen",
+    "N": 4,
+    "strategy": "tombstone",
+    "cost_discrete": 2228,
+    "cost_continuous": 1988.325781212439,
+    "n_reads": 494,
+    "peak_stack": 74,
+    "flops": 247,
+    "wall_seconds": 0.001
+  },
+  {
+    "algorithm": "strassen",
+    "N": 4,
+    "strategy": "aggressive",
+    "cost_discrete": 1935,
+    "cost_continuous": 1696.9102636330986,
+    "n_reads": 494,
+    "peak_stack": 74,
+    "flops": 247,
+    "wall_seconds": 0.0009
+  },
+  {
     "algorithm": "naive",
     "N": 8,
     "strategy": "unmanaged",
-    "cost": 13356,
+    "cost_discrete": 13356,
+    "cost_continuous": 12349.202670201179,
     "n_reads": 1920,
     "peak_stack": 1088,
     "flops": 960,
-    "wall_seconds": 0.0072
+    "wall_seconds": 0.0079
   },
   {
     "algorithm": "naive",
     "N": 8,
     "strategy": "tombstone",
-    "cost": 10343,
+    "cost_discrete": 10343,
+    "cost_continuous": 9422.973884209472,
     "n_reads": 1920,
     "peak_stack": 194,
     "flops": 960,
-    "wall_seconds": 0.0039
+    "wall_seconds": 0.0049
   },
   {
     "algorithm": "naive",
     "N": 8,
     "strategy": "aggressive",
-    "cost": 9862,
+    "cost_discrete": 9862,
+    "cost_continuous": 8742.010434460688,
     "n_reads": 1920,
     "peak_stack": 194,
     "flops": 960,
-    "wall_seconds": 0.0034
+    "wall_seconds": 0.0046
   },
   {
     "algorithm": "rmm",
     "N": 8,
     "strategy": "unmanaged",
-    "cost": 13047,
+    "cost_discrete": 13047,
+    "cost_continuous": 12113.94200803999,
     "n_reads": 1920,
     "peak_stack": 1088,
     "flops": 960,
-    "wall_seconds": 0.007
+    "wall_seconds": 0.0085
   },
   {
     "algorithm": "rmm",
     "N": 8,
     "strategy": "tombstone",
-    "cost": 10490,
+    "cost_discrete": 10490,
+    "cost_continuous": 9415.547555565938,
     "n_reads": 1920,
     "peak_stack": 224,
     "flops": 960,
@@ -233,280 +388,550 @@
     "algorithm": "rmm",
     "N": 8,
     "strategy": "aggressive",
-    "cost": 9418,
+    "cost_discrete": 9418,
+    "cost_continuous": 8486.147972663393,
     "n_reads": 1920,
     "peak_stack": 224,
     "flops": 960,
-    "wall_seconds": 0.0045
+    "wall_seconds": 0.0049
+  },
+  {
+    "algorithm": "rmm_inplace_lex",
+    "N": 8,
+    "strategy": "unmanaged",
+    "cost_discrete": 14530,
+    "cost_continuous": 13322.15081848691,
+    "n_reads": 2048,
+    "peak_stack": 1216,
+    "flops": 960,
+    "wall_seconds": 0.01
+  },
+  {
+    "algorithm": "rmm_inplace_lex",
+    "N": 8,
+    "strategy": "tombstone",
+    "cost_discrete": 10143,
+    "cost_continuous": 9317.002155711816,
+    "n_reads": 2048,
+    "peak_stack": 194,
+    "flops": 960,
+    "wall_seconds": 0.0052
+  },
+  {
+    "algorithm": "rmm_inplace_lex",
+    "N": 8,
+    "strategy": "aggressive",
+    "cost_discrete": 9538,
+    "cost_continuous": 8564.101734166166,
+    "n_reads": 2048,
+    "peak_stack": 194,
+    "flops": 960,
+    "wall_seconds": 0.005
+  },
+  {
+    "algorithm": "rmm_inplace_gray",
+    "N": 8,
+    "strategy": "unmanaged",
+    "cost_discrete": 13962,
+    "cost_continuous": 12782.631807876493,
+    "n_reads": 2048,
+    "peak_stack": 1216,
+    "flops": 960,
+    "wall_seconds": 0.0099
+  },
+  {
+    "algorithm": "rmm_inplace_gray",
+    "N": 8,
+    "strategy": "tombstone",
+    "cost_discrete": 9469,
+    "cost_continuous": 8853.170178897657,
+    "n_reads": 2048,
+    "peak_stack": 194,
+    "flops": 960,
+    "wall_seconds": 0.0049
+  },
+  {
+    "algorithm": "rmm_inplace_gray",
+    "N": 8,
+    "strategy": "aggressive",
+    "cost_discrete": 9100,
+    "cost_continuous": 8078.725618954311,
+    "n_reads": 2048,
+    "peak_stack": 194,
+    "flops": 960,
+    "wall_seconds": 0.0049
   },
   {
     "algorithm": "strassen",
     "N": 8,
     "strategy": "unmanaged",
-    "cost": 30955,
+    "cost_discrete": 30955,
+    "cost_continuous": 28893.8990985635,
     "n_reads": 4034,
     "peak_stack": 2145,
     "flops": 2017,
-    "wall_seconds": 0.0244
+    "wall_seconds": 0.0241
   },
   {
     "algorithm": "strassen",
     "N": 8,
     "strategy": "tombstone",
-    "cost": 24988,
+    "cost_discrete": 24988,
+    "cost_continuous": 22988.53662906954,
     "n_reads": 4034,
     "peak_stack": 298,
     "flops": 2017,
-    "wall_seconds": 0.0119
+    "wall_seconds": 0.0132
   },
   {
     "algorithm": "strassen",
     "N": 8,
     "strategy": "aggressive",
-    "cost": 20930,
+    "cost_discrete": 20930,
+    "cost_continuous": 18996.450796156438,
     "n_reads": 4034,
     "peak_stack": 298,
     "flops": 2017,
-    "wall_seconds": 0.0092
+    "wall_seconds": 0.0105
   },
   {
     "algorithm": "naive",
     "N": 16,
     "strategy": "unmanaged",
-    "cost": 178324,
+    "cost_discrete": 178324,
+    "cost_continuous": 171216.85324589952,
     "n_reads": 15872,
     "peak_stack": 8448,
     "flops": 7936,
-    "wall_seconds": 0.3052
+    "wall_seconds": 0.207
   },
   {
     "algorithm": "naive",
     "N": 16,
     "strategy": "tombstone",
-    "cost": 121869,
+    "cost_discrete": 121869,
+    "cost_continuous": 116883.09650117243,
     "n_reads": 15872,
     "peak_stack": 770,
     "flops": 7936,
-    "wall_seconds": 0.086
+    "wall_seconds": 0.0896
   },
   {
     "algorithm": "naive",
     "N": 16,
     "strategy": "aggressive",
-    "cost": 117935,
+    "cost_discrete": 117935,
+    "cost_continuous": 111166.84690539762,
     "n_reads": 15872,
     "peak_stack": 770,
     "flops": 7936,
-    "wall_seconds": 0.0733
+    "wall_seconds": 0.0887
   },
   {
     "algorithm": "rmm",
     "N": 16,
     "strategy": "unmanaged",
-    "cost": 154251,
+    "cost_discrete": 154251,
+    "cost_continuous": 146575.7841218307,
     "n_reads": 15872,
     "peak_stack": 8448,
     "flops": 7936,
-    "wall_seconds": 0.3054
+    "wall_seconds": 0.1981
   },
   {
     "algorithm": "rmm",
     "N": 16,
     "strategy": "tombstone",
-    "cost": 106395,
+    "cost_discrete": 106395,
+    "cost_continuous": 97235.74602811599,
     "n_reads": 15872,
     "peak_stack": 896,
     "flops": 7936,
-    "wall_seconds": 0.0985
+    "wall_seconds": 0.0786
   },
   {
     "algorithm": "rmm",
     "N": 16,
     "strategy": "aggressive",
-    "cost": 95462,
+    "cost_discrete": 95462,
+    "cost_continuous": 87760.64821701194,
     "n_reads": 15872,
     "peak_stack": 896,
     "flops": 7936,
-    "wall_seconds": 0.0835
+    "wall_seconds": 0.0688
+  },
+  {
+    "algorithm": "rmm_inplace_lex",
+    "N": 16,
+    "strategy": "unmanaged",
+    "cost_discrete": 162049,
+    "cost_continuous": 152338.92447033565,
+    "n_reads": 16384,
+    "peak_stack": 8960,
+    "flops": 7936,
+    "wall_seconds": 0.238
+  },
+  {
+    "algorithm": "rmm_inplace_lex",
+    "N": 16,
+    "strategy": "tombstone",
+    "cost_discrete": 96130,
+    "cost_continuous": 89399.45860313556,
+    "n_reads": 16384,
+    "peak_stack": 770,
+    "flops": 7936,
+    "wall_seconds": 0.0708
+  },
+  {
+    "algorithm": "rmm_inplace_lex",
+    "N": 16,
+    "strategy": "aggressive",
+    "cost_discrete": 91212,
+    "cost_continuous": 83406.21628526167,
+    "n_reads": 16384,
+    "peak_stack": 770,
+    "flops": 7936,
+    "wall_seconds": 0.0712
+  },
+  {
+    "algorithm": "rmm_inplace_gray",
+    "N": 16,
+    "strategy": "unmanaged",
+    "cost_discrete": 155454,
+    "cost_continuous": 145902.7995102608,
+    "n_reads": 16384,
+    "peak_stack": 8960,
+    "flops": 7936,
+    "wall_seconds": 0.2396
+  },
+  {
+    "algorithm": "rmm_inplace_gray",
+    "N": 16,
+    "strategy": "tombstone",
+    "cost_discrete": 89378,
+    "cost_continuous": 84327.02942591789,
+    "n_reads": 16384,
+    "peak_stack": 770,
+    "flops": 7936,
+    "wall_seconds": 0.0668
+  },
+  {
+    "algorithm": "rmm_inplace_gray",
+    "N": 16,
+    "strategy": "aggressive",
+    "cost_discrete": 86402,
+    "cost_continuous": 78155.69753540563,
+    "n_reads": 16384,
+    "peak_stack": 770,
+    "flops": 7936,
+    "wall_seconds": 0.0666
   },
   {
     "algorithm": "strassen",
     "N": 16,
     "strategy": "unmanaged",
-    "cost": 353207,
+    "cost_discrete": 353207,
+    "cost_continuous": 337572.4944908277,
     "n_reads": 30542,
     "peak_stack": 15783,
     "flops": 15271,
-    "wall_seconds": 1.1499
+    "wall_seconds": 0.5868
   },
   {
     "algorithm": "strassen",
     "N": 16,
     "strategy": "tombstone",
-    "cost": 250051,
+    "cost_discrete": 250051,
+    "cost_continuous": 234876.71425640772,
     "n_reads": 30542,
     "peak_stack": 1194,
     "flops": 15271,
-    "wall_seconds": 0.2481
+    "wall_seconds": 0.2007
   },
   {
     "algorithm": "strassen",
     "N": 16,
     "strategy": "aggressive",
-    "cost": 204752,
+    "cost_discrete": 204752,
+    "cost_continuous": 190133.59444065715,
     "n_reads": 30542,
     "peak_stack": 1194,
     "flops": 15271,
-    "wall_seconds": 0.2009
+    "wall_seconds": 0.1491
   },
   {
     "algorithm": "naive",
     "N": 32,
     "strategy": "unmanaged",
-    "cost": 2506679,
+    "cost_discrete": 2506679,
+    "cost_continuous": 2444865.574197296,
     "n_reads": 129024,
     "peak_stack": 66560,
     "flops": 64512,
-    "wall_seconds": 19.7798
+    "wall_seconds": 6.182
   },
   {
     "algorithm": "naive",
     "N": 32,
     "strategy": "tombstone",
-    "cost": 1605531,
+    "cost_discrete": 1605531,
+    "cost_continuous": 1543743.0322349377,
     "n_reads": 129024,
     "peak_stack": 3074,
     "flops": 64512,
-    "wall_seconds": 2.253
+    "wall_seconds": 2.0343
   },
   {
     "algorithm": "naive",
     "N": 32,
     "strategy": "aggressive",
-    "cost": 1573593,
+    "cost_discrete": 1573593,
+    "cost_continuous": 1497725.279120681,
     "n_reads": 129024,
     "peak_stack": 3074,
     "flops": 64512,
-    "wall_seconds": 2.196
+    "wall_seconds": 2.0582
   },
   {
     "algorithm": "rmm",
     "N": 32,
     "strategy": "unmanaged",
-    "cost": 1779356,
+    "cost_discrete": 1779356,
+    "cost_continuous": 1716970.974300185,
     "n_reads": 129024,
     "peak_stack": 66560,
     "flops": 64512,
-    "wall_seconds": 19.7179
+    "wall_seconds": 5.6517
   },
   {
     "algorithm": "rmm",
     "N": 32,
     "strategy": "tombstone",
-    "cost": 1029446,
+    "cost_discrete": 1029446,
+    "cost_continuous": 954549.351113372,
     "n_reads": 129024,
     "peak_stack": 3584,
     "flops": 64512,
-    "wall_seconds": 2.9067
+    "wall_seconds": 1.1788
   },
   {
     "algorithm": "rmm",
     "N": 32,
     "strategy": "aggressive",
-    "cost": 923846,
+    "cost_discrete": 923846,
+    "cost_continuous": 861105.1415299249,
     "n_reads": 129024,
     "peak_stack": 3584,
     "flops": 64512,
-    "wall_seconds": 2.5078
+    "wall_seconds": 1.0284
+  },
+  {
+    "algorithm": "rmm_inplace_lex",
+    "N": 32,
+    "strategy": "unmanaged",
+    "cost_discrete": 1802969,
+    "cost_continuous": 1725785.2235855036,
+    "n_reads": 131072,
+    "peak_stack": 68608,
+    "flops": 64512,
+    "wall_seconds": 6.7615
+  },
+  {
+    "algorithm": "rmm_inplace_lex",
+    "N": 32,
+    "strategy": "tombstone",
+    "cost_discrete": 888737,
+    "cost_continuous": 834485.9685477581,
+    "n_reads": 131072,
+    "peak_stack": 3074,
+    "flops": 64512,
+    "wall_seconds": 1.0418
+  },
+  {
+    "algorithm": "rmm_inplace_lex",
+    "N": 32,
+    "strategy": "aggressive",
+    "cost_discrete": 849278,
+    "cost_continuous": 786616.0765924242,
+    "n_reads": 131072,
+    "peak_stack": 3074,
+    "flops": 64512,
+    "wall_seconds": 1.053
+  },
+  {
+    "algorithm": "rmm_inplace_gray",
+    "N": 32,
+    "strategy": "unmanaged",
+    "cost_discrete": 1728373,
+    "cost_continuous": 1652147.7153441887,
+    "n_reads": 131072,
+    "peak_stack": 68608,
+    "flops": 64512,
+    "wall_seconds": 6.7898
+  },
+  {
+    "algorithm": "rmm_inplace_gray",
+    "N": 32,
+    "strategy": "tombstone",
+    "cost_discrete": 823783,
+    "cost_continuous": 782903.5385065097,
+    "n_reads": 131072,
+    "peak_stack": 3074,
+    "flops": 64512,
+    "wall_seconds": 0.9535
+  },
+  {
+    "algorithm": "rmm_inplace_gray",
+    "N": 32,
+    "strategy": "aggressive",
+    "cost_discrete": 800087,
+    "cost_continuous": 733596.1502855198,
+    "n_reads": 131072,
+    "peak_stack": 3074,
+    "flops": 64512,
+    "wall_seconds": 0.955
   },
   {
     "algorithm": "strassen",
     "N": 32,
     "strategy": "unmanaged",
-    "cost": 3866327,
+    "cost_discrete": 3866327,
+    "cost_continuous": 3752655.2895848523,
     "n_reads": 223010,
     "peak_stack": 113553,
     "flops": 111505,
-    "wall_seconds": 57.4837
+    "wall_seconds": 16.052
   },
   {
     "algorithm": "strassen",
     "N": 32,
     "strategy": "tombstone",
-    "cost": 2352062,
+    "cost_discrete": 2352062,
+    "cost_continuous": 2241070.7276039342,
     "n_reads": 223010,
     "peak_stack": 4778,
     "flops": 111505,
-    "wall_seconds": 6.1547
+    "wall_seconds": 3.1179
   },
   {
     "algorithm": "strassen",
     "N": 32,
     "strategy": "aggressive",
-    "cost": 1895375,
+    "cost_discrete": 1895375,
+    "cost_continuous": 1788620.395341707,
     "n_reads": 223010,
     "peak_stack": 4778,
     "flops": 111505,
-    "wall_seconds": 5.5616
+    "wall_seconds": 2.2826
   },
   {
     "algorithm": "naive",
     "N": 64,
     "strategy": "tombstone",
-    "cost": 22063993,
+    "cost_discrete": 22063993,
+    "cost_continuous": 21637411.309094973,
     "n_reads": 1040384,
     "peak_stack": 12290,
     "flops": 520192,
-    "wall_seconds": 57.8539
+    "wall_seconds": 57.6849
   },
   {
     "algorithm": "naive",
     "N": 64,
     "strategy": "aggressive",
-    "cost": 21805502,
+    "cost_discrete": 21805502,
+    "cost_continuous": 21271778.145797312,
     "n_reads": 1040384,
     "peak_stack": 12290,
     "flops": 520192,
-    "wall_seconds": 59.2015
+    "wall_seconds": 60.4239
   },
   {
     "algorithm": "rmm",
     "N": 64,
     "strategy": "tombstone",
-    "cost": 9655664,
+    "cost_discrete": 9655664,
+    "cost_continuous": 9053239.102664528,
     "n_reads": 1040384,
     "peak_stack": 14336,
     "flops": 520192,
-    "wall_seconds": 18.438
+    "wall_seconds": 18.9006
   },
   {
     "algorithm": "rmm",
     "N": 64,
     "strategy": "aggressive",
-    "cost": 8667228,
+    "cost_discrete": 8667228,
+    "cost_continuous": 8161315.883046711,
     "n_reads": 1040384,
     "peak_stack": 14336,
     "flops": 520192,
-    "wall_seconds": 15.915
+    "wall_seconds": 16.1234
+  },
+  {
+    "algorithm": "rmm_inplace_lex",
+    "N": 64,
+    "strategy": "tombstone",
+    "cost_discrete": 8064501,
+    "cost_continuous": 7631582.950373496,
+    "n_reads": 1048576,
+    "peak_stack": 12290,
+    "flops": 520192,
+    "wall_seconds": 15.7597
+  },
+  {
+    "algorithm": "rmm_inplace_lex",
+    "N": 64,
+    "strategy": "aggressive",
+    "cost_discrete": 7748007,
+    "cost_continuous": 7248790.689371106,
+    "n_reads": 1048576,
+    "peak_stack": 12290,
+    "flops": 520192,
+    "wall_seconds": 16.1773
+  },
+  {
+    "algorithm": "rmm_inplace_gray",
+    "N": 64,
+    "strategy": "tombstone",
+    "cost_discrete": 7456412,
+    "cost_continuous": 7130506.27178836,
+    "n_reads": 1048576,
+    "peak_stack": 12290,
+    "flops": 520192,
+    "wall_seconds": 15.1489
+  },
+  {
+    "algorithm": "rmm_inplace_gray",
+    "N": 64,
+    "strategy": "aggressive",
+    "cost_discrete": 7266707,
+    "cost_continuous": 6736186.968552355,
+    "n_reads": 1048576,
+    "peak_stack": 12290,
+    "flops": 520192,
+    "wall_seconds": 14.5605
   },
   {
     "algorithm": "strassen",
     "N": 64,
     "strategy": "tombstone",
-    "cost": 21279954,
+    "cost_discrete": 21279954,
+    "cost_continuous": 20483489.298471976,
     "n_reads": 1597934,
     "peak_stack": 19114,
     "flops": 798967,
-    "wall_seconds": 49.9008
+    "wall_seconds": 49.8883
   },
   {
     "algorithm": "strassen",
     "N": 64,
     "strategy": "aggressive",
-    "cost": 16947590,
+    "cost_discrete": 16947590,
+    "cost_continuous": 16182636.263024569,
     "n_reads": 1597934,
     "peak_stack": 19114,
     "flops": 798967,
-    "wall_seconds": 35.4297
+    "wall_seconds": 35.2133
   }
 ]

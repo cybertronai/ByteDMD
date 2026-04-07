@@ -169,3 +169,74 @@ def flops_strassen(N):
 
 def make_ones(n):
     return [[1] * n for _ in range(n)]
+
+
+def make_zeros(n):
+    return [[0] * n for _ in range(n)]
+
+
+# ─────────────── In-place Recursive Matmul (no temporaries) ───────────────
+# C += A @ B implemented by passing index offsets into the original matrices.
+# Allocates zero temporaries (only the per-leaf scalar product is allocated
+# and immediately discarded). The 8 sub-products are dispatched in lex order
+# (i, j, k) which forces every transition between calls to swap one or
+# more sub-quadrants out of the working set.
+
+def rmm_inplace_lex(A, B, C, ai=0, aj=0, bi=0, bj=0, ci=0, cj=0, n=None):
+    """In-place 8-way recursive matmul, dispatched in lex (i,j,k) order."""
+    if n is None:
+        n = len(A)
+    if n == 1:
+        C[ci][cj] = C[ci][cj] + A[ai][aj] * B[bi][bj]
+        return
+    h = n // 2
+    # Lex order: (i, j, k) where k is the shared dim, ci_off=i, cj_off=j.
+    LEX_ORDER = [
+        (0, 0, 0), (0, 0, 1),
+        (0, 1, 0), (0, 1, 1),
+        (1, 0, 0), (1, 0, 1),
+        (1, 1, 0), (1, 1, 1),
+    ]
+    for i_off, j_off, k_off in LEX_ORDER:
+        rmm_inplace_lex(
+            A, B, C,
+            ai + i_off * h, aj + k_off * h,
+            bi + k_off * h, bj + j_off * h,
+            ci + i_off * h, cj + j_off * h,
+            h,
+        )
+
+
+# Gray-code (Morton Z-curve) order: only one of (i, j, k) changes per step.
+# When the changing coordinate is X, the one matrix that does not depend on
+# X (C if k changes; B if i changes; A if j changes) stays perfectly hot in
+# the working set, halving the per-transition fetch cost.
+
+GRAY_ORDER = [
+    (0, 0, 0),  # 000
+    (0, 0, 1),  # 001  k flipped
+    (0, 1, 1),  # 011  j flipped → C is fresh, A stays hot
+    (0, 1, 0),  # 010  k flipped → C, A stay hot
+    (1, 1, 0),  # 110  i flipped → A, B stay hot... wait, A depends on i
+    (1, 1, 1),  # 111  k flipped → A, C stay hot
+    (1, 0, 1),  # 101  j flipped → A stays hot
+    (1, 0, 0),  # 100  k flipped → A, C stay hot
+]
+
+
+def rmm_inplace_gray(A, B, C, ai=0, aj=0, bi=0, bj=0, ci=0, cj=0, n=None):
+    """In-place 8-way recursive matmul, dispatched in Gray-code order."""
+    if n is None:
+        n = len(A)
+    if n == 1:
+        C[ci][cj] = C[ci][cj] + A[ai][aj] * B[bi][bj]
+        return
+    h = n // 2
+    for i_off, j_off, k_off in GRAY_ORDER:
+        rmm_inplace_gray(
+            A, B, C,
+            ai + i_off * h, aj + k_off * h,
+            bi + k_off * h, bj + j_off * h,
+            ci + i_off * h, cj + j_off * h,
+            h,
+        )
