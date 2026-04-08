@@ -167,7 +167,7 @@ def _h_load_deref(ctx, sf, oparg, frame):
 
 @_handler('LOAD_CONST')
 def _h_load_const(ctx, sf, oparg, frame):
-    sf.stack.append(None)  # constants are free
+    sf.stack.append(ctx.allocate())
 
 
 # ---- Stores ---------------------------------------------------------------

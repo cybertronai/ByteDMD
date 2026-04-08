@@ -158,9 +158,10 @@ def main():
 
     # ── Explain the gap ────────────────────────────────────────────────
     print()
-    print("The two tracers now agree within ~1.4x after fixing:")
+    print("The two tracers agree within ~1.15x after fixing:")
     print("  1. Python 3.12 opcode support (BINARY_OP, CALL, etc.)")
     print("  2. Operation results get LRU slots (not free temporaries)")
+    print("  3. Constants get LRU slots (matching regular tracer)")
 
 
 if __name__ == '__main__':
