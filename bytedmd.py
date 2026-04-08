@@ -1,25 +1,23 @@
 """
-Regular ByteDMD tracer — proxy-based, fast, easy to understand.
+ByteDMD tracer — proxy-based, with refcount-driven LRU eviction.
 
 Wraps function arguments in `_Tracked` proxy objects that intercept
 arithmetic, comparison, and indexing via Python dunder methods. Each
 intercepted operation records a read against an LRU stack and the depth
 is later converted to a ByteDMD cost via ceil(sqrt(depth)).
 
-This is the fast path for everyday algorithm exploration. It correctly
-handles the common cases (arithmetic, branching, indexing, range, etc.)
-but is structurally unable to see operations that bypass dunders:
-local arrays, exception side-channels, identity ops, type introspection,
-f-strings, math.trunc/ceil/floor, etc.
-
-For adversarial code or to verify the regular tracer is not silently
-undercounting, use bytedmd_bytecode.bytedmd() — see docs/tracing_methods.md
-for the trade-offs and bytedmd_bytecode.verify() for a side-by-side check.
+When a `_Tracked` proxy's CPython refcount drops to zero (including via
+explicit `del x`), `__del__` removes its slot from the LRU stack so dead
+temporaries don't keep burying live data. The user can also call
+`delete(v)` to evict a value early. This is the only computation model.
 
 API:
     traced_eval(func, args)                   -> (trace, result)
     bytedmd(func, args, bytes_per_element=1)  -> int
     trace_to_bytedmd(trace, bytes_per_element) -> int
+    inspect_ir(func, args)                    -> list of IR events
+    format_ir(ir)                             -> str  (pretty-printed IR)
+    delete(*values)                           -> None (free, removes from stack)
 """
 
 import math
@@ -27,9 +25,9 @@ import operator
 
 
 class _Context:
-    __slots__ = ('stack', 'trace', 'sync', 'memo', 'counter')
+    __slots__ = ('stack', 'trace', 'sync', 'memo', 'counter', 'ir')
     def __init__(self):
-        self.stack, self.trace, self.sync, self.memo, self.counter = [], [], [], {}, 0
+        self.stack, self.trace, self.sync, self.memo, self.counter, self.ir = [], [], [], {}, 0, []
 
     def allocate(self):
         self.counter += 1
@@ -38,17 +36,33 @@ class _Context:
 
     def read(self, keys):
         valid = [k for k in keys if k is not None]
-        if not valid: return
-        self.trace.extend(len(self.stack) - self.stack.index(k) for k in valid)
+        if not valid: return []
+        depths = [len(self.stack) - self.stack.index(k) for k in valid]
+        self.trace.extend(depths)
         for k in valid:
             self.stack.remove(k)
             self.stack.append(k)
+        return depths
 
 
 class _Tracked:
     __slots__ = ('_ctx', '_key', 'val')
     def __init__(self, ctx, key, val):
         self._ctx, self._key, self.val = ctx, key, val
+
+    def __del__(self):
+        # When CPython refcount drops to zero (including via explicit `del x`),
+        # release this value from the LRU stack so subsequent reads don't pay
+        # for dead garbage sitting above live data.
+        ctx = self._ctx
+        key = self._key
+        if ctx is None or key is None:
+            return
+        try:
+            ctx.stack.remove(key)
+            ctx.ir.append(('DROP', key))
+        except (ValueError, AttributeError):
+            pass
 
     def _rd(self):
         self._ctx.read([self._key])
@@ -65,15 +79,26 @@ class _Tracked:
 
 
 def _make_op(op, rev=False):
+    name = op.__name__
     def method(self, *args):
         keys = [a._key if isinstance(a, _Tracked) else None for a in args]
         vals = [a.val if isinstance(a, _Tracked) else a for a in args]
 
         read_keys = [keys[0], self._key] + keys[1:] if rev else [self._key] + keys
         res = op(vals[0], self.val, *vals[1:]) if rev else op(self.val, *vals)
-        self._ctx.read(read_keys)
+        depths = self._ctx.read(read_keys)
+        valid_keys = [k for k in read_keys if k is not None]
 
-        return res if res is NotImplemented else _wrap(self._ctx, res)
+        if res is NotImplemented:
+            self._ctx.ir.append(('OP', name, valid_keys, depths, None))
+            return res
+        wrapped = _wrap(self._ctx, res)
+        out_key = wrapped._key if isinstance(wrapped, _Tracked) else None
+        # The result's PUSH was just emitted by _wrap; fold it into the OP event.
+        if out_key is not None and self._ctx.ir and self._ctx.ir[-1] == ('PUSH', out_key):
+            self._ctx.ir.pop()
+        self._ctx.ir.append(('OP', name, valid_keys, depths, out_key))
+        return wrapped
     return method
 
 
@@ -120,6 +145,7 @@ def _wrap(ctx, val):
         return res
 
     res = _Tracked(ctx, ctx.allocate(), val)
+    ctx.ir.append(('PUSH', res._key))
     if not is_prim: ctx.memo[vid] = res
     return res
 
@@ -158,6 +184,31 @@ def _unwrap(val, memo=None):
     return res
 
 
+def delete(*values):
+    """Remove tracked values from the LRU stack (free).
+
+    Accepts _Tracked objects, or nested lists / tuples / numpy arrays thereof.
+    Unwrapped or already-deleted values are silently ignored. Deleting a value
+    makes every element currently above it shift one slot shallower, so
+    subsequent reads pay less.
+    """
+    for v in values:
+        if isinstance(v, _Tracked):
+            if v._key is not None and v._ctx is not None:
+                try:
+                    v._ctx.stack.remove(v._key)
+                    v._ctx.ir.append(('DROP', v._key))
+                except ValueError:
+                    pass
+                v._key = None
+        elif isinstance(v, (list, tuple)):
+            for x in v:
+                delete(x)
+        elif type(v).__name__ == 'ndarray':
+            for x in v.flat:
+                delete(x)
+
+
 def _sum_usqrt(N):
     if N <= 0: return 0
     M = math.isqrt(N - 1) + 1
@@ -182,12 +233,49 @@ def trace_to_bytedmd(trace, bytes_per_element):
     return sum(_sum_usqrt(d * bpe) - _sum_usqrt((d - 1) * bpe) for d in trace)
 
 
-def bytedmd(func, args, bytes_per_element=1):
-    """Evaluate ByteDMD cost of running func with args.
+def inspect_ir(func, args):
+    """Run func and return its ByteDMD intermediate representation.
 
-    For adversarial code or to verify against silent undercounting, use
-    bytedmd_bytecode.bytedmd() instead, or call bytedmd_bytecode.verify(func,
-    args) for a side-by-side comparison.
+    The IR is a list of events showing every interaction with the LRU stack:
+
+      ('PUSH', k)                                — value vk allocated on top
+      ('OP',   name, [ki...], [di...], out_key)  — read each ki at depth di,
+                                                    LRU-bump in listed order,
+                                                    push out_key (or None)
+      ('DROP', k)                                — vk removed (refcount=0
+                                                    via __del__, or explicit
+                                                    bytedmd.delete())
+
+    Format with format_ir() for a human-readable listing.
     """
+    import gc
+    ctx = _Context()
+    func(*(_wrap(ctx, a) for a in args))
+    gc.collect()
+    return ctx.ir
+
+
+def format_ir(ir):
+    """Pretty-print an IR returned by inspect_ir()."""
+    out = []
+    total = 0
+    for ev in ir:
+        if ev[0] == 'PUSH':
+            out.append(f"PUSH  v{ev[1]}")
+        elif ev[0] == 'DROP':
+            out.append(f"DROP  v{ev[1]}")
+        else:
+            _, name, keys, depths, ok = ev
+            cost = sum(math.isqrt(d - 1) + 1 for d in depths)
+            total += cost
+            rd = ", ".join(f"v{k}@{d}" for k, d in zip(keys, depths))
+            tail = f" -> v{ok}" if ok is not None else ""
+            out.append(f"OP    {name}({rd})  cost={cost}{tail}")
+    out.append(f"# total cost = {total}")
+    return "\n".join(out)
+
+
+def bytedmd(func, args, bytes_per_element=1):
+    """Evaluate ByteDMD cost of running func with args."""
     trace, _ = traced_eval(func, args)
     return trace_to_bytedmd(trace, bytes_per_element)

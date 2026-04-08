@@ -46,6 +46,7 @@ An idealized processor operates directly on an element-level LRU stack. **Comput
 - **Stack State:** Ordered from least recently used (bottom) to most recently used (top). Depth is measured in bytes from the top (topmost byte = depth 1). Multi-byte scalars are treated as a contiguous blocks of bytes.
 - **Initialization:** On function entry, arguments are pushed to the top in call order.
 - **Read Cost:** Reading a byte at depth $d$ costs $\lceil\sqrt{d}\rceil$.
+- **Eviction:** A value is removed from the stack the moment it becomes garbage — i.e. when its CPython refcount drops to zero, or when the user calls `bytedmd.delete(v)` explicitly. Eviction is free. There is no other way to leave the stack.
 
 ### Instruction Semantics
 
@@ -85,6 +86,62 @@ Inputs move to the top sequentially in read order (`b`, then `c`), followed by t
 ```
 
 
+## Inspecting the IR
+
+The tracer also emits a small **intermediate representation** that makes the
+LRU stack lifecycle explicit. Three event types: `PUSH k` (allocate vk on
+top, free), `OP name(vk@d, …) -> vk'` (read each input at depth d, LRU-bump
+in listed order, allocate the result), and `DROP k` (remove vk from the
+stack — emitted when CPython refcounts the value to zero, or when the user
+calls `bytedmd.delete(v)` explicitly).
+
+```python
+from bytedmd import inspect_ir, format_ir, bytedmd
+
+def matvec2(A, x):
+    y0 = A[0][0]*x[0] + A[0][1]*x[1]
+    y1 = A[1][0]*x[0] + A[1][1]*x[1]
+    return [y0, y1]
+
+print(format_ir(inspect_ir(matvec2, ([[1,2],[3,4]], [5,6]))))
+```
+
+```text
+PUSH  v1                                # A[0][0]
+PUSH  v2                                # A[0][1]
+PUSH  v3                                # A[1][0]
+PUSH  v4                                # A[1][1]
+PUSH  v5                                # x[0]
+PUSH  v6                                # x[1]
+OP    mul(v1@6, v5@2)  cost=5 -> v7     # A[0][0]*x[0]
+OP    mul(v2@7, v6@4)  cost=5 -> v8     # A[0][1]*x[1]
+OP    add(v7@4, v8@1)  cost=3 -> v9     # y0
+DROP  v7                                # temporary dead → refcount GC
+DROP  v8
+OP    mul(v3@7, v5@4)  cost=5 -> v10    # A[1][0]*x[0]
+OP    mul(v4@8, v6@5)  cost=6 -> v11    # A[1][1]*x[1]
+OP    add(v10@4, v11@1) cost=3 -> v12   # y1
+DROP  v10
+DROP  v11
+DROP  v12                               # function returns
+DROP  v9
+# total cost = 27
+```
+
+Note `OP mul(v4@8, v6@5)`: by the time the second row is evaluated, the
+first row's `y0` (v9) is sitting near the top of the stack, so the unused
+matrix entries `v3, v4` have been pushed deeper. This is the GC story made
+explicit — depths in each `OP` event are the *actual* read depths after all
+prior `PUSH`/`OP`/`DROP` events have settled the stack.
+
+### Helping the GC: explicit `delete`
+
+For values whose lifetime is hard for CPython to infer (loop accumulators,
+slices held inside closures, numpy arrays), call `bytedmd.delete(v)` to
+remove them from the stack at zero cost. This is the user-controlled
+counterpart to refcount GC and is the only way to influence the stack
+without rewriting the algorithm.
+
 ## ByteDMD benchmarks
 
 See "benchmarks/" folder
@@ -93,19 +150,20 @@ See "benchmarks/" folder
 
 | Algorithm | Operation | ByteDMD Cost |
 |-----------|-----------|-------------|
-| matvec (i-j) | y = A @ x | 194 |
-| vecmat (j-i) | y = x^T @ A | 191 |
+| matvec (i-j) | y = A @ x | 163 |
+| vecmat (j-i) | y = x^T @ A | 169 |
 
 ### Matrix multiply (4x4)
 
 | Algorithm | Operation | ByteDMD Cost |
 |-----------|-----------|-------------|
-| matmul (i-j-k) | C = A @ B | 948 |
-| matmul (i-k-j) | C = A @ B | 1016 |
-| matmul (snake-j) | C = A @ B | 906 |
-| matmul (2x2 tiled) | C = A @ B | 947 |
-| Strassen (leaf=1) | C = A @ B | 2435 |
-| Winograd | C = A @ B | 2178 |
+| matmul (i-j-k) | C = A @ B | 788 |
+| matmul (i-k-j) | C = A @ B | 804 |
+| matmul (snake-j) | C = A @ B | 743 |
+| matmul (2x2 tiled) | C = A @ B | 750 |
+| matmul (TSP) | C = A @ B | 741 |
+| Strassen (leaf=1) | C = A @ B | 1905 |
+| Winograd | C = A @ B | 1946 |
 
 ### microGPT single-token forward pass
 
@@ -114,32 +172,21 @@ Based on [Karpathy's microGPT](https://gist.github.com/karpathy/8627fe009c40f575
 
 | Algorithm | Operation | ByteDMD Cost |
 |-----------|-----------|-------------|
-| microGPT (1 layer, embd=4) | single token forward | 7047 |
+| microGPT (1 layer, embd=4) | single token forward | 5266 |
 
 # Reports
 
 In-depth reports applying ByteDMD to specific algorithms and design questions:
 
-- [Tracing methods consolidation](docs/tracing_methods.md) — analysis of the seven historical tracer implementations and the path to the two-tracer design (regular + strict).
 - [Strassen vs naive matmul](docs/report-strassen-benchmarks/report.md) — at what matrix size does Strassen's recursive algorithm beat naive matmul under ByteDMD? Includes a crossover-point experiment.
 - [Modern flash attention vs naive attention](docs/report-modern-flash-attention/report.md) — full sweep across sequence length, head dim, and block size showing flash attention's advantage growing as O(sqrt(N/Bk)) under ByteDMD while FLOPs see no benefit. Uses an optimised tracer (`bytedmd_fast.py`).
 - [Antigravity flash attention experiments](docs/report-antigravity-flash-attention/report.md) — alternative flash attention implementations and their ByteDMD costs.
 - [Attention benchmark notes](benchmarks/attention_report.md) — the small-scale flash vs naive results that motivated the modern-attention deep dive.
 
-# Two tracers: regular and strict
-
-There are two ByteDMD tracers — see [docs/tracing_methods.md](docs/tracing_methods.md) for the full comparison.
-
-- **Regular** (`bytedmd.bytedmd`) — fast, proxy-based, easy to understand. Use this for everyday algorithm exploration and benchmarks. Wraps function arguments in `_Tracked` proxies and intercepts arithmetic, comparison, indexing, and branching via dunder methods. Documented escape hatches in `test_gotchas.py`.
-
-- **Strict** (`bytedmd_strict.bytedmd`) — slow, bytecode-level via `sys.settrace`. Use for adversarial code or to verify the regular tracer is not silently undercounting. Catches all six proxy escape hatches (local arrays, exception side-channels, identity ops, type introspection, f-strings, math coercions). Demonstrated in `test_escape_hatches.py`.
-
-To sanity-check a function, call `bytedmd_strict.verify(func, args)` — it runs both tracers and warns if they diverge by more than a configurable factor (default 3x).
-
 # Python Gotcha's
-The regular tracer implements ByteDMD by wrapping Python objects. This means that the "Instruction Set" of this metric corresponds to Python built-ins, documented under [docs/instruction_set.md](docs/instruction_set.md).
+The tracer implements ByteDMD by wrapping Python objects. This means that the "Instruction Set" of this metric corresponds to Python built-ins, documented under [docs/instruction_set.md](docs/instruction_set.md).
 
-Python behavior means this implementation occasionally doesn't match README semantics and it is possible to escape the wrapping mechanism. Known failure cases are documented in `test_gotchas.py`. The strict tracer (`bytedmd_strict`) closes all of these.
+Python behavior means this implementation occasionally doesn't match README semantics and it is possible to escape the wrapping mechanism (local arrays, exception side-channels, identity ops, type introspection, f-strings, math.trunc/ceil/floor on tracked values, etc.). Known failure cases are documented in `test_gotchas.py` — avoid those patterns when writing code you want measured.
 
 
 [Original Google Doc](https://docs.google.com/document/d/1sj5NqOg6Yqh10bXzGVEF5uIzSjFWAnqqTE75AMng2-s/edit?tab=t.0#heading=h.ujy6ygk7sjmb)

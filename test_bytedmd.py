@@ -57,9 +57,11 @@ def test_branching_and_comparisons_trace():
             return a * 2
         return a
         
-    # Branch taken: a > 0 reads a, __bool__ reads result, then a * 2 reads a
+    # Branch taken: a > 0 reads a, __bool__ reads result, then a * 2 reads a.
+    # After __bool__ the comparison result is garbage-collected (via
+    # _Tracked.__del__), so the later read of `a` sees depth 1, not 2.
     trace_pos, _ = traced_eval(my_relu, (5,))
-    assert trace_pos == [1, 1, 2]
+    assert trace_pos == [1, 1, 1]
 
     # Branch skipped: a > 0 reads a, __bool__ reads result
     trace_neg, _ = traced_eval(my_relu, (-5,))
