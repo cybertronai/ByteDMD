@@ -1,17 +1,12 @@
 #!/usr/bin/env python3
-"""Sparse parity benchmark: demonstrates strict tracer undercounting.
+"""Sparse parity benchmark: adaptive GF(2) solver under ByteDMD.
 
-The adaptive GF(2) solver does substantial computation (basis pivot
-operations: shifts, XORs, comparisons on bitmask integers) that the
-strict tracer treats as free because operation results are pushed as
-None (free temporaries) on the eval stack.
+Solves the sparse parity problem (find k secret bits among n) via
+incremental GF(2) basis building. Runs both the regular and strict
+tracers to verify they agree.
 
-On real hardware, these intermediate results land in L1 cache at
-depth 1 — cheap but not zero. The regular tracer correctly allocates
-LRU slots for them; the strict tracer doesn't.
-
-This benchmark runs both tracers on the same algorithm to quantify
-the gap.
+Also serves as a regression test for the strict tracer's Python 3.12
+opcode support and operation-result slot allocation.
 """
 import sys, os, math, random
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
@@ -163,12 +158,9 @@ def main():
 
     # ── Explain the gap ────────────────────────────────────────────────
     print()
-    print("The strict tracer undercharges by ~2-3x because it pushes")
-    print("operation results (>>, ^, &, comparisons) as None on the")
-    print("eval stack — making basis manipulation appear free.")
-    print()
-    print("On real hardware, these results land in L1 at depth 1.")
-    print("The regular tracer correctly allocates LRU slots for them.")
+    print("The two tracers now agree within ~1.4x after fixing:")
+    print("  1. Python 3.12 opcode support (BINARY_OP, CALL, etc.)")
+    print("  2. Operation results get LRU slots (not free temporaries)")
 
 
 if __name__ == '__main__':
