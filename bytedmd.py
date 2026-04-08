@@ -94,10 +94,13 @@ def _make_op(op, rev=False):
             return res
         wrapped = _wrap(self._ctx, res)
         out_key = wrapped._key if isinstance(wrapped, _Tracked) else None
-        # The result's PUSH was just emitted by _wrap; fold it into the OP event.
-        if out_key is not None and self._ctx.ir and self._ctx.ir[-1] == ('PUSH', out_key):
+        # _wrap just emitted ('STORE', out_key); reorder so OP precedes STORE.
+        if out_key is not None and self._ctx.ir and self._ctx.ir[-1] == ('STORE', out_key):
             self._ctx.ir.pop()
-        self._ctx.ir.append(('OP', name, valid_keys, depths, out_key))
+            self._ctx.ir.append(('OP', name, valid_keys, depths, out_key))
+            self._ctx.ir.append(('STORE', out_key))
+        else:
+            self._ctx.ir.append(('OP', name, valid_keys, depths, out_key))
         return wrapped
     return method
 
@@ -145,7 +148,7 @@ def _wrap(ctx, val):
         return res
 
     res = _Tracked(ctx, ctx.allocate(), val)
-    ctx.ir.append(('PUSH', res._key))
+    ctx.ir.append(('STORE', res._key))
     if not is_prim: ctx.memo[vid] = res
     return res
 
@@ -238,13 +241,18 @@ def inspect_ir(func, args):
 
     The IR is a list of events showing every interaction with the LRU stack:
 
-      ('PUSH', k)                                — value vk allocated on top
+      ('STORE', k)                                — value vk allocated on top
       ('OP',   name, [ki...], [di...], out_key)  — read each ki at depth di,
-                                                    LRU-bump in listed order,
-                                                    push out_key (or None)
+                                                    LRU-bump in listed order;
+                                                    out_key (if not None) is
+                                                    materialized by the next
+                                                    STORE event
       ('DROP', k)                                — vk removed (refcount=0
                                                     via __del__, or explicit
                                                     bytedmd.delete())
+
+    Op outputs are emitted as two events: an OP (charging the reads), then
+    a STORE that places the result on top of the stack.
 
     Format with format_ir() for a human-readable listing.
     """
@@ -260,17 +268,16 @@ def format_ir(ir):
     out = []
     total = 0
     for ev in ir:
-        if ev[0] == 'PUSH':
-            out.append(f"PUSH  v{ev[1]}")
+        if ev[0] == 'STORE':
+            out.append(f"STORE v{ev[1]}")
         elif ev[0] == 'DROP':
             out.append(f"DROP  v{ev[1]}")
         else:
-            _, name, keys, depths, ok = ev
+            _, name, keys, depths, _ok = ev
             cost = sum(math.isqrt(d - 1) + 1 for d in depths)
             total += cost
             rd = ", ".join(f"v{k}@{d}" for k, d in zip(keys, depths))
-            tail = f" -> v{ok}" if ok is not None else ""
-            out.append(f"OP    {name}({rd})  cost={cost}{tail}")
+            out.append(f"OP    {name}({rd})  cost={cost}")
     out.append(f"# total cost = {total}")
     return "\n".join(out)
 

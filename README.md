@@ -89,11 +89,12 @@ Inputs move to the top sequentially in read order (`b`, then `c`), followed by t
 ## Inspecting the IR
 
 The tracer also emits a small **intermediate representation** that makes the
-LRU stack lifecycle explicit. Three event types: `PUSH k` (allocate vk on
-top, free), `OP name(vk@d, …) -> vk'` (read each input at depth d, LRU-bump
-in listed order, allocate the result), and `DROP k` (remove vk from the
-stack — emitted when CPython refcounts the value to zero, or when the user
-calls `bytedmd.delete(v)` explicitly).
+LRU stack lifecycle explicit. Three event types: `STORE k` (allocate vk on
+top of the stack, free), `OP name(vk@d, …)` (read each input at depth d
+and LRU-bump in listed order — this is the only event that costs anything),
+and `DROP k` (remove vk from the stack — emitted when CPython refcounts the
+value to zero, or when the user calls `bytedmd.delete(v)` explicitly).
+Op results are materialized by the `STORE` that immediately follows the `OP`.
 
 ```python
 from bytedmd import inspect_ir, format_ir, bytedmd
@@ -107,20 +108,26 @@ print(format_ir(inspect_ir(matvec2, ([[1,2],[3,4]], [5,6]))))
 ```
 
 ```text
-PUSH  v1                                # A[0][0]
-PUSH  v2                                # A[0][1]
-PUSH  v3                                # A[1][0]
-PUSH  v4                                # A[1][1]
-PUSH  v5                                # x[0]
-PUSH  v6                                # x[1]
-OP    mul(v1@6, v5@2)  cost=5 -> v7     # A[0][0]*x[0]
-OP    mul(v2@7, v6@4)  cost=5 -> v8     # A[0][1]*x[1]
-OP    add(v7@4, v8@1)  cost=3 -> v9     # y0
+STORE v1                                # A[0][0]
+STORE v2                                # A[0][1]
+STORE v3                                # A[1][0]
+STORE v4                                # A[1][1]
+STORE v5                                # x[0]
+STORE v6                                # x[1]
+OP    mul(v1@6, v5@2)  cost=5           # A[0][0]*x[0]
+STORE v7
+OP    mul(v2@7, v6@4)  cost=5           # A[0][1]*x[1]
+STORE v8
+OP    add(v7@4, v8@1)  cost=3           # y0
+STORE v9
 DROP  v7                                # temporary dead → refcount GC
 DROP  v8
-OP    mul(v3@7, v5@4)  cost=5 -> v10    # A[1][0]*x[0]
-OP    mul(v4@8, v6@5)  cost=6 -> v11    # A[1][1]*x[1]
-OP    add(v10@4, v11@1) cost=3 -> v12   # y1
+OP    mul(v3@7, v5@4)  cost=5           # A[1][0]*x[0]
+STORE v10
+OP    mul(v4@8, v6@5)  cost=6           # A[1][1]*x[1]
+STORE v11
+OP    add(v10@4, v11@1) cost=3          # y1
+STORE v12
 DROP  v10
 DROP  v11
 DROP  v12                               # function returns
