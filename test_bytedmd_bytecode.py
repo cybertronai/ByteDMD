@@ -1,13 +1,13 @@
 #!/usr/bin/env python3
 """
-Tests for the bytecode-level strict ByteDMD tracer (bytedmd_strict.py).
+Tests for the bytecode-level strict ByteDMD tracer (bytedmd_bytecode.py).
 
 These traces are calibrated for the strict tracer's semantics: only named
 variables and container elements get LRU slots; eval-stack temporaries are
 free. This intentionally differs from bytedmd.py's proxy tracer, which
 allocates a slot per intermediate operation result.
 """
-from bytedmd_strict import bytedmd, traced_eval, trace_to_bytedmd
+from bytedmd_bytecode import bytedmd, traced_eval, trace_to_bytedmd
 
 
 def my_add(a, b, c, d):

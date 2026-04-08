@@ -13,8 +13,8 @@ local arrays, exception side-channels, identity ops, type introspection,
 f-strings, math.trunc/ceil/floor, etc.
 
 For adversarial code or to verify the regular tracer is not silently
-undercounting, use bytedmd_strict.bytedmd() — see docs/tracing_methods.md
-for the trade-offs and bytedmd_strict.verify() for a side-by-side check.
+undercounting, use bytedmd_bytecode.bytedmd() — see docs/tracing_methods.md
+for the trade-offs and bytedmd_bytecode.verify() for a side-by-side check.
 
 API:
     traced_eval(func, args)                   -> (trace, result)
@@ -186,7 +186,7 @@ def bytedmd(func, args, bytes_per_element=1):
     """Evaluate ByteDMD cost of running func with args.
 
     For adversarial code or to verify against silent undercounting, use
-    bytedmd_strict.bytedmd() instead, or call bytedmd_strict.verify(func,
+    bytedmd_bytecode.bytedmd() instead, or call bytedmd_bytecode.verify(func,
     args) for a side-by-side comparison.
     """
     trace, _ = traced_eval(func, args)
