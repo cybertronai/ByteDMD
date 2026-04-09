@@ -167,7 +167,7 @@ def _h_load_deref(ctx, sf, oparg, frame):
 
 @_handler('LOAD_CONST')
 def _h_load_const(ctx, sf, oparg, frame):
-    sf.stack.append(None)  # constants are free
+    sf.stack.append(ctx.allocate())
 
 
 # ---- Stores ---------------------------------------------------------------
@@ -295,14 +295,20 @@ def _h_dup_top_two(ctx, sf, oparg, frame):
         sf.stack.append(sf.stack[-2])
 
 
-@_handler('NOP', 'EXTENDED_ARG')
+@_handler('NOP', 'EXTENDED_ARG', 'RESUME', 'PRECALL')
 def _h_nop(ctx, sf, oparg, frame):
     pass
+
+
+@_handler('PUSH_NULL')
+def _h_push_null(ctx, sf, oparg, frame):
+    sf.stack.append(None)
 
 
 # ---- Binary / unary ops ---------------------------------------------------
 
 _BINARY_OPS = (
+    # Python 3.10 names (kept for backward compatibility)
     'BINARY_ADD', 'BINARY_SUBTRACT', 'BINARY_MULTIPLY', 'BINARY_TRUE_DIVIDE',
     'BINARY_FLOOR_DIVIDE', 'BINARY_MODULO', 'BINARY_POWER',
     'BINARY_LSHIFT', 'BINARY_RSHIFT', 'BINARY_AND', 'BINARY_OR', 'BINARY_XOR',
@@ -311,6 +317,10 @@ _BINARY_OPS = (
     'INPLACE_TRUE_DIVIDE', 'INPLACE_FLOOR_DIVIDE', 'INPLACE_MODULO',
     'INPLACE_POWER', 'INPLACE_LSHIFT', 'INPLACE_RSHIFT',
     'INPLACE_AND', 'INPLACE_OR', 'INPLACE_XOR', 'INPLACE_MATRIX_MULTIPLY',
+    # Python 3.12+: all binary/inplace ops consolidated into BINARY_OP
+    'BINARY_OP',
+    # Python 3.12+: slice operations
+    'BINARY_SLICE',
 )
 
 @_handler(*_BINARY_OPS)
@@ -319,7 +329,7 @@ def _h_binary(ctx, sf, oparg, frame):
     lhs = sf.stack.pop() if sf.stack else None
     ctx.read(lhs)
     ctx.read(rhs)
-    sf.stack.append(None)  # result is a temporary
+    sf.stack.append(ctx.allocate())  # result occupies cache, not free
 
 
 _UNARY_OPS = ('UNARY_POSITIVE', 'UNARY_NEGATIVE', 'UNARY_NOT', 'UNARY_INVERT')
@@ -328,7 +338,7 @@ _UNARY_OPS = ('UNARY_POSITIVE', 'UNARY_NEGATIVE', 'UNARY_NOT', 'UNARY_INVERT')
 def _h_unary(ctx, sf, oparg, frame):
     val = sf.stack.pop() if sf.stack else None
     ctx.read(val)
-    sf.stack.append(None)
+    sf.stack.append(ctx.allocate())
 
 
 # ---- Comparisons / branches -----------------------------------------------
@@ -339,7 +349,7 @@ def _h_compare(ctx, sf, oparg, frame):
     lhs = sf.stack.pop() if sf.stack else None
     ctx.read(lhs)
     ctx.read(rhs)
-    sf.stack.append(None)
+    sf.stack.append(ctx.allocate())
 
 
 @_handler('IS_OP', 'CONTAINS_OP')
@@ -348,10 +358,11 @@ def _h_is_op(ctx, sf, oparg, frame):
     lhs = sf.stack.pop() if sf.stack else None
     ctx.read(lhs)
     ctx.read(rhs)
-    sf.stack.append(None)
+    sf.stack.append(ctx.allocate())
 
 
-@_handler('POP_JUMP_IF_FALSE', 'POP_JUMP_IF_TRUE')
+@_handler('POP_JUMP_IF_FALSE', 'POP_JUMP_IF_TRUE',
+          'POP_JUMP_IF_NONE', 'POP_JUMP_IF_NOT_NONE')
 def _h_pop_jump(ctx, sf, oparg, frame):
     cond = sf.stack.pop() if sf.stack else None
     ctx.read(cond)
@@ -423,6 +434,22 @@ def _h_call_method(ctx, sf, oparg, frame):
     # Pop self and method (LOAD_METHOD pushes both)
     if sf.stack: sf.stack.pop()
     if sf.stack: sf.stack.pop()
+    for a in args:
+        ctx.read(a)
+    sf.stack.append(None)
+
+
+@_handler('CALL')
+def _h_call(ctx, sf, oparg, frame):
+    # Python 3.12+: CALL oparg is the number of args (positional + keyword).
+    # Stack layout: callable, self_or_null, arg1, ..., argN
+    n = oparg
+    args = []
+    for _ in range(n):
+        if sf.stack:
+            args.append(sf.stack.pop())
+    if sf.stack: sf.stack.pop()  # self_or_null
+    if sf.stack: sf.stack.pop()  # callable
     for a in args:
         ctx.read(a)
     sf.stack.append(None)
@@ -789,6 +816,11 @@ def traced_eval(func, args):
 
     trace_fn = _make_trace_fn(ctx, target_code)
     prev = sys.gettrace()
+    # On Python 3.12, f_trace_opcodes set inside the trace callback no longer
+    # fires opcode events.  Setting it on the *caller* frame before settrace
+    # works around the regression.  On 3.13+ this is a no-op (opcode events
+    # are fully removed; sys.monitoring is needed instead).
+    sys._getframe().f_trace_opcodes = True
     sys.settrace(trace_fn)
     try:
         result = func(*args)
