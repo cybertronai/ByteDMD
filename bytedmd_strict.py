@@ -816,6 +816,11 @@ def traced_eval(func, args):
 
     trace_fn = _make_trace_fn(ctx, target_code)
     prev = sys.gettrace()
+    # On Python 3.12, f_trace_opcodes set inside the trace callback no longer
+    # fires opcode events.  Setting it on the *caller* frame before settrace
+    # works around the regression.  On 3.13+ this is a no-op (opcode events
+    # are fully removed; sys.monitoring is needed instead).
+    sys._getframe().f_trace_opcodes = True
     sys.settrace(trace_fn)
     try:
         result = func(*args)
