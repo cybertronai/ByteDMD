@@ -23,272 +23,58 @@ Here is the exact mathematical trace of your model based on these constraints.
 
 To capture the ceilings exactly, we define the exact closed-form algebraic sum of square roots (mirroring your _sum_usqrt logic):
 
-S(M)=
-k=1
-∑
-M
-	​
+S(M)=k=1∑M​⌈k​⌉=6K(6M−2K2+3K−1)​where K=⌊M−1​⌋+1
 
-⌈
-k
-	​
-
-⌉=
-6
-K(6M−2K
-2
-+3K−1)
-	​
-
-where K=⌊
-M−1
-	​
-
-⌋+1
-
-Both matvec and vecmat incur costs from three components: reading the matrix A, intermediate arithmetic additions, and reading the vector x. Because the AST evaluates left-to-right, every scalar addition is priced at ⌈
-4
-	​
-
-⌉+⌈
-2
-	​
-
-⌉=4.
+Both matvec and vecmat incur costs from three components: reading the matrix A, intermediate arithmetic additions, and reading the vector x. Because the AST evaluates left-to-right, every scalar addition is priced at ⌈4​⌉+⌈2​⌉=4.
 
 A. Matrix-Vector (matvec, loop order i-j)
 
-Because matvec evaluates A sequentially by row, elements of A are always fetched from the absolute bottom of the active LRU stack (depth N
-2
-+N) and then immediately replaced by tombstones. This steadily rotates elements of x, shifting them down until they hit a hard equilibrium depth of exactly 4N.
+Because matvec evaluates A sequentially by row, elements of A are always fetched from the absolute bottom of the active LRU stack (depth N2+N) and then immediately replaced by tombstones. This steadily rotates elements of x, shifting them down until they hit a hard equilibrium depth of exactly 4N.
 
-Matrix A Cost: N
-2
-⌈
-N
-2
-+N
-	​
-
-⌉=N
-3
-+N
-2
+Matrix A Cost: N2⌈N2+N​⌉=N3+N2
 
 Addition Cost: 4N(N−1)
 
-Vector x Cost: S(4N−1)−S(N)+⌈
-3N
-	​
-
-⌉+(N−3)⌈
-4N−1
-	​
-
-⌉+(N
-2
-−4N+3)⌈
-4N
-	​
-
-⌉
+Vector x Cost: S(4N−1)−S(N)+⌈3N​⌉+(N−3)⌈4N−1​⌉+(N2−4N+3)⌈4N​⌉
 
 Exact Formula:
 
-C
-matvec
-	​
-
-(N)=N
-3
-+5N
-2
-−4N+S(4N−1)−S(N)+⌈
-3N
-	​
-
-⌉+(N−3)⌈
-4N−1
-	​
-
-⌉+(N
-2
-−4N+3)⌈
-4N
-	​
-
-⌉
+Cmatvec​(N)=N3+5N2−4N+S(4N−1)−S(N)+⌈3N​⌉+(N−3)⌈4N−1​⌉+(N2−4N+3)⌈4N​⌉
 
 (Verification: At N=4, 80+48+59=187)
 
 B. Vector-Matrix (vecmat, loop order j-i)
 
-In vecmat, A is traversed column-by-column, meaning we stride diagonally through the row-major memory stack. The depth of element A
-i,j
-	​
+In vecmat, A is traversed column-by-column, meaning we stride diagonally through the row-major memory stack. The depth of element Ai,j​ physically shrinks as earlier columns are evaluated.
 
- physically shrinks as earlier columns are evaluated.
-
-Matrix A Cost: ∑
-j=0
-N−1
-	​
-
-∑
-i=0
-N−1
-	​
-
-⌈
-N
-2
-+N−i(N−1−j)
-	​
-
-⌉
+Matrix A Cost: ∑j=0N−1​∑i=0N−1​⌈N2+N−i(N−1−j)​⌉
 
 Addition Cost: 4N(N−1)
 
-Vector x Cost: S(4N−2)−S(N−1)+⌈
-3N−1
-	​
-
-⌉+⌈
-4N−2
-	​
-
-⌉+(N−3)⌈
-4N−1
-	​
-
-⌉+(N
-2
-−4N+2)⌈
-4N
-	​
-
-⌉
+Vector x Cost: S(4N−2)−S(N−1)+⌈3N−1​⌉+⌈4N−2​⌉+(N−3)⌈4N−1​⌉+(N2−4N+2)⌈4N​⌉
 
 Exact Formula:
 
-C
-vecmat
-	​
-
-(N)=Cost
-A
-	​
-
-(N)+4N(N−1)+Cost
-x
-	​
-
-(N)
+Cvecmat​(N)=CostA​(N)+4N(N−1)+Costx​(N)
 
 (Verification: At N=4, 76+48+57=181)
 
 2. Tight Continuous Bounds & Analytic Constants
 
-To remove the discrete integer ceilings, we approximate sums using the continuous definite integral ∫
-z
-	​
-
-dz=
-3
-2
-	​
-
-z
-3/2
-. By bounding the ceiling function z≤⌈z⌉<z+1, we can extract tight asymptotic continuous envelopes.
+To remove the discrete integer ceilings, we approximate sums using the continuous definite integral ∫z​dz=32​z3/2. By bounding the ceiling function z≤⌈z⌉<z+1, we can extract tight asymptotic continuous envelopes.
 
 Matvec Bounds:
-The matrix A dictates the leading N
-3
- term. Integrating the bounds over the x reads yields an O(N
-5/2
-) trailing term.
+The matrix A dictates the leading N3 term. Integrating the bounds over the x reads yields an O(N5/2) trailing term.
 
-N
-3
-+2N
-5/2
-+5N
-2
-−
-3
-10
-	​
-
-N
-3/2
-−4N≤C
-matvec
-	​
-
-(N)≤N
-3
-+2N
-5/2
-+6N
-2
-−
-3
-10
-	​
-
-N
-3/2
+N3+2N5/2+5N2−310​N3/2−4N≤Cmatvec​(N)≤N3+2N5/2+6N2−310​N3/2
 
 Vecmat Bounds:
-Because the matrix A cost traverses the stack out-of-order, we integrate the dominant sum over the continuous 2D surface of the LRU stack depth ∬
-N
-2
-(1−u⋅v)
-	​
+Because the matrix A cost traverses the stack out-of-order, we integrate the dominant sum over the continuous 2D surface of the LRU stack depth ∬N2(1−u⋅v)​dudv. Evaluating this double integral analytically yields an exact geometric constant:
 
-dudv. Evaluating this double integral analytically yields an exact geometric constant:
+K=916​−34​ln2≈0.85358
+KN3+2N5/2+4N2−310​N3/2−4N≤Cvecmat​(N)≤KN3+2N5/2+6N2
 
-K=
-9
-16
-	​
-
-−
-3
-4
-	​
-
-ln2≈0.85358
-KN
-3
-+2N
-5/2
-+4N
-2
-−
-3
-10
-	​
-
-N
-3/2
-−4N≤C
-vecmat
-	​
-
-(N)≤KN
-3
-+2N
-5/2
-+6N
-2
-
-Algorithmic Conclusion: You do not need empirical benchmarks. vecmat scales structurally better on this metric (≈0.853N
-3
- vs 1.0N
-3
-). Striding out-of-order frequently pulls values that have floated upward via tombstones, whereas row-major matvec monopolistically draws from the deepest possible block of the stack.
+Algorithmic Conclusion: You do not need empirical benchmarks. vecmat scales structurally better on this metric (≈0.853N3 vs 1.0N3). Striding out-of-order frequently pulls values that have floated upward via tombstones, whereas row-major matvec monopolistically draws from the deepest possible block of the stack.
 
 3. Discrepancies and Inconsistencies in the Tracer
 
@@ -296,32 +82,14 @@ Your Python implementation fundamentally contradicts several of the theoretical 
 
 1. Sequential Pricing Violates "Simultaneous" Instruction Pricing:
 Your README mandates: "Price reads simultaneously against the stack state before the instruction begins. (e.g., a+a charges for reading a twice [equally])."
-The Bug: The Pass 2 tracer (_replay_with_liveness) pops and updates the stack sequentially in the middle of an instruction. For an instruction like a + a where a sits at depth 5, the first read is priced at 5, brings a to the top (depth 1), and prices the second read at 1. The total cost traces as ⌈
-5
-	​
-
-⌉+⌈
-1
-	​
-
-⌉=4, rather than the documented simultaneous evaluation ⌈
-5
-	​
-
-⌉+⌈
-5
-	​
-
-⌉=6. Furthermore, b+c vs c+b yield different costs (e.g., 5+5=10 vs 4+5=9), mathematically breaking operator commutativity.
+The Bug: The Pass 2 tracer (_replay_with_liveness) pops and updates the stack sequentially in the middle of an instruction. For an instruction like a + a where a sits at depth 5, the first read is priced at 5, brings a to the top (depth 1), and prices the second read at 1. The total cost traces as ⌈5​⌉+⌈1​⌉=4, rather than the documented simultaneous evaluation ⌈5​⌉+⌈5​⌉=6. Furthermore, b+c vs c+b yield different costs (e.g., 5+5=10 vs 4+5=9), mathematically breaking operator commutativity.
 
 2. The "Leapfrog" Anomaly (Rewarding Cache Thrashing):
 Your README aims to penalize non-local memory movement. However, because A is pushed in row-major order, evaluating it column-wise (vecmat) leapfrogs over unread elements. Because your tracker operates strictly at the scalar element level (rather than block cache lines), those unread elements don't get pulled down or evicted; they just hang around at the bottom.
 The Bug: In physical hardware, accessing a matrix column-wise results in severe cache thrashing. ByteDMD calculates it as ≈15% cheaper than contiguous row-major movement, unintentionally rewarding the destruction of 2D spatial locality.
 
 3. Argument Ordering Hack in the Benchmark:
-The benchmark table reports vecmat costs 181. This score is mathematically impossible unless the function was called as vecmat(A, x). If evaluated using the mathematical standard signature for y=x
-T
-A (vecmat(x, A)), x is pushed to the LRU stack before A. This traps the frequently read x vectors permanently underneath the matrix, inflating the trace cost to 189. The benchmark subtly favored vecmat by preserving matvec's optimal (A, x) argument push order.
+The benchmark table reports vecmat costs 181. This score is mathematically impossible unless the function was called as vecmat(A, x). If evaluated using the mathematical standard signature for y=xTA (vecmat(x, A)), x is pushed to the LRU stack before A. This traps the frequently read x vectors permanently underneath the matrix, inflating the trace cost to 189. The benchmark subtly favored vecmat by preserving matvec's optimal (A, x) argument push order.
 
 4. Tombstone Teleportation:
 Your code assumes that A's tombstones maintain the cache's 2D physical footprint. However, STORE allocations lazily .remove(None) the first tombstone they find (the lowest index / bottom-most tombstone). This effectively teleports dead memory directly from the absolute bottom of the cache directly to the top instantly, without physically shifting the live intermediate elements down, contradicting the physical VLSI routing premise.
@@ -340,9 +108,7 @@ Here is the precise, actionable set of four architectural changes you should imp
 
 1. Fix "Simultaneous" Instruction Pricing (Restores Commutativity)
 
-The Flaw: Your _Context.read() method evaluates and LRU-bumps inputs sequentially mid-instruction. For a + b, a is priced and pulled to the top, altering the stack depth before b is evaluated. This breaks mathematical commutativity (Cost(a+b)
-
-=Cost(b+a)) and injects chaotic step-functions into intermediate arithmetic.
+The Flaw: Your _Context.read() method evaluates and LRU-bumps inputs sequentially mid-instruction. For a + b, a is priced and pulled to the top, altering the stack depth before b is evaluated. This breaks mathematical commutativity (Cost(a+b)=Cost(b+a)) and injects chaotic step-functions into intermediate arithmetic.
 The Fix: Price all inputs against the pre-instruction stack, then batch-move uniquely accessed values to the top deterministically.
 
 Implementation Code:
@@ -391,127 +157,31 @@ The Resulting Analytically Compact Formulas
 
 If you implement these four fixes, the discrete integer noise vanishes. We can isolate the exact, closed-form formulas as a continuous function of matrix size N and block size B.
 
-Because the stack starts empty, both algorithms pay an identical initialization cost for Cold Misses ≈∫
-0
-M
-	​
-
-z
-	​
-
-dz≈
-3
-2
-	​
-
-M
-1.5
-, where M=(N
-2
-+N)/B total blocks. We can factor this out to examine the Hot L1 Cache Reads where the structural algorithmic differences lie.
+Because the stack starts empty, both algorithms pay an identical initialization cost for Cold Misses ≈∫0M​z​dz≈32​M1.5, where M=(N2+N)/B total blocks. We can factor this out to examine the Hot L1 Cache Reads where the structural algorithmic differences lie.
 
 1. Corrected Matrix-Vector (matvec, loop order i-j)
 
 Because rows are contiguous in memory, matvec exhibits perfect spatial locality. A block of A is brought to the top and stream-hits at depth 1. The vector x reliably rotates in a shallow working set of size N/B blocks.
 Exact Hot Cost Formula:
 
-C
-matvec
-	​
+Cmatvec​(N)=A stream hitsN2(1−B1​)1​​​+x working set hitsN2BN​​​​
 
-(N)=
-A stream hits
-N
-2
-(1−
-B
-1
-	​
-
-)
-1
-	​
-
-	​
-
-	​
-
-+
-x working set hits
-N
-2
-B
-N
-	​
-
-	​
-
-	​
-
-	​
-
-
-Leading Order Bound: O(
-B
-	​
-
-N
-2.5
-	​
-
-)
+Leading Order Bound: O(B​N2.5​)
 
 2. Corrected Vector-Matrix (vecmat, loop order j-i)
 
 Because vecmat strides vertically, it requests a scalar from a completely different block on every single read. It must access N distinct blocks before returning to the first column. This completely blows out the cache capacity, forcing A and x to thrash at a stack distance of N.
 Exact Hot Cost Formula:
 
-C
-vecmat
-	​
+Cvecmat​(N)=A thrashing hitsN2(1−B1​)N​​​+x thrashing hitsN2N​​​
 
-(N)=
-A thrashing hits
-N
-2
-(1−
-B
-1
-	​
-
-)
-N
-	​
-
-	​
-
-	​
-
-+
-x thrashing hits
-N
-2
-N
-	​
-
-	​
-
-	​
-
-
-Leading Order Bound: O(2N
-2.5
-)
+Leading Order Bound: O(2N2.5)
 
 Conclusion
 
 The mathematical fixes are transformative. By shifting to a geometric, block-aware model, the chaotic piecewise math collapses into two crystalline terms.
 
-Notice the ratio of the leading terms: the penalty for vecmat over matvec resolves to precisely ≈2
-B
-	​
-
-. If your cache line holds 16 elements (B=16), your fixed metric explicitly, mathematically proves that vecmat is 8 times more expensive at routing steady-state data, flawlessly verifying real-world spatial locality paradigms!
+Notice the ratio of the leading terms: the penalty for vecmat over matvec resolves to precisely ≈2B​. If your cache line holds 16 elements (B=16), your fixed metric explicitly, mathematically proves that vecmat is 8 times more expensive at routing steady-state data, flawlessly verifying real-world spatial locality paradigms!
 
 ## User
 
@@ -528,11 +198,7 @@ Here is the precise physical motivation for the penalty, how the nesting cheat e
 In your model, computation is laid out spatially. The Arithmetic Logic Unit (ALU) sits at the center (Depth 0). The LRU stack represents the L1/L2 cache, which expands outward in concentric rings.
 
 But where does an input array live before you read it for the very first time? It lives in an off-chip Main Memory (DRAM) grid.
-If an algorithm requires a 1000×1000 matrix, that matrix physically occupies 1,000,000 slots of 2D area in DRAM. Because it takes up physical space, the data is spread out. The M-th element of that array is physically located at a spatial distance of ≈
-M
-	​
-
- from the processor.
+If an algorithm requires a 1000×1000 matrix, that matrix physically occupies 1,000,000 slots of 2D area in DRAM. Because it takes up physical space, the data is spread out. The M-th element of that array is physically located at a spatial distance of ≈M​ from the processor.
 
 A Cold Miss (reading an element for the absolute first time) represents routing a wire across the DRAM grid to fetch that specific physical address. Therefore, compulsory cache misses cannot be cheap.
 
@@ -540,42 +206,14 @@ A Cold Miss (reading an element for the absolute first time) represents routing 
 
 If you naively price cold misses based on the currently active L1 cache size (the size of the LRU stack)—or if you reset the tracing context when entering a nested function—a programmer can mathematically cheat physics.
 
-The cheat exists because the routing cost (
-z
-	​
-
-) is strictly sub-additive: 
-A+B
-	​
-
-<
-A
-	​
-
-+
-B
-	​
-
-.
+The cheat exists because the routing cost (z​) is strictly sub-additive: A+B​<A​+B​.
 
 The Exploit:
 A programmer wants to process a 1,000,000 element array.
 
-If evaluated in one monolithic loop, the total initialization cost is the area integral: ∑
-k=1
-1,000,000
-	​
+If evaluated in one monolithic loop, the total initialization cost is the area integral: ∑k=11,000,000​k​≈666,000,000.
 
-k
-	​
-
-≈666,000,000.
-
-To cheat, the programmer writes a nested helper function process_element(x). They stream the array through this sub-function one by one. If the nested function resets the context, or if the programmer drops/evicts the variable immediately so the LRU stack size never exceeds 1, every single fetch from the massive array costs ⌈
-1
-	​
-
-⌉=1. The total cost drops to 1,000,000.
+To cheat, the programmer writes a nested helper function process_element(x). They stream the array through this sub-function one by one. If the nested function resets the context, or if the programmer drops/evicts the variable immediately so the LRU stack size never exceeds 1, every single fetch from the massive array costs ⌈1​⌉=1. The total cost drops to 1,000,000.
 
 By simply refactoring the code to stream through a nested scope, the programmer mathematically pretended that a 1-million-element matrix occupies only 1 unit of physical space.
 
@@ -589,75 +227,13 @@ The Monotonic DRAM Frontier: A single global integer that counts the total numbe
 
 By maintaining a global DRAM frontier, the compulsory fetch cost of a dataset becomes a mathematical invariant. If an algorithm touches M total unique elements, the cold miss sequence will always evaluate to:
 
-Total Cold Miss Cost=
-k=1
-∑
-M
-	​
-
-⌈
-k
-	​
-
-⌉≈∫
-0
-M
-	​
-
-z
-1/2
-dz=
-3
-2
-	​
-
-M
-1.5
+Total Cold Miss Cost=k=1∑M​⌈k​⌉≈∫0M​z1/2dz=32​M1.5
 
 If the developer splits the algorithm into nested functions A and B, the definite integrals simply chain together seamlessly across the software abstractions:
 
-Nested Func A
-∫
-0
-A
-	​
+Nested Func A∫0A​z​dz​​+Nested Func B∫AA+B​z​dz​​=∫0A+B​z​dz
 
-z
-	​
-
-dz
-	​
-
-	​
-
-+
-Nested Func B
-∫
-A
-A+B
-	​
-
-z
-	​
-
-dz
-	​
-
-	​
-
-=∫
-0
-A+B
-	​
-
-z
-	​
-
-dz
-
-The abstraction boundary costs exactly zero, but it hides nothing. The programmer is forced to pay the massive O(M
-1.5
-) physical spatial tax dictated by their raw input size, no matter how they structure their loops.
+The abstraction boundary costs exactly zero, but it hides nothing. The programmer is forced to pay the massive O(M1.5) physical spatial tax dictated by their raw input size, no matter how they structure their loops.
 
 4. Precise Implementation Rules
 

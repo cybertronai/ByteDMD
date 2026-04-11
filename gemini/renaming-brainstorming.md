@@ -29,13 +29,7 @@ CountDMD: Emphasizes the "counting" of discrete operations.
 
 TallyDMD: "Tally" implies a discrete, running sum, which fits perfectly with how your Python tracer accumulates costs instruction by instruction.
 
-DiscreteDMD: Highlights the jump from continuous mathematical bounds (like O(N
-3.5
-)) to discrete integer steps and ceiling functions (⌈
-d
-	​
-
-⌉).
+DiscreteDMD: Highlights the jump from continuous mathematical bounds (like O(N3.5)) to discrete integer steps and ceiling functions (⌈d​⌉).
 
 2. Generalizing the Data Unit (Replacing "Byte")
 
@@ -53,15 +47,7 @@ UnitDMD: Very flexible. A "unit" could be a byte, a token, or a struct, determin
 
 "Distance" naturally sounds like a continuous, spatial measurement or a theoretical property. If you want to emphasize a final concrete tally, you might replace "Distance" with "Count", "Cost", or "Score", while keeping "Data Movement."
 
-DMC (Data Movement Cost): A very natural pivot. While DMD represents the spatial distance (
-d
-	​
-
-), the DMC is the actual sum total (∑⌈
-d
-	​
-
-⌉) you pay at the end of the execution.
+DMC (Data Movement Cost): A very natural pivot. While DMD represents the spatial distance (d​), the DMC is the actual sum total (∑⌈d​⌉) you pay at the end of the execution.
 
 DMC (Data Movement Count): Similar to the above, but directly incorporates your desire to emphasize "counting."
 

@@ -220,15 +220,7 @@ I'm interested in getting exact formulas for the ByteDMD of naive matrix multipl
 
 ## Gemini
 
-Because the ByteDMD step-cost (⌈
-d
-	​
-
-⌉) relies on integer ceilings, a pure rational polynomial closed-form solution is impossible. However, by statically analyzing the LRU stack state of your proxy tracer and using the continuous integral limit (C≈∫
-d
-	​
-
-), we can derive exact asymptotic closed-form solutions, provide the exact counts for the recursive matmul, and pinpoint precisely where the Python tracker deviates from real hardware.
+Because the ByteDMD step-cost (⌈d​⌉) relies on integer ceilings, a pure rational polynomial closed-form solution is impossible. However, by statically analyzing the LRU stack state of your proxy tracer and using the continuous integral limit (C≈∫d​), we can derive exact asymptotic closed-form solutions, provide the exact counts for the recursive matmul, and pinpoint precisely where the Python tracker deviates from real hardware.
 
 1. Closed-Form Continuous Solutions for Naive Matmul
 
@@ -237,133 +229,26 @@ Your tracer's stack depth stabilizes into highly predictable bands based on the 
 A. Normal Order (i-j-k)
 In normal order, data movement is dominated by repeated accesses to matrix B.
 
-Between reading B
-kj
-	​
+Between reading Bkj​ in row i−1 and row i, the inner loops sweep through exactly N2 steps.
 
- in row i−1 and row i, the inner loops sweep through exactly N
-2
- steps.
+This pushes exactly N2 unique elements of B to the stack, along with exactly 2N2−N new temporary variables.
 
-This pushes exactly N
-2
- unique elements of B to the stack, along with exactly 2N
-2
-−N new temporary variables.
+The stack depth of B strictly stabilizes to a constant DB​≈3N2.
 
-The stack depth of B strictly stabilizes to a constant D
-B
-	​
+Integrating this over N3 accesses yields the leading term ∑3N2​≈3​N4. Matrix A is heavily reused in the inner loop and stabilizes at a depth of 4N (yielding 2N3.5). The first reads of A's rows are buried under O(iN2) dead temporaries from previous rows, contributing an exact 322​​N3.5.
 
-≈3N
-2
-.
-
-Integrating this over N
-3
- accesses yields the leading term ∑
-3N
-2
-	​
-
-≈
-3
-	​
-
-N
-4
-. Matrix A is heavily reused in the inner loop and stabilizes at a depth of 4N (yielding 2N
-3.5
-). The first reads of A's rows are buried under O(iN
-2
-) dead temporaries from previous rows, contributing an exact 
-3
-2
-2
-	​
-
-	​
-
-N
-3.5
-.
-
-C
-normal
-	​
-
-(N)≈
-3
-	​
-
-N
-4
-+(2+
-3
-2
-2
-	​
-
-	​
-
-)N
-3.5
-+3N
-3
+Cnormal​(N)≈3​N4+(2+322​​)N3.5+3N3
 
 B. Snake Order (snake-j)
-By reversing the j-loop on alternating rows, B no longer thrashes at a constant O(N
-2
-) distance.
+By reversing the j-loop on alternating rows, B no longer thrashes at a constant O(N2) distance.
 
-If B
-kj
-	​
+If Bkj​ is x columns away from the row's "turn-around" edge, it is re-read after only 2x column iterations.
 
- is x columns away from the row's "turn-around" edge, it is re-read after only 2x column iterations.
+The stack absorbs xN unique elements of B, plus 4xN temporaries, dropping the cache depth to a linear triangular profile: DB​≈5Nx.
 
-The stack absorbs xN unique elements of B, plus 4xN temporaries, dropping the cache depth to a linear triangular profile: D
-B
-	​
+Integrating this profile (∫0N​5Nx​ dx) drops the leading routing constant:
 
-≈5Nx.
-
-Integrating this profile (∫
-0
-N
-	​
-
-5Nx
-	​
-
- dx) drops the leading routing constant:
-
-C
-snake
-	​
-
-(N)≈
-3
-2
-5
-	​
-
-	​
-
-N
-4
-+(2+
-3
-2
-2
-	​
-
-	​
-
-)N
-3.5
-+3N
-3
+Csnake​(N)≈325​​N4+(2+322​​)N3.5+3N3
 
 (Snake-ordering analytically drops the asymptotic routing constant from ≈1.732 to ≈1.491, guaranteeing a strict ∼14% reduction in outer-loop data movement).
 
@@ -382,33 +267,17 @@ N=16	151,944
 N=32	1,760,923
 Export to Sheets
 
-(Note on scale: The recursive Morton/Z-order traversal strictly bounds cache distances to O(N), meaning the continuous read penalty is 
-d
-	​
-
-=O(N
-0.5
-). Over N
-3
- base-case ops, the recursive layout scales safely at O(N
-3.5
-), completely dodging the catastrophic N
-4
- data routing penalties seen in the naive loops).
+(Note on scale: The recursive Morton/Z-order traversal strictly bounds cache distances to O(N), meaning the continuous read penalty is d​=O(N0.5). Over N3 base-case ops, the recursive layout scales safely at O(N3.5), completely dodging the catastrophic N4 data routing penalties seen in the naive loops).
 
 3. Discrepancies and Inconsistencies in the Proxy Implementation
 
 Your bytedmd_regular tracer uses a clever proxy-wrapping mechanism, but mapping Python's execution runtime to an idealized cache model introduces several massive structural artifacts:
 
 A. AST Left-to-Right Evaluation Artificially Penalizes Accumulators
-In the line s = s + A[i][k] * B[k][j], a real processor loads the accumulator s into a register (depth 1), then evaluates A * B. But Python's AST enforces strict left-to-right precedence: it evaluates A * B first, which pushes three objects (A, B, prod) to the top of the stack before the proxy's __add__ hook is ever invoked. This evaluates s at a stack depth of 4. Your tracer charges an invisible cache penalty of 2 on every single addition step (a phantom 2N
-3
- cost).
+In the line s = s + A[i][k] * B[k][j], a real processor loads the accumulator s into a register (depth 1), then evaluates A * B. But Python's AST enforces strict left-to-right precedence: it evaluates A * B first, which pushes three objects (A, B, prod) to the top of the stack before the proxy's __add__ hook is ever invoked. This evaluates s at a stack depth of 4. Your tracer charges an invisible cache penalty of 2 on every single addition step (a phantom 2N3 cost).
 
 B. The "Memory Leak" (No Garbage Collection)
-The README mandates that "computations and writes are free." In real hardware, dead registers (like the old s and prod) are popped/overwritten. However, _Context.allocate() only appends to the stack and never pops dead IDs. Over the nested loops, exactly 2N
-3
- dead temporary variables are permanently buried in the LRU stack. This "ghost data" artificially pushes valid matrix elements deeper into the cache, inflating the routing penalty for imperative loops.
+The README mandates that "computations and writes are free." In real hardware, dead registers (like the old s and prod) are popped/overwritten. However, _Context.allocate() only appends to the stack and never pops dead IDs. Over the nested loops, exactly 2N3 dead temporary variables are permanently buried in the LRU stack. This "ghost data" artificially pushes valid matrix elements deeper into the cache, inflating the routing penalty for imperative loops.
 
 C. Untracked Pointer Routing (Zero-Cost Indexing)
 The algorithm operates on standard Python lists of lists. While the scalar floats at the leaf nodes are wrapped as _Tracked proxies, the lists themselves are not. Traversing outer pointer arrays (A[i][k]) and list slicing (A[:mid]) bypass the metric entirely. The model treats stepping through complex 2D array strides as zero-cost memory teleportation.

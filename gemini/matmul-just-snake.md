@@ -15,236 +15,49 @@ I'm interested in getting exact formulas for the ByteDMD of naive matrix multipl
 
 To get the exact ByteDMD cost of 906 (as stated in your benchmark for a 4×4 snake-ordered matrix multiplication), we must map the trace mathematically to your computational model.
 
-Because of the non-linear ⌈
-d
-	​
-
-⌉ cost function, a single continuous polynomial isn't possible. However, the exact data-movement cost can be perfectly decomposed into six closed-form summations mapping to deterministic LRU stack states for any matrix size N≥2.
+Because of the non-linear ⌈d​⌉ cost function, a single continuous polynomial isn't possible. However, the exact data-movement cost can be perfectly decomposed into six closed-form summations mapping to deterministic LRU stack states for any matrix size N≥2.
 
 1. Exact Closed-Form Cost Formula
 
-Let the total ByteDMD cost be C(N)=C
-accum
-	​
-
-+C
-A
-	​
-
-+C
-B
-	​
-
-.
+Let the total ByteDMD cost be C(N)=Caccum​+CA​+CB​.
 
 To hit exactly 906, the loop must be unrolled to bypass the s = 0 initialization (s = A[i][0] * B[0][j] then s += A[i][k] * B[k][j]).
 
-1. The Accumulator Overhead (C
-accum
-	​
-
-):
+1. The Accumulator Overhead (Caccum​):
 Inside the k-loop, s + T evaluates the accumulator s and temporary product T. Due to strict LRU push/read order, T is exactly at depth 1, and s is perfectly displaced to depth 4.
 
-C
-accum
-	​
-
-=
-i=0
-∑
-N−1
-	​
-
-j=0
-∑
-N−1
-	​
-
-k=1
-∑
-N−1
-	​
-
-(⌈
-4
-	​
-
-⌉+⌈
-1
-	​
-
-⌉)=3N
-2
-(N−1)
+Caccum​=i=0∑N−1​j=0∑N−1​k=1∑N−1​(⌈4​⌉+⌈1​⌉)=3N2(N−1)
 
 2. Matrix A, Steady State (s≥1):
-Once A's row is fetched, it stays near the top across the entire snake row traversal. The depths strictly stabilize to 4N−1 and 4N, whose square-root ceilings identically simplify to ⌈2
-N
-	​
+Once A's row is fetched, it stays near the top across the entire snake row traversal. The depths strictly stabilize to 4N−1 and 4N, whose square-root ceilings identically simplify to ⌈2N​⌉.
 
-⌉.
-
-C
-A,s≥1
-	​
-
-=N
-2
-(N−1)⌈2
-N
-	​
-
-⌉
+CA,s≥1​=N2(N−1)⌈2N​⌉
 
 3. Matrix A, New Row Start (s=0):
 When jumping to a new row i, the algorithm reaches deeply into the initial argument stack for Matrix A.
 
-C
-A,s=0
-	​
+CA,s=0​=i=0∑N−1​(⌈Δi​​⌉+k=1∑N−1​⌈Δi​+2k−1​⌉)
 
-=
-i=0
-∑
-N−1
-	​
-
-(⌈
-Δ
-i
-	​
-
-	​
-
-⌉+
-k=1
-∑
-N−1
-	​
-
-⌈
-Δ
-i
-	​
-
-+2k−1
-	​
-
-⌉)
-
-(where base depth Δ
-i
-	​
-
-=2N
-2
-+iN(2N−1))
+(where base depth Δi​=2N2+iN(2N−1))
 
 4. Matrix B, Same-Column Turn (i≥1,s=0):
 When moving to a new row, the snake order dictates that the column j remains identical to the previous step. The B column is fetched from a near-constant depth:
 
-C
-B,i≥1,s=0
-	​
-
-=N(N−1)⌈2
-N
-	​
-
-⌉
+CB,i≥1,s=0​=N(N−1)⌈2N​⌉
 
 5. Matrix B, Snake State (i≥1,s≥1):
 For subsequent columns (step s∈[1,N−1]), the depths of B's elements are wonderfully independent of row i. The depth deteriorates linearly with s due to the temporaries created in intervening steps:
 
-C
-B,i≥1,s≥1
-	​
+CB,i≥1,s≥1​=(N−1)s=1∑N−1​(⌈βs​−1​⌉+(N−1)⌈βs​​⌉)
 
-=(N−1)
-s=1
-∑
-N−1
-	​
-
-(⌈
-β
-s
-	​
-
-−1
-	​
-
-⌉+(N−1)⌈
-β
-s
-	​
-
-	​
-
-⌉)
-
-(where depth β
-s
-	​
-
-=5N(s+1)−2s)
+(where depth βs​=5N(s+1)−2s)
 
 6. Matrix B, Initial Row Pulls (i=0):
 During the first row, Matrix B is pulled out of its initial argument state.
 
-C
-B,i=0
-	​
+CB,i=0​=[N+k=1∑N−1​⌈N2+k(4−N)−1​⌉]+s=1∑N−1​(⌈Λs​​⌉+k=1∑N−1​⌈Λs​+k(s−N+3)−1​⌉)
 
-=[N+
-k=1
-∑
-N−1
-	​
-
-⌈
-N
-2
-+k(4−N)−1
-	​
-
-⌉]+
-s=1
-∑
-N−1
-	​
-
-(⌈
-Λ
-s
-	​
-
-	​
-
-⌉+
-k=1
-∑
-N−1
-	​
-
-⌈
-Λ
-s
-	​
-
-+k(s−N+3)−1
-	​
-
-⌉)
-
-(where Λ
-s
-	​
-
-=N
-2
-+N+s(2N−1))
+(where Λs​=N2+N+s(2N−1))
 
 (Plugging N=4 correctly evaluates to 144+192+142+48+288+92=906. For N=8, it returns exactly 12,060.)
 
@@ -252,59 +65,12 @@ s
 
 By dropping the integer ceilings and integrating the dominant series, we can establish continuous upper and lower bounds.
 
-The overwhelming majority of the penalty stems from Component 5. Summing 
-β
-s
-	​
-
-	​
-
-≈
-5Ns
-	​
-
- yields an integral proportional to ∫
-5Nx
-	​
-
-dx.
+The overwhelming majority of the penalty stems from Component 5. Summing βs​​≈5Ns​ yields an integral proportional to ∫5Nx​dx.
 This allows us to establish the asymptotically tight bound for naive snake matrix multiplication:
 
-C(N)=
-3
-2
-5
-	​
+C(N)=325​​N4+(2+322​​)N3.5+O(N3)
 
-	​
-
-N
-4
-+(2+
-3
-2
-2
-	​
-
-	​
-
-)N
-3.5
-+O(N
-3
-)
-
-This bounds the 
-N
-4
-C(N)
-	​
-
- ratio tightly near 1.4907. This beautifully confirms Bill Dally's 2D cost thesis mathematically: while untiled naive multiplication requires O(N
-3
-) FLOPs, spatial cache limits strictly force its data movement penalty to scale poorly at Θ(N
-4
-).
+This bounds the N4C(N)​ ratio tightly near 1.4907. This beautifully confirms Bill Dally's 2D cost thesis mathematically: while untiled naive multiplication requires O(N3) FLOPs, spatial cache limits strictly force its data movement penalty to scale poorly at Θ(N4).
 
 3. Discrepancies & Inconsistencies in the Python Tracer
 
@@ -312,15 +78,7 @@ While analyzing the math required to perfectly match your benchmark, four signif
 
 1. The "Dead Variable" Memory Leak (Critical Flaw)
 Your computation model assumes "computations and writes are free." However, every inner loop arithmetic executes by tracking the product as a new _Tracked proxy, appending a new identifier to _Context.stack. Because the tracer lacks a __del__ hook, intermediate products are never popped.
-Consequently, your cache stack permanently swells by 2N−1 dead variables per iteration, growing to size O(N
-3
-). This dead scalar bloat artificially pushes Matrix B down ≈5N depth units per step (β
-s
-	​
-
-), which is solely responsible for forcing the metric up to O(N
-4
-).
+Consequently, your cache stack permanently swells by 2N−1 dead variables per iteration, growing to size O(N3). This dead scalar bloat artificially pushes Matrix B down ≈5N depth units per step (βs​), which is solely responsible for forcing the metric up to O(N4).
 
 2. Zero-Accumulator Bloat
 If you implement standard summation (s = 0 then s += A * B), your tracer intercepts the literal 0 via __radd__, injecting a phantom tracking node that evaluates the overall cost to 969. Furthermore, accumulating in-place (C[i][j] += A * B) triggers a read on the un-tracked accumulator, bouncing the metric up to 1017. To hit 906, you have to peel the zero-initialization out of the loop and write to a decoupled variable.
