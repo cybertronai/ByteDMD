@@ -1,17 +1,26 @@
 """
-ByteDMD tracer — proxy-based, with liveness-driven tombstones.
+ByteDMD tracer — proxy-based, with demand-paged initialization.
 
 Wraps function arguments in `_Tracked` proxy objects that intercept
 arithmetic, comparison, and indexing via Python dunder methods. Each
 intercepted operation records a read against an LRU stack and the depth
 is later converted to a ByteDMD cost via ceil(sqrt(depth)).
 
-The tracer performs **liveness analysis**: it first executes the function to
-record the full operation sequence, then replays it with perfect knowledge
-of each value's last read. After a value's final read, it is replaced by a
-tombstone at the top of the stack. Tombstones preserve the physical cache
-footprint (dead cache lines still occupy space until overwritten). Each new
-allocation recycles exactly one tombstone (the bottom-most).
+Three key properties of this tracer:
+
+  1. **Simultaneous pricing:** All inputs to an instruction are priced
+     against the pre-instruction stack state before any LRU bumping.
+     This guarantees commutativity: Cost(a+b) == Cost(b+a).
+
+  2. **Demand-paged initialization:** Arguments are NOT pushed onto the
+     stack at function entry. Instead, the first read of a value is a
+     "cold miss" priced at a monotonically increasing DRAM frontier,
+     modeling the physical distance to off-chip memory. This removes
+     bias from Python's argument ordering.
+
+  3. **Natural LRU aging:** Dead variables are not tombstoned or evicted.
+     They simply sink toward the bottom of the stack as newer values are
+     accessed, modeling a fully-associative cache with natural aging.
 
 API:
     traced_eval(func, args)                   -> (trace, result)
@@ -26,24 +35,75 @@ import operator
 
 
 class _Context:
-    __slots__ = ('stack', 'trace', 'sync', 'memo', 'counter', 'ir')
+    __slots__ = ('stack', 'trace', 'sync', 'memo', 'counter', 'ir',
+                 'dram_frontier', 'initializing')
     def __init__(self):
-        self.stack, self.trace, self.sync, self.memo, self.counter, self.ir = [], [], [], {}, 0, []
+        self.stack = []
+        self.trace = []
+        self.sync = []
+        self.memo = {}
+        self.counter = 0
+        self.ir = []
+        self.dram_frontier = 0
+        self.initializing = False   # True during argument wrapping
 
     def allocate(self):
+        """Allocate a new value and push it onto the stack (for op results)."""
         self.counter += 1
         self.stack.append(self.counter)
         return self.counter
 
+    def allocate_deferred(self):
+        """Allocate a tracking ID without pushing to the stack (demand paging)."""
+        self.counter += 1
+        return self.counter
+
     def read(self, keys):
+        """Price all keys simultaneously against the pre-instruction stack,
+        then batch-move unique keys to the top.
+
+        Keys not found on the stack are cold misses, priced at the DRAM
+        frontier (a monotonically increasing counter).
+        """
         valid = [k for k in keys if k is not None]
         if not valid: return []
-        depths = [len(self.stack) - self.stack.index(k) for k in valid]
+
+        # Deduplicate for depth computation (preserving order).
+        seen = set()
+        unique = []
+        for k in valid:
+            if k not in seen:
+                seen.add(k)
+                unique.append(k)
+
+        # 1. Price ALL unique keys against the pre-instruction stack.
+        unique_depths = {}
+        cold_keys = []
+        for k in unique:
+            try:
+                unique_depths[k] = len(self.stack) - self.stack.index(k)
+            except ValueError:
+                # Cold miss: value not yet on-chip.
+                self.dram_frontier += 1
+                unique_depths[k] = self.dram_frontier + len(self.stack)
+                cold_keys.append(k)
+
+        # Bring cold-miss keys onto the stack.
+        self.stack.extend(cold_keys)
+
+        # Emit depths for ALL keys (including duplicates at same depth).
+        depths = [unique_depths[k] for k in valid]
         self.trace.extend(depths)
-        for k, d in zip(valid, depths):
+
+        # Emit IR events.
+        for k in valid:
+            self.ir.append(('READ', k, unique_depths[k]))
+
+        # 2. Batch LRU-bump: move unique keys to the top (in access order).
+        for k in unique:
             self.stack.remove(k)
             self.stack.append(k)
-            self.ir.append(('READ', k, d))
+
         return depths
 
 
@@ -135,8 +195,12 @@ def _wrap(ctx, val):
         if not is_prim: ctx.memo[vid] = res
         return res
 
-    res = _Tracked(ctx, ctx.allocate(), val)
-    ctx.ir.append(('STORE', res._key))
+    if ctx.initializing:
+        # Demand-paged: assign key but don't push onto the stack.
+        res = _Tracked(ctx, ctx.allocate_deferred(), val)
+    else:
+        res = _Tracked(ctx, ctx.allocate(), val)
+        ctx.ir.append(('STORE', res._key))
     if not is_prim: ctx.memo[vid] = res
     return res
 
@@ -181,75 +245,18 @@ def _sum_usqrt(N):
     return M * (6 * N - 2 * M * M + 3 * M - 1) // 6
 
 
-def _replay_with_liveness(raw_ir):
-    """Replay a pass-1 IR with liveness-based tombstones.
-
-    Pass 1 records the operation sequence (STOREs, READs, OPs) without any
-    eviction.  This function scans the full sequence to determine the last
-    read of every tracked key, then replays it on a fresh stack, inserting
-    a tombstone (at the top) immediately after each value's final read.
-    New allocations recycle one tombstone (the bottom-most).
-
-    Returns (trace, ir) — the depth trace and a new IR with correct depths
-    and DROP events.
-    """
-    # Find last read index of each key.
-    last_read = {}
-    read_idx = 0
-    for ev in raw_ir:
-        if ev[0] == 'READ':
-            last_read[ev[1]] = read_idx
-            read_idx += 1
-
-    stack = []
-    trace = []
-    ir = []
-    read_idx = 0
-
-    for ev in raw_ir:
-        tag = ev[0]
-
-        if tag == 'STORE':
-            key = ev[1]
-            try:
-                stack.remove(None)          # recycle one tombstone
-            except ValueError:
-                pass
-            stack.append(key)
-            ir.append(('STORE', key))
-
-        elif tag == 'READ':
-            key = ev[1]
-            depth = len(stack) - stack.index(key)
-            trace.append(depth)
-            stack.remove(key)
-            stack.append(key)
-            ir.append(('READ', key, depth))
-            if last_read[key] == read_idx:  # value is dead after this read
-                stack.remove(key)
-                stack.append(None)          # tombstone at top
-                ir.append(('DROP', key))
-            read_idx += 1
-
-        elif tag == 'OP':
-            _, name, keys, _old_depths, out_key = ev
-            n = len(keys)
-            new_depths = trace[-n:] if n > 0 else []
-            ir.append(('OP', name, keys, list(new_depths), out_key))
-
-    return trace, ir
-
-
 def traced_eval(func, args):
     """Run func with tracked arguments. Returns (trace, result)."""
     ctx = _Context()
-    res = func(*(_wrap(ctx, a) for a in args))
+    ctx.initializing = True
+    wrapped_args = tuple(_wrap(ctx, a) for a in args)
+    ctx.initializing = False
+    res = func(*wrapped_args)
     memo = {}
     for orig, wrapped in ctx.sync:
         if isinstance(orig, list): orig[:] = _unwrap(wrapped, memo)
         elif type(orig).__name__ == 'ndarray': orig[...] = _unwrap(wrapped, memo)
-    trace, _ = _replay_with_liveness(ctx.ir)
-    return trace, _unwrap(res, memo)
+    return ctx.trace, _unwrap(res, memo)
 
 
 def trace_to_bytedmd(trace, bytes_per_element):
@@ -262,23 +269,22 @@ def trace_to_bytedmd(trace, bytes_per_element):
 def inspect_ir(func, args):
     """Run func and return its ByteDMD intermediate representation.
 
-    The tracer first executes the function to record the operation sequence,
-    then replays it with liveness analysis: each value is tombstoned after
-    its final read.
-
     The IR is a list of events:
 
       ('STORE', k)                                — value vk allocated on top
-      ('READ',  k, d)                            — read vk at depth d, LRU-bump
+      ('READ',  k, d)                            — read vk at depth d (cold miss
+                                                    if first access; priced at
+                                                    DRAM frontier + stack size)
       ('OP',   name, [ki...], [di...], out_key)  — summary of the preceding reads
-      ('DROP', k)                                — vk tombstoned (last read done)
 
     Format with format_ir() for a human-readable listing.
     """
     ctx = _Context()
-    func(*(_wrap(ctx, a) for a in args))
-    _, ir = _replay_with_liveness(ctx.ir)
-    return ir
+    ctx.initializing = True
+    wrapped_args = tuple(_wrap(ctx, a) for a in args)
+    ctx.initializing = False
+    func(*wrapped_args)
+    return ctx.ir
 
 
 def format_ir(ir):
@@ -288,8 +294,6 @@ def format_ir(ir):
     for ev in ir:
         if ev[0] == 'STORE':
             out.append(f"STORE v{ev[1]}")
-        elif ev[0] == 'DROP':
-            out.append(f"DROP  v{ev[1]}")
         elif ev[0] == 'READ':
             _, key, depth = ev
             cost = math.isqrt(depth - 1) + 1

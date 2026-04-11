@@ -44,9 +44,10 @@ The original DMD treats values abstractly. ByteDMD counts accesses at byte level
 An idealized processor operates directly on an element-level LRU stack. **Computations and writes are free; only memory reads incur a cost.**
 
 - **Stack State:** Ordered from least recently used (bottom) to most recently used (top). Depth is measured in bytes from the top (topmost byte = depth 1). Multi-byte scalars are treated as a contiguous blocks of bytes.
-- **Initialization:** On function entry, arguments are pushed to the top in call order.
-- **Read Cost:** Reading a byte at depth $d$ costs $\lceil\sqrt{d}\rceil$.
-- **Eviction (liveness analysis):** The tracer performs liveness analysis: after executing the function once to record the full operation sequence, it replays with perfect knowledge of each value's last read. After a value's final read, it is replaced by a **tombstone** at the top of the stack. Tombstones preserve the physical cache footprint: like a real cache line that hasn't been overwritten yet, they still occupy depth. This prevents the "cache teleportation" artifact where streaming through dead data would otherwise shrink the stack and let hot values float up for free. The next STORE recycles exactly one tombstone (the bottom-most, i.e. the oldest dead cache line), keeping the stack anchored at its high-water mark. Eviction and recycling are both free.
+- **Initialization (demand paging):** The LRU stack starts **empty**. Arguments are assigned tracking IDs but are not pushed onto the stack. A value enters the stack only upon its first read, priced as a "cold miss" at the DRAM frontier (a monotonically increasing counter tracking total unique elements ever fetched). This eliminates bias from Python's argument ordering.
+- **Read Cost:** Reading a byte at depth $d$ costs $\lceil\sqrt{d}\rceil$. For a cold miss, $d$ = DRAM frontier + current stack size.
+- **Simultaneous pricing:** All inputs to an instruction are priced against the stack state *before* any LRU bumping. This guarantees commutativity: `Cost(a+b) == Cost(b+a)`.
+- **Natural LRU aging:** Dead variables are not tombstoned or evicted. They simply sink toward the bottom of the stack as newer values are accessed, modeling a fully-associative cache with natural aging.
 
 ### Instruction Semantics
 
@@ -54,8 +55,8 @@ See [Instruction Set](docs/instruction_set.md) for the complete list of supporte
 
 For an instruction with inputs $x_1, \dots, x_m$ and outputs $y_1, \dots, y_n$ with $m\ge 1, n\ge 0$
 
-1. **Price reads:** Evaluate $\sum C(x_j)$ against the stack state *before* the instruction begins. Repeated inputs are charged per occurrence (e.g., `a + a` charges for reading `a` twice).
-2. **Update LRU:** Move inputs to the top of the stack sequentially in read order. *(Note: Because of this sequential update, `b + c` vs. `c + b` yields the same cost but different final stack states).*
+1. **Price reads:** Evaluate $\sum C(x_j)$ simultaneously against the stack state *before* the instruction begins. All inputs see the same pre-instruction snapshot. Repeated inputs are charged per occurrence at the same depth (e.g., `a + a` charges `⌈√d⌉` twice where `d` is `a`'s pre-instruction depth).
+2. **Update LRU:** Batch-move unique inputs to the top of the stack in read order. `b + c` and `c + b` yield the same cost (commutativity) but may differ in final stack order.
 3. **Push outputs:** Allocate new output blocks and push them to the top at zero cost.
 
 ## Example Walkthrough
@@ -68,33 +69,30 @@ def my_add(a, b, c, d):
 ```
 
 **1. Initial Stack** 
-Arguments are pushed in call order `[a, b, c, d]`, yielding element depths from the top:
-- `d`: depth 1
-- `c`: depth 2
-- `b`: depth 3
-- `a`: depth 4
+The stack starts empty (demand paging). Arguments `a, b, c, d` have tracking IDs but are not on the stack yet.
 
 **2. Read Cost**  
-Inputs are priced simultaneously against the initial stack state:
+`b + c` reads `b` and `c` simultaneously. Both are cold misses:
+- `b`: DRAM frontier → 1, depth = 1 (frontier + stack size 0). Enters stack.
+- `c`: DRAM frontier → 2, depth = 2 (frontier + stack size 1). Enters stack.
 
-$$C(b) + C(c) = \lceil\sqrt{3}\rceil + \lceil\sqrt{2}\rceil = 2 + 2 = 4$$
+$$C(b) + C(c) = \lceil\sqrt{1}\rceil + \lceil\sqrt{2}\rceil = 1 + 2 = 3$$
 
 **3. Update Stack**  
-Inputs move to the top sequentially in read order (`b`, then `c`), followed by the new `result` being pushed:
+After the instruction, `b` and `c` are LRU-bumped and `result` is pushed:
 ```text
-[a, d, b, c, result]
+[b, c, result]
 ```
 
 
 ## Inspecting the IR
 
 The tracer also emits a small **intermediate representation** that makes the
-LRU stack lifecycle explicit. Four event types: `STORE k` (recycle one
-tombstone if available, then allocate vk on top), `READ k@d` (read vk at
-depth d and LRU-bump), `OP name(vk@d, …)` (summary of the preceding reads
-— this is what incurs cost), and `DROP k` (tombstone vk after its last
-read — determined by liveness analysis). Op results are materialized by the
-`STORE` that immediately follows the `OP`.
+LRU stack lifecycle explicit. Three event types: `STORE k` (allocate vk on
+top), `READ k@d` (read vk at depth d — cold miss if first access — and
+LRU-bump), `OP name(vk@d, …)` (summary of the preceding reads — this is
+what incurs cost). Op results are materialized by the `STORE` that
+immediately follows the `OP`.
 
 ```python
 from bytedmd import inspect_ir, format_ir, bytedmd
@@ -108,57 +106,40 @@ print(format_ir(inspect_ir(matvec2, ([[1,2],[3,4]], [5,6]))))
 ```
 
 ```text
-STORE v1                                # A[0][0]
-STORE v2                                # A[0][1]
-STORE v3                                # A[1][0]
-STORE v4                                # A[1][1]
-STORE v5                                # x[0]
-STORE v6                                # x[1]
-  READ v1@6  cost=3                     # v1 bumped to top
-DROP  v1                                # last read of v1 → tombstone at top
-  READ v5@3  cost=2                     # v5 bumped (tombstone above it)
-OP    mul(v1@6, v5@3)  cost=5           # A[0][0]*x[0]
-STORE v7                                # recycles the tombstone
-  READ v2@6  cost=3                     # v2 bumped to top
-DROP  v2                                # last read of v2 → tombstone
-  READ v6@4  cost=2                     # v6 bumped
-OP    mul(v2@6, v6@4)  cost=5           # A[0][1]*x[1]
-STORE v8                                # recycles tombstone
-  READ v7@3  cost=2                     # v7 sank below v6, v8
-DROP  v7                                # last read → tombstone
-  READ v8@2  cost=2
-DROP  v8                                # last read → tombstone
-OP    add(v7@3, v8@2)  cost=4           # y0
-STORE v9                                # recycles one tombstone
-  READ v3@6  cost=3                     # depth 6 = 5 live + 1 tombstone
-DROP  v3                                # last read → tombstone
-  READ v5@5  cost=3
-DROP  v5                                # last read → tombstone
-OP    mul(v3@6, v5@5)  cost=6
-STORE v10                               # recycles one tombstone
-  READ v4@6  cost=3
-DROP  v4                                # last read → tombstone
-  READ v6@6  cost=3
-DROP  v6                                # last read → tombstone
-OP    mul(v4@6, v6@6)  cost=6
-STORE v11                               # recycles one tombstone
+  READ v1@1  cost=1                     # cold miss: A[0][0] fetched from DRAM
+  READ v5@2  cost=2                     # cold miss: x[0] (both priced simultaneously)
+OP    mul(v1@1, v5@2)  cost=3           # A[0][0]*x[0]
+STORE v7
+  READ v2@6  cost=3                     # cold miss: A[0][1], DRAM frontier=3
+  READ v6@7  cost=3                     # cold miss: x[1], frontier=4
+OP    mul(v2@6, v6@7)  cost=6           # A[0][1]*x[1]
+STORE v8
+  READ v7@4  cost=2                     # hot hit: v7 sank as v2, v6 entered
+  READ v8@1  cost=1                     # hot hit: v8 still at top
+OP    add(v7@4, v8@1)  cost=3           # y0
+STORE v9
+  READ v3@12  cost=4                    # cold miss: A[1][0], frontier=5
+  READ v5@6  cost=3                     # hot hit: x[0] still on stack
+OP    mul(v3@12, v5@6)  cost=7
+STORE v10
+  READ v4@15  cost=4                    # cold miss: A[1][1], frontier=6
+  READ v6@7  cost=3                     # hot hit: x[1]
+OP    mul(v4@15, v6@7)  cost=7
+STORE v11
   READ v10@4  cost=2
-DROP  v10
-  READ v11@2  cost=2
-DROP  v11
-OP    add(v10@4, v11@2)  cost=4         # y1
+  READ v11@1  cost=1
+OP    add(v10@4, v11@1)  cost=3         # y1
 STORE v12
-# total cost = 30
+# total cost = 29
 ```
 
-The liveness analysis knows exactly when each value's last read occurs.
-For example, `v1` (= `A[0][0]`) is only read once, so it is tombstoned
-immediately after that read: `DROP v1` fires right after `READ v1@6`. The
-tombstone floats to the top of the stack, inflating the depth of the next
-read (`v5@3` instead of `v5@2`). The following `STORE v7` recycles this
-tombstone, keeping the stack anchored at its high-water mark. This models
-how a real cache still holds dead lines until they are overwritten by new
-allocations.
+Note the demand-paged initialization: no `STORE` events at the top — values
+enter the stack only on their first read as cold misses. The DRAM frontier
+increases monotonically (1, 2, 3, 4, 5, 6 for the six scalar arguments),
+so each new element costs more as the total data footprint grows. Subsequent
+reads of the same value are hot hits priced at their LRU stack depth. Dead
+variables (like `v1` after its single read) are never evicted — they simply
+sink to the bottom as newer values push above them.
 
 ## ByteDMD benchmarks
 
@@ -168,17 +149,17 @@ See "benchmarks/" folder
 
 | Algorithm | Operation | ByteDMD Cost |
 |-----------|-----------|-------------|
-| matvec (i-j) | y = A @ x | 187 |
-| vecmat (j-i) | y = x^T @ A | 181 |
+| matvec (i-j) | y = A @ x | 196 |
+| vecmat (j-i) | y = x^T @ A | 196 |
 
 ### Matrix multiply (4x4)
 
 | Algorithm | Operation | ByteDMD Cost |
 |-----------|-----------|-------------|
-| matmul (i-j-k) | C = A @ B | 830 |
-| matmul (i-k-j) | C = A @ B | 865 |
-| matmul (snake-j) | C = A @ B | 797 |
-| matmul (2x2 tiled) | C = A @ B | 835 |
+| matmul (i-j-k) | C = A @ B | 956 |
+| matmul (i-k-j) | C = A @ B | 1019 |
+| matmul (snake-j) | C = A @ B | 914 |
+| matmul (2x2 tiled) | C = A @ B | 945 |
 | matmul (TSP) | C = A @ B | 779 |
 | Strassen (leaf=1) | C = A @ B | 1957 |
 | Winograd | C = A @ B | 1960 |
@@ -190,7 +171,7 @@ Based on [Karpathy's microGPT](https://gist.github.com/karpathy/8627fe009c40f575
 
 | Algorithm | Operation | ByteDMD Cost |
 |-----------|-----------|-------------|
-| microGPT (1 layer, embd=4) | single token forward | 5811 |
+| microGPT (1 layer, embd=4) | single token forward | 6913 |
 
 # Reports
 

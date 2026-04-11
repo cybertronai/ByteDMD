@@ -9,16 +9,16 @@ def my_add(a, b, c, d):
 
 def test_my_add():
     cost = bytedmd(my_add, (1, 2, 3, 4))
-    assert cost == 4
+    assert cost == 3
 
     # trace counts depth in terms of number of elements, not bytes
     trace, _ = traced_eval(my_add, (1, 2, 3, 4))
-    assert trace == [3, 3]
+    assert trace == [1, 2]
 
-    assert trace_to_bytedmd(trace, bytes_per_element=1) == 4
-    assert trace_to_bytedmd(trace, bytes_per_element=2) == 12
+    assert trace_to_bytedmd(trace, bytes_per_element=1) == 3
+    assert trace_to_bytedmd(trace, bytes_per_element=2) == 7
 
-    assert bytedmd(my_add, (1, 2, 3, 4), bytes_per_element=2) == 12
+    assert bytedmd(my_add, (1, 2, 3, 4), bytes_per_element=2) == 7
 
 
 def my_composite_func(a, b, c, d):
@@ -35,7 +35,7 @@ def test_repeated_operand_is_charged_twice():
 
 def test_my_composite_func():
     trace, result = traced_eval(my_composite_func, (1, 2, 3, 4))
-    assert trace == [3, 3, 4, 4, 4, 2]
+    assert trace == [1, 2, 6, 7, 4, 1]
     cost = bytedmd(my_composite_func, (1, 2, 3, 4))
     assert cost == 12
 
@@ -46,7 +46,7 @@ def test_dot_product():
     a, b = [0, 1], [2, 3]
     trace, result = traced_eval(dot, (a, b))
 
-    assert trace == [4, 3, 4, 4, 4, 2]
+    assert trace == [1, 2, 6, 7, 4, 1]
     assert result == 3
     assert bytedmd(dot, (a, b)) == 12
 
@@ -79,7 +79,7 @@ def test_divmod_tuple_allocation_trace():
         return q + r + a
         
     trace, result = traced_eval(my_divmod, (10, 3))
-    assert trace == [2, 2, 2, 2, 1, 3]
+    assert trace == [1, 2, 2, 1, 1, 5]
 
 
 def test_implicit_boolean_is_traced():
