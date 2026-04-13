@@ -3,23 +3,23 @@ import numpy as np
 from bytedmd import bytedmd, traced_eval, trace_to_bytedmd
 
 
-def my_add(a, b, c, d):
-    return b + c
+def my_add(a, b, c):
+    return (a + b) + c
 
 
 def test_my_add():
-    cost = bytedmd(my_add, (1, 2, 3, 4))
-    assert cost == 3
+    cost = bytedmd(my_add, (1, 2, 3))
+    assert cost == 7
 
-    # With eager init + aggressive compaction, unused a and d are evicted
-    # immediately, leaving stack=[b, c]. b@depth=2, c@depth=1.
-    trace, _ = traced_eval(my_add, (1, 2, 3, 4))
-    assert trace == [2, 1]
+    # Stack starts as [a, b, c]. a+b reads a@3, b@2 (cost 4).
+    # After compaction: [c, t]. t+c reads t@1, c@2 (cost 3). Total: 7.
+    trace, _ = traced_eval(my_add, (1, 2, 3))
+    assert trace == [3, 2, 1, 2]
 
-    assert trace_to_bytedmd(trace, bytes_per_element=1) == 3
-    assert trace_to_bytedmd(trace, bytes_per_element=2) == 7
+    assert trace_to_bytedmd(trace, bytes_per_element=1) == 7
+    assert trace_to_bytedmd(trace, bytes_per_element=2) == 17
 
-    assert bytedmd(my_add, (1, 2, 3, 4), bytes_per_element=2) == 7
+    assert bytedmd(my_add, (1, 2, 3), bytes_per_element=2) == 17
 
 
 def my_composite_func(a, b, c, d):

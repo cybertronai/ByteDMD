@@ -17,10 +17,10 @@ def upper_half_spiral(n):
         start_i = (k - 1)**2 + 1
         idx = i - start_i
         if k % 2 == 1:
-            x = (k - 1) - idx
-        else:
             x = -(k - 1) + idx
-        y = k - abs(x)
+        else:
+            x = (k - 1) - idx
+        y = -(k - abs(x))  # Flipped: top of stack (depth 1) at geometric top
         yield x, y
 
 N_PTS = 400
@@ -55,7 +55,7 @@ def render_frame(d, n_short=40, table_size=13):
         alpha = 1.0 if is_current else 0.4
         x_offset = 5 if (i + 1) in (1, 3) else 0
         ax1.annotate(f"{i+1}", (short_pts[i, 0], short_pts[i, 1]),
-                     textcoords="offset points", xytext=(x_offset, 5),
+                     textcoords="offset points", xytext=(x_offset, 7),
                      ha='center', va='bottom', fontsize=9, fontweight=weight, color='black', alpha=alpha, zorder=4,
                      bbox=dict(boxstyle='round,pad=0.15', fc='white', ec='none', alpha=0.7 if is_current else 0.3))
 
@@ -76,8 +76,8 @@ def render_frame(d, n_short=40, table_size=13):
     ax1.tick_params(bottom=False, left=False, labelbottom=False, labelleft=False)
     ax1.grid(True, linestyle=':', alpha=0.5)
 
-    bottom_lim = min(0, short_pts[:, 1].min()) - 1
-    ax1.set_ylim(bottom=bottom_lim)
+    top_lim = max(0, short_pts[:, 1].max()) + 1
+    ax1.set_ylim(top=top_lim)
 
     divider = make_axes_locatable(ax1)
     ax2 = divider.append_axes("right", size="50%", pad=0.6)

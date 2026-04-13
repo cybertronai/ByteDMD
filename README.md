@@ -61,35 +61,37 @@ For an instruction with inputs $x_1, \dots, x_m$ and outputs $y_1, \dots, y_n$ w
 
 ## Example Walkthrough
 
-Consider the following function with four scalar arguments:
+Consider the following function with three scalar arguments:
 
 ```python
-def my_add(a, b, c, d):
-    return b + c
+def my_add(a, b, c):
+    return (a + b) + c
 ```
 
 **1. Initial Stack** 
-Arguments are pushed in call order `[a, b, c, d]`, yielding element depths from the top:
-- `d`: depth 1
-- `c`: depth 2
-- `b`: depth 3
-- `a`: depth 4
+Arguments are pushed in call order `[a, b, c]`, yielding element depths from the top:
+- `c`: depth 1
+- `b`: depth 2
+- `a`: depth 3
 
-However, liveness analysis determines that `a` and `d` are never read. They are evicted immediately during initialization, leaving:
+**2. First operation: `a + b`**  
+Both operands are priced simultaneously against the initial stack:
+
+$$C(a) + C(b) = \lceil\sqrt{3}\rceil + \lceil\sqrt{2}\rceil = 2 + 2 = 4$$
+
+After LRU bumping and pushing the result `t = a + b`:
 ```text
-[b, c]    ← b at depth 2, c at depth 1
+[c, a, b, t]    ← t at depth 1, b at depth 2, a at depth 3, c at depth 4
+```
+Liveness analysis evicts `a` and `b` (their last use just happened):
+```text
+[c, t]    ← t at depth 1, c at depth 2
 ```
 
-**2. Read Cost**  
-`b + c` reads `b` and `c` simultaneously against the compacted stack:
+**3. Second operation: `t + c`**  
+$$C(t) + C(c) = \lceil\sqrt{1}\rceil + \lceil\sqrt{2}\rceil = 1 + 2 = 3$$
 
-$$C(b) + C(c) = \lceil\sqrt{2}\rceil + \lceil\sqrt{1}\rceil = 2 + 1 = 3$$
-
-**3. Update Stack**  
-After the instruction, `b` and `c` are LRU-bumped and `result` is pushed:
-```text
-[b, c, result]
-```
+**Total cost:** $4 + 3 = 7$. Trace: `[3, 2, 1, 2]`.
 
 
 ## Inspecting the IR
