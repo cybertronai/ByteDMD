@@ -21,7 +21,7 @@ b = [2, 3]
 assert dot(a,b) == 3
 
 # ByteDMD cost of dot product
-assert bytedmd(dot, (a, b)) == 14
+assert bytedmd(dot, (a, b)) == 12
 ```
 
 ## Motivation
@@ -37,15 +37,15 @@ This rounding corresponds to routing wire length on a 2D grid with LRU stack arr
 
 ![ByteDMD](docs/manhattan_figure.svg)
 
-The original DMD treats values abstractly. ByteDMD counts accesses at byte level. This rewards algorithms that use smaller data types.
-
 ## Computation Model
 
 An idealized processor operates directly on an element-level LRU stack. **Computations and writes are free; only memory reads incur a cost.**
 
-- **Stack State:** Ordered from least recently used (bottom) to most recently used (top). Depth is measured in bytes from the top (topmost byte = depth 1). Multi-byte scalars are treated as a contiguous blocks of bytes.
-- **Initialization:** On function entry, arguments are pushed to the top in call order.
+- **Stack State:** Ordered from least recently used (bottom) to most recently used (top). Depth is measured in bytes from the top (topmost byte = depth 1). Multi-byte scalars are treated as contiguous blocks of bytes.
+- **Eager initialization:** Arguments are loaded onto the stack left to right — the first argument sits at the top (depth 1). All input elements are live and addressable from the start.
 - **Read Cost:** Reading a byte at depth $d$ costs $\lceil\sqrt{d}\rceil$.
+- **Simultaneous pricing:** All inputs to an instruction are priced against the stack state *before* any LRU bumping. This guarantees commutativity: `Cost(a+b) == Cost(b+a)`.
+- **Only live contribute to depth of the stack:** Any value that's dead (no longer used) is immediately removed from the stack and remaining elements slide up to close the gap. This models an optimal compiler that keeps the stack clamped to the active working set.
 
 ### Instruction Semantics
 
@@ -53,37 +53,103 @@ See [Instruction Set](docs/instruction_set.md) for the complete list of supporte
 
 For an instruction with inputs $x_1, \dots, x_m$ and outputs $y_1, \dots, y_n$ with $m\ge 1, n\ge 0$
 
-1. **Price reads:** Evaluate $\sum C(x_j)$ against the stack state *before* the instruction begins. Repeated inputs are charged per occurrence (e.g., `a + a` charges for reading `a` twice).
-2. **Update LRU:** Move inputs to the top of the stack sequentially in read order. *(Note: Because of this sequential update, `b + c` vs. `c + b` yields the same cost but different final stack states).*
+1. **Price reads:** Evaluate $\sum C(x_j)$ simultaneously against the stack state *before* the instruction begins. All inputs see the same pre-instruction snapshot. Repeated inputs are charged per occurrence at the same depth (e.g., `a + a` charges `⌈√d⌉` twice where `d` is `a`'s pre-instruction depth).
+2. **Update LRU:** Batch-move unique inputs to the top of the stack in read order. `b + c` and `c + b` yield the same cost (commutativity) but may differ in final stack order.
 3. **Push outputs:** Allocate new output blocks and push them to the top at zero cost.
 
 ## Example Walkthrough
 
-Consider the following function with four scalar arguments:
+Consider the following function with three scalar arguments:
 
 ```python
-def my_add(a, b, c, d):
-    return b + c
+def my_add(a, b, c):
+    return (a + b) + c
 ```
 
-**1. Initial Stack** 
-Arguments are pushed in call order `[a, b, c, d]`, yielding element depths from the top:
-- `d`: depth 1
-- `c`: depth 2
-- `b`: depth 3
-- `a`: depth 4
-
-**2. Read Cost**  
-Inputs are priced simultaneously against the initial stack state:
-
-$$C(b) + C(c) = \lceil\sqrt{3}\rceil + \lceil\sqrt{2}\rceil = 2 + 2 = 4$$
-
-**3. Update Stack**  
-Inputs move to the top sequentially in read order (`b`, then `c`), followed by the new `result` being pushed:
+**1. Initial Stack (left = top, right = bottom)** 
+Arguments are loaded left to right — first argument at the top:
 ```text
-[a, d, b, c, result]
+[a, b, c]    ← a at depth 1, b at depth 2, c at depth 3
 ```
 
+**2. First operation: `a + b`**  
+Both operands are priced simultaneously against the initial stack:
+
+$$C(a) + C(b) = \lceil\sqrt{1}\rceil + \lceil\sqrt{2}\rceil = 1 + 2 = 3$$
+
+After LRU bumping and pushing the result `t = a + b`:
+```text
+[t, b, a, c]    ← t at depth 1, b at depth 2, a at depth 3, c at depth 4
+```
+Liveness analysis evicts `a` and `b` (their last use just happened):
+```text
+[t, c]    ← t at depth 1, c at depth 2
+```
+
+**3. Second operation: `t + c`**  
+$$C(t) + C(c) = \lceil\sqrt{1}\rceil + \lceil\sqrt{2}\rceil = 1 + 2 = 3$$
+
+**Total cost:** $3 + 3 = 6$. Trace: `[1, 2, 1, 2]`.
+
+
+## Inspecting the IR
+
+The tracer also emits a small **intermediate representation** that makes the
+LRU stack lifecycle explicit. Three event types: `STORE k` (allocate vk on
+top), `READ k@d` (read vk at depth d and LRU-bump), `OP name(vk@d, …)`
+(summary of the preceding reads — this is what incurs cost). Op results are
+materialized by the `STORE` that immediately follows the `OP`.
+
+```python
+from bytedmd import inspect_ir, format_ir, bytedmd
+
+def matvec2(A, x):
+    y0 = A[0][0]*x[0] + A[0][1]*x[1]
+    y1 = A[1][0]*x[0] + A[1][1]*x[1]
+    return [y0, y1]
+
+print(format_ir(inspect_ir(matvec2, ([[1,2],[3,4]], [5,6]))))
+```
+
+```text
+STORE v1                                # x[0] loaded first (deepest)
+STORE v2                                # x[1]
+STORE v3                                # A[0][0]
+STORE v4                                # A[0][1]
+STORE v5                                # A[1][0]
+STORE v6                                # A[1][1]
+  READ v3@4  cost=2                     # A[0][0] (left-to-right: A at top)
+  READ v1@6  cost=3                     # x[0] at bottom
+OP    mul(v3@4, v1@6)  cost=5           # A[0][0]*x[0]
+STORE v7
+  READ v4@5  cost=3                     # A[0][1] (v3 evicted after last use)
+  READ v2@6  cost=3                     # x[1]
+OP    mul(v4@5, v2@6)  cost=6           # A[0][1]*x[1]
+STORE v8
+  READ v7@3  cost=2                     # hot hit: v7 sank as v4, v2 entered
+  READ v8@1  cost=1                     # hot hit: v8 still at top
+OP    add(v7@3, v8@1)  cost=3           # y0
+STORE v9
+  READ v5@5  cost=3                     # A[1][0] (dead temps evicted)
+  READ v1@3  cost=2                     # hot hit: x[0] still on stack
+OP    mul(v5@5, v1@3)  cost=5
+STORE v10
+  READ v6@4  cost=2                     # A[1][1]
+  READ v2@3  cost=2                     # hot hit: x[1]
+OP    mul(v6@4, v2@3)  cost=4
+STORE v11
+  READ v10@2  cost=2
+  READ v11@1  cost=1
+OP    add(v10@2, v11@1)  cost=3         # y1
+STORE v12
+# total cost = 26
+```
+
+Note the left-to-right initialization: `A` elements (the first argument) sit
+at the top of the stack, while `x` elements (the second argument) are
+deeper. Liveness analysis aggressively evicts dead variables: after `v3`'s
+single read, it is removed and remaining elements slide up. This keeps the
+stack clamped to the active working set.
 
 ## ByteDMD benchmarks
 
@@ -93,19 +159,14 @@ See "benchmarks/" folder
 
 | Algorithm | Operation | ByteDMD Cost |
 |-----------|-----------|-------------|
-| matvec (i-j) | y = A @ x | 194 |
-| vecmat (j-i) | y = x^T @ A | 191 |
+| matvec (i-j) | y = A @ x | 157 |
+| vecmat (j-i) | y = x^T @ A | 150 |
 
 ### Matrix multiply (4x4)
 
 | Algorithm | Operation | ByteDMD Cost |
 |-----------|-----------|-------------|
-| matmul (i-j-k) | C = A @ B | 948 |
-| matmul (i-k-j) | C = A @ B | 1016 |
-| matmul (snake-j) | C = A @ B | 906 |
-| matmul (2x2 tiled) | C = A @ B | 947 |
-| Strassen (leaf=1) | C = A @ B | 2435 |
-| Winograd | C = A @ B | 2178 |
+| naive matmul (i-j-k) | C = A @ B | 720 |
 
 ### microGPT single-token forward pass
 
@@ -114,12 +175,21 @@ Based on [Karpathy's microGPT](https://gist.github.com/karpathy/8627fe009c40f575
 
 | Algorithm | Operation | ByteDMD Cost |
 |-----------|-----------|-------------|
-| microGPT (1 layer, embd=4) | single token forward | 7047 |
+| microGPT (1 layer, embd=4) | single token forward | 3214 |
+
+# Reports
+
+In-depth reports applying ByteDMD to specific algorithms and design questions:
+
+- [Strassen vs naive matmul](docs/report-strassen-benchmarks/report.md) — at what matrix size does Strassen's recursive algorithm beat naive matmul under ByteDMD? Includes a crossover-point experiment.
+- [Modern flash attention vs naive attention](docs/report-modern-flash-attention/report.md) — full sweep across sequence length, head dim, and block size showing flash attention's advantage growing as O(sqrt(N/Bk)) under ByteDMD while FLOPs see no benefit. Uses an optimised tracer (`bytedmd_fast.py`).
+- [Antigravity flash attention experiments](docs/report-antigravity-flash-attention/report.md) — alternative flash attention implementations and their ByteDMD costs.
+- [Attention benchmark notes](benchmarks/attention_report.md) — the small-scale flash vs naive results that motivated the modern-attention deep dive.
 
 # Python Gotcha's
-This version implements ByteDMD by wrapping Python objects. This means that "Instruction Set" of this metric corresponds to Python built-ins, documented under [docs/instruction_set.md](docs/instruction_set.md).
+The tracer implements ByteDMD by wrapping Python objects. This means that the "Instruction Set" of this metric corresponds to Python built-ins, documented under [docs/instruction_set.md](docs/instruction_set.md).
 
-Python behavior means this implementation occasionally doesn't match README semantics and it's possible to escaping the wrapping mechanism occasionally, known failures cases are documented as test_gotchas.py .
+Python behavior means this implementation occasionally doesn't match README semantics and it is possible to escape the wrapping mechanism (local arrays, exception side-channels, identity ops, type introspection, f-strings, math.trunc/ceil/floor on tracked values, etc.). Known failure cases are documented in `test_gotchas.py` — avoid those patterns when writing code you want measured.
 
 
 [Original Google Doc](https://docs.google.com/document/d/1sj5NqOg6Yqh10bXzGVEF5uIzSjFWAnqqTE75AMng2-s/edit?tab=t.0#heading=h.ujy6ygk7sjmb)

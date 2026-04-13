@@ -17,10 +17,10 @@ def upper_half_spiral(n):
         start_i = (k - 1)**2 + 1
         idx = i - start_i
         if k % 2 == 1:
-            x = (k - 1) - idx
-        else:
             x = -(k - 1) + idx
-        y = k - abs(x)
+        else:
+            x = (k - 1) - idx
+        y = -(k - abs(x))  # Flipped: top of stack (depth 1) at geometric top
         yield x, y
 
 N_PTS = 400
@@ -40,18 +40,22 @@ def render_frame(d, n_short=40, table_size=13):
                angles='xy', scale_units='xy', scale=1,
                color='gray', alpha=0.6, width=0.005, headwidth=4, headlength=6, zorder=1)
 
-    # Plot the nodes
-    ax1.scatter(short_pts[:, 0], short_pts[:, 1], c=T_VALS[:n_short],
-                cmap='plasma', s=40, zorder=2)
+    # Color nodes by Manhattan distance level (discrete, not gradient)
+    manhattan_dists = np.array([abs(x) + abs(y) for x, y in short_pts])
+    max_dist = int(manhattan_dists.max())
+    cmap = plt.cm.plasma
+    # Map each discrete distance to a single color
+    norm_colors = [cmap(d_val / max_dist) for d_val in manhattan_dists]
+    ax1.scatter(short_pts[:, 0], short_pts[:, 1], c=norm_colors, s=40, zorder=2)
 
-    # Label the first 15 points
+    # Label the first 15 points (closer to vertex)
     for i in range(15):
         is_current = (i + 1 == d)
         weight = 'bold' if is_current else 'normal'
         alpha = 1.0 if is_current else 0.4
         x_offset = 5 if (i + 1) in (1, 3) else 0
         ax1.annotate(f"{i+1}", (short_pts[i, 0], short_pts[i, 1]),
-                     textcoords="offset points", xytext=(x_offset, 10),
+                     textcoords="offset points", xytext=(x_offset, 7),
                      ha='center', va='bottom', fontsize=9, fontweight=weight, color='black', alpha=alpha, zorder=4,
                      bbox=dict(boxstyle='round,pad=0.15', fc='white', ec='none', alpha=0.7 if is_current else 0.3))
 
@@ -72,8 +76,8 @@ def render_frame(d, n_short=40, table_size=13):
     ax1.tick_params(bottom=False, left=False, labelbottom=False, labelleft=False)
     ax1.grid(True, linestyle=':', alpha=0.5)
 
-    bottom_lim = min(0, short_pts[:, 1].min()) - 1
-    ax1.set_ylim(bottom=bottom_lim)
+    top_lim = max(0, short_pts[:, 1].max()) + 1
+    ax1.set_ylim(top=top_lim)
 
     divider = make_axes_locatable(ax1)
     ax2 = divider.append_axes("right", size="50%", pad=0.6)

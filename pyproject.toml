@@ -1,0 +1,31 @@
+[project]
+name = "bytedmd"
+version = "0.1.0"
+description = "A cost model of complexity for the 21st century"
+requires-python = ">=3.9"
+dependencies = [
+    "numpy",
+    "pytest",
+    "matplotlib",
+    "graphviz",
+]
+
+[tool.pytest.ini_options]
+# Only collect the top-level test_*.py files at the repo root. Avoid
+# descending into docs/, experiments/, benchmarks/, etc. where some
+# files match test discovery patterns but have their own import paths.
+testpaths = ["."]
+python_files = ["test_*.py"]
+norecursedirs = [
+    ".venv",
+    ".git",
+    "__pycache__",
+    "docs",
+    "experiments",
+    "benchmarks",
+    "notebooks",
+    "papers",
+    "scratch*",
+    "visualizations",
+    "gemini",
+]
