@@ -1,21 +1,26 @@
 """
-ByteDMD tracer — LRU stack with eager initialization and aggressive compaction.
+ByteDMD tracer — stationary slots with demand-paged initialization.
 
-  1. Simultaneous pricing: All inputs are priced against the pre-instruction
-     stack state before LRU bumping, guaranteeing commutativity.
-  2. Eager initialization: Arguments are pushed onto the stack in Python
-     signature order on function entry (no cold misses).
-  3. Liveness Analysis and Aggressive Compaction: Two-pass analysis strictly
-     limits stack size by immediately discarding elements when their last
-     operation completes, dynamically sliding remaining items up the stack.
+  1. Stationary scratchpad: SRAM is an array of fixed slots numbered
+     1, 2, 3, .... The cost to access slot d is ceil(sqrt(d)).
+     Variables do not move once placed.
+  2. Min-heap slot recycling: Dead variables' slots are returned to a
+     min-heap free-list so the next allocation reuses the lowest
+     available position.
+  3. Global Peak & Demand-paged initialization: Arguments start in "DRAM".
+     First access triggers a cold miss priced on a monotonically increasing
+     tape strictly beyond the peak working set.
+  4. Liveness analysis: Two-pass analysis determines when each variable's
+     last use occurs; dead variables' slots are freed immediately.
 """
 
+import heapq
 import math
 import operator
 
 class _Context:
     __slots__ = ('stack', 'trace', 'sync', 'memo', 'counter', 'ir', 'events', 'last_use')
-    
+
     def __init__(self):
         self.stack, self.trace, self.sync, self.ir, self.events = [], [], [], [], []
         self.memo = {}
@@ -61,7 +66,7 @@ def _make_op(op, rev=False):
 
         read_keys = [keys[0], self._key] + keys[1:] if rev else [self._key] + keys
         res = op(vals[0], self.val, *vals[1:]) if rev else op(self.val, *vals)
-        
+
         depths = self._ctx.read(read_keys)
         valid_keys = [k for k in read_keys if k is not None]
 
@@ -72,7 +77,7 @@ def _make_op(op, rev=False):
         self._ctx.events.append(('OP_START', name, valid_keys))
         wrapped = _wrap(self._ctx, res)
         out_key = getattr(wrapped, '_key', None)
-        
+
         self._ctx.events.append(('OP_END', name, valid_keys, out_key))
         return wrapped
     return method
@@ -95,7 +100,7 @@ def _wrap(ctx, val, deferred=False):
 
     typ = type(val)
     is_prim = typ in (int, float, bool, complex, str)
-    
+
     if typ.__name__ == 'ndarray':
         import numpy as np
         res = np.empty_like(val, dtype=object)
@@ -126,7 +131,7 @@ def _unwrap(val, memo=None):
 
     typ = type(val)
     is_prim = typ in (int, float, bool, complex, str)
-    
+
     if isinstance(val, (list, tuple)):
         res = typ(_unwrap(v, memo) for v in val)
         if not is_prim: memo[vid] = res
@@ -171,63 +176,116 @@ def _pass2(ctx, res):
             import numpy as np
             for v in val.flat: collect_keys(v)
     collect_keys(res)
-    
+
     # Results are marked alive until the end
     for k in names:
         last_use[k] = len(events)
-        
-    stack = []
+
+    # --- Pass 1.5 - Calculate Global Peak Working Set ---
+    sim_stack = []
+    peak_working_set = 0
+
+    def kill_dead_sim(current_idx):
+        nonlocal sim_stack
+        new_stack = []
+        for k in sim_stack:
+            if last_use.get(k, -1) > current_idx:
+                new_stack.append(k)
+        sim_stack = new_stack
+
+    for i, ev in enumerate(events):
+        if ev[0] == 'STORE':
+            sim_stack.append(ev[1])
+            if len(sim_stack) > peak_working_set:
+                peak_working_set = len(sim_stack)
+            kill_dead_sim(i)
+
+        elif ev[0] == 'READ_BATCH':
+            unique = list(dict.fromkeys(ev[1]))
+            for k in unique:
+                if k not in sim_stack:
+                    sim_stack.append(k)
+            # Record the peak footprint the moment data is fully paged into L1
+            if len(sim_stack) > peak_working_set:
+                peak_working_set = len(sim_stack)
+            kill_dead_sim(i)
+    # ---------------------------------------------------------
+
+    # --- Pass 3: Stationary Slots + Min-Heap Free-List ---
+    # Variables occupy fixed memory slots.  Accessing slot d costs sqrt(d).
+    # Dead variables' slots are recycled via a min-heap so the next
+    # allocation reuses the lowest available position.
+    # Cold misses are priced on a monotonic tape past the peak working set.
+    slot_of = {}            # key -> assigned slot number
+    free_heap = list(range(1, peak_working_set + 1))  # slots 1..peak_working_set
+    heapq.heapify(free_heap)
+    live_keys = set()       # keys currently occupying a slot
+
     trace = []
     ir = []
     last_depths_map = {}
     op_start_stack = []
-    
-    def kill_dead_variables(current_idx):
-        nonlocal stack
-        new_stack = []
-        for k in stack:
-            if last_use.get(k, -1) > current_idx:
-                new_stack.append(k)
-        stack = new_stack
+
+    global_cold_counter = 0  # Monotonically increasing spatial tape for DRAM misses
+
+    def free_dead_slots(current_idx):
+        dead = [k for k in live_keys if last_use.get(k, -1) <= current_idx]
+        for k in dead:
+            live_keys.discard(k)
+            heapq.heappush(free_heap, slot_of[k])
+            del slot_of[k]
+
+    def alloc_slot(k):
+        """Assign the lowest available slot to key k."""
+        if free_heap:
+            s = heapq.heappop(free_heap)
+        else:
+            # Overflow: allocate beyond peak_working_set (should be rare)
+            s = peak_working_set + len(live_keys) + 1
+        slot_of[k] = s
+        live_keys.add(k)
 
     for i, ev in enumerate(events):
         if ev[0] == 'STORE':
             k = ev[1]
-            stack.append(k)
+            alloc_slot(k)
             ir.append(('STORE', k))
-            kill_dead_variables(i)
-            
+            free_dead_slots(i)
+
         elif ev[0] == 'READ_BATCH':
             valid = ev[1]
             unique = list(dict.fromkeys(valid))
             depths_map = {}
-            L = len(stack)
-            
-            # Price simultaneously against active universe
+
+            # Price simultaneously against current slot assignments
             for k in unique:
-                depths_map[k] = L - stack.index(k)
-            
+                if k in slot_of:
+                    # Hot hit: cost = assigned slot number (stationary)
+                    depths_map[k] = slot_of[k]
+                else:
+                    # Cold miss: priced on monotonic tape past peak working set
+                    global_cold_counter += 1
+                    depths_map[k] = peak_working_set + global_cold_counter
+                    # After cold miss, assign a stationary SRAM slot
+                    alloc_slot(k)
+
             trace.extend(depths_map[k] for k in valid)
             for k in valid:
                 ir.append(('READ', k, depths_map[k]))
-                
-            for k in unique:
-                stack.remove(k)
-                stack.append(k)
-                
+
             last_depths_map = depths_map
-            kill_dead_variables(i)
-            
+            free_dead_slots(i)
+
         elif ev[0] == 'OP_START':
             op_start_stack.append(len(ir))
-            
+
         elif ev[0] == 'OP_END':
             name, valid_keys, out_key = ev[1], ev[2], ev[3]
             depths = [last_depths_map.get(k, 0) for k in valid_keys]
-            
+
             idx = op_start_stack.pop()
             ir.insert(idx, ('OP', name, valid_keys, depths, out_key))
-            
+
         elif ev[0] == 'OP':
             # Fallback for NotImplemented returns
             name, valid_keys, out_key = ev[1], ev[2], ev[3]
@@ -245,16 +303,16 @@ def _sum_usqrt(N):
 
 def traced_eval(func, args):
     ctx = _Context()
-    wrapped_args = tuple(_wrap(ctx, a) for a in args)
+    wrapped_args = tuple(_wrap(ctx, a, deferred=True) for a in args)
     res = func(*wrapped_args)
-    
+
     _pass2(ctx, res)
-    
+
     memo = {}
     for orig, wrapped in ctx.sync:
         if isinstance(orig, list): orig[:] = _unwrap(wrapped, memo)
         elif type(orig).__name__ == 'ndarray': orig[...] = _unwrap(wrapped, memo)
-        
+
     return ctx.trace, _unwrap(res, memo)
 
 def trace_to_bytedmd(trace, bytes_per_element):
@@ -264,7 +322,7 @@ def trace_to_bytedmd(trace, bytes_per_element):
 
 def inspect_ir(func, args):
     ctx = _Context()
-    wrapped_args = tuple(_wrap(ctx, a) for a in args)
+    wrapped_args = tuple(_wrap(ctx, a, deferred=True) for a in args)
     res = func(*wrapped_args)
     _pass2(ctx, res)
     return ctx.ir
@@ -311,9 +369,9 @@ def trace_ir(func, args):
     """Replay an IR step-by-step with variable names and the compacted logical stack state."""
     import inspect
     ctx = _Context()
-    wrapped_args = tuple(_wrap(ctx, a) for a in args)
+    wrapped_args = tuple(_wrap(ctx, a, deferred=True) for a in args)
     res = func(*wrapped_args)
-    
+
     _pass2(ctx, res)
     ir = ctx.ir
     last_use = ctx.last_use
@@ -360,7 +418,7 @@ def trace_ir(func, args):
 
     def fmt_stack():
         return '[' + ', '.join(n(k) for k in stack) + ']'
-        
+
     def compact(current_idx):
         new_stack = []
         for k in stack:
@@ -384,13 +442,13 @@ def trace_ir(func, args):
                 stack.append(key)
             stack.remove(key)
             stack.append(key)
-            
+
             is_last_in_read_block = True
             if i + 1 < len(ir) and ir[i+1][0] in ('READ', 'OP'):
                 is_last_in_read_block = False
-                
+
             out.append(f"  READ {n(key)}@{depth:<3} cost={cost:<3}          stack={fmt_stack()}")
-            
+
             if is_last_in_read_block:
                 compact(i)
         elif tag == 'OP':
@@ -404,7 +462,7 @@ def trace_ir(func, args):
                     names[out_key] = f"{sym}({n(keys[0])})"
                 else:
                     names[out_key] = f"{opname}({', '.join(n(k) for k in keys)})"
-            
+
             # The operation natively completes read requirements, enabling stack clearance
             compact(i)
 

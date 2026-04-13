@@ -40,18 +40,22 @@ def render_frame(d, n_short=40, table_size=13):
                angles='xy', scale_units='xy', scale=1,
                color='gray', alpha=0.6, width=0.005, headwidth=4, headlength=6, zorder=1)
 
-    # Plot the nodes
-    ax1.scatter(short_pts[:, 0], short_pts[:, 1], c=T_VALS[:n_short],
-                cmap='plasma', s=40, zorder=2)
+    # Color nodes by Manhattan distance level (discrete, not gradient)
+    manhattan_dists = np.array([abs(x) + abs(y) for x, y in short_pts])
+    max_dist = int(manhattan_dists.max())
+    cmap = plt.cm.plasma
+    # Map each discrete distance to a single color
+    norm_colors = [cmap(d_val / max_dist) for d_val in manhattan_dists]
+    ax1.scatter(short_pts[:, 0], short_pts[:, 1], c=norm_colors, s=40, zorder=2)
 
-    # Label the first 15 points
+    # Label the first 15 points (closer to vertex)
     for i in range(15):
         is_current = (i + 1 == d)
         weight = 'bold' if is_current else 'normal'
         alpha = 1.0 if is_current else 0.4
         x_offset = 5 if (i + 1) in (1, 3) else 0
         ax1.annotate(f"{i+1}", (short_pts[i, 0], short_pts[i, 1]),
-                     textcoords="offset points", xytext=(x_offset, 10),
+                     textcoords="offset points", xytext=(x_offset, 5),
                      ha='center', va='bottom', fontsize=9, fontweight=weight, color='black', alpha=alpha, zorder=4,
                      bbox=dict(boxstyle='round,pad=0.15', fc='white', ec='none', alpha=0.7 if is_current else 0.3))
 

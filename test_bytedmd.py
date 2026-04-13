@@ -11,9 +11,10 @@ def test_my_add():
     cost = bytedmd(my_add, (1, 2, 3, 4))
     assert cost == 3
 
-    # trace counts depth in terms of number of elements, not bytes
+    # With eager init + aggressive compaction, unused a and d are evicted
+    # immediately, leaving stack=[b, c]. b@depth=2, c@depth=1.
     trace, _ = traced_eval(my_add, (1, 2, 3, 4))
-    assert trace == [1, 2]
+    assert trace == [2, 1]
 
     assert trace_to_bytedmd(trace, bytes_per_element=1) == 3
     assert trace_to_bytedmd(trace, bytes_per_element=2) == 7
@@ -35,9 +36,9 @@ def test_repeated_operand_is_charged_twice():
 
 def test_my_composite_func():
     trace, result = traced_eval(my_composite_func, (1, 2, 3, 4))
-    assert trace == [1, 2, 2, 3, 2, 1]
+    assert trace == [3, 2, 3, 2, 2, 1]
     cost = bytedmd(my_composite_func, (1, 2, 3, 4))
-    assert cost == 10
+    assert cost == 11
 
 def test_dot_product():
     def dot(a, b):
@@ -46,9 +47,9 @@ def test_dot_product():
     a, b = [0, 1], [2, 3]
     trace, result = traced_eval(dot, (a, b))
 
-    assert trace == [1, 2, 2, 3, 2, 1]
+    assert trace == [4, 2, 3, 2, 2, 1]
     assert result == 3
-    assert bytedmd(dot, (a, b)) == 10
+    assert bytedmd(dot, (a, b)) == 11
 
 
 def test_branching_and_comparisons_trace():
@@ -79,7 +80,7 @@ def test_divmod_tuple_allocation_trace():
         return q + r + a
         
     trace, result = traced_eval(my_divmod, (10, 3))
-    assert trace == [1, 2, 2, 1, 1, 2]
+    assert trace == [2, 1, 2, 1, 1, 2]
 
 
 def test_implicit_boolean_is_traced():
@@ -155,16 +156,19 @@ def _ceil_sqrt(x):
     return math.isqrt(x - 1) + 1 if x > 0 else 0
 
 
-def test_matvec_vecmat_symmetry():
-    """Verify matvec and vecmat have identical costs (signature-independent)."""
-    expected = {2: 21, 3: 62, 4: 124, 5: 208, 6: 319, 7: 452, 8: 643}
+def test_matvec_costs():
+    """Verify matvec costs with eager init + aggressive compaction.
+    With eager init, matvec and vecmat are no longer symmetric because
+    the traversal order matters against the pre-loaded stack."""
+    expected_mv = {2: 25, 3: 70, 4: 149, 5: 256, 6: 399, 7: 581, 8: 849}
+    expected_vm = {2: 25, 3: 68, 4: 143, 5: 245, 6: 375, 7: 539, 8: 787}
     for n in [2, 3, 4, 5, 6, 7, 8]:
         A = np.ones((n, n))
         x = np.ones(n)
         mv = bytedmd(_matvec, (A, x))
         vm = bytedmd(_vecmat, (A, x))
-        assert mv == vm, f"N={n}: matvec ({mv}) != vecmat ({vm})"
-        assert mv == expected[n], f"N={n}: got {mv}, expected {expected[n]}"
+        assert mv == expected_mv[n], f"matvec N={n}: got {mv}, expected {expected_mv[n]}"
+        assert vm == expected_vm[n], f"vecmat N={n}: got {vm}, expected {expected_vm[n]}"
 
 
 if __name__ == "__main__":

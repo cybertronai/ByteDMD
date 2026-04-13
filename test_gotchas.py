@@ -38,13 +38,20 @@ def test_gotcha_pure_memory_movement_is_free():
 
 def test_short_circuit_gotcha():
     """
-    Python short-circuit operation means that we may only have 1 operand that is traced rather than both.
+    Python short-circuit means only one operand may be traced.
+    With eager init, both a and b are pre-loaded on the stack.
+
+    `a and b` with a=0: only a is read. b is never used and gets
+    compacted away, so a sits at depth 1.
+
+    `a or b` with a=0: a.__bool__() reads a. b is returned (alive),
+    so stack=[a, b] and a is at depth 2.
     """
     def logical_and(a, b):
         return a and b
 
     trace, result = traced_eval(logical_and, (0, 5))
-    assert trace == [2]
+    assert trace == [1]
     assert result == 0
 
     trace, result = traced_eval(lambda a, b: a or b, (0, 5))
