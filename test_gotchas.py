@@ -44,8 +44,8 @@ def test_short_circuit_gotcha():
     `a and b` with a=0: only a is read. b is never used and gets
     compacted away, so a sits at depth 1.
 
-    `a or b` with a=0: a.__bool__() reads a. b is returned (alive),
-    so stack=[a, b] and a is at depth 2.
+    `a or b` with a=0: a.__bool__() reads a. With left-to-right init,
+    a is at the top (depth 1).
     """
     def logical_and(a, b):
         return a and b
@@ -55,7 +55,7 @@ def test_short_circuit_gotcha():
     assert result == 0
 
     trace, result = traced_eval(lambda a, b: a or b, (0, 5))
-    assert trace == [2]
+    assert trace == [1]
     assert result == 5
 
 

@@ -37,17 +37,15 @@ This rounding corresponds to routing wire length on a 2D grid with LRU stack arr
 
 ![ByteDMD](docs/manhattan_figure.svg)
 
-The original DMD treats values abstractly. ByteDMD counts accesses at byte level. This rewards algorithms that use smaller data types.
-
 ## Computation Model
 
 An idealized processor operates directly on an element-level LRU stack. **Computations and writes are free; only memory reads incur a cost.**
 
 - **Stack State:** Ordered from least recently used (bottom) to most recently used (top). Depth is measured in bytes from the top (topmost byte = depth 1). Multi-byte scalars are treated as contiguous blocks of bytes.
-- **Eager initialization:** Arguments are pushed onto the stack in Python signature order on function entry. The first argument is pushed first (deepest), the last argument is pushed last (shallowest). All input elements are live and addressable from the start.
+- **Eager initialization:** Arguments are loaded onto the stack left to right — the first argument sits at the top (depth 1). All input elements are live and addressable from the start.
 - **Read Cost:** Reading a byte at depth $d$ costs $\lceil\sqrt{d}\rceil$.
 - **Simultaneous pricing:** All inputs to an instruction are priced against the stack state *before* any LRU bumping. This guarantees commutativity: `Cost(a+b) == Cost(b+a)`.
-- **Liveness analysis with aggressive compaction:** The tracer performs two-pass liveness analysis. In pass 1 it records the operation sequence; in pass 2 it replays with perfect knowledge of each value's last use. After a value's final read, it is immediately removed from the stack and remaining elements slide up to close the gap. Unused arguments are evicted immediately after initialization. This models an optimal compiler that keeps the stack clamped to the active working set.
+- **Only live contribute to depth of the stack:** Any value that's dead (no longer used) is immediately removed from the stack and remaining elements slide up to close the gap. This models an optimal compiler that keeps the stack clamped to the active working set.
 
 ### Instruction Semantics
 
@@ -69,15 +67,15 @@ def my_add(a, b, c):
 ```
 
 **1. Initial Stack** 
-Arguments are pushed in call order `[a, b, c]`, yielding element depths from the top:
-- `c`: depth 1
+Arguments are loaded left to right — `a` at the top:
+- `a`: depth 1
 - `b`: depth 2
-- `a`: depth 3
+- `c`: depth 3
 
 **2. First operation: `a + b`**  
 Both operands are priced simultaneously against the initial stack:
 
-$$C(a) + C(b) = \lceil\sqrt{3}\rceil + \lceil\sqrt{2}\rceil = 2 + 2 = 4$$
+$$C(a) + C(b) = \lceil\sqrt{1}\rceil + \lceil\sqrt{2}\rceil = 1 + 2 = 3$$
 
 After LRU bumping and pushing the result `t = a + b`:
 ```text
@@ -91,7 +89,7 @@ Liveness analysis evicts `a` and `b` (their last use just happened):
 **3. Second operation: `t + c`**  
 $$C(t) + C(c) = \lceil\sqrt{1}\rceil + \lceil\sqrt{2}\rceil = 1 + 2 = 3$$
 
-**Total cost:** $4 + 3 = 7$. Trace: `[3, 2, 1, 2]`.
+**Total cost:** $3 + 3 = 6$. Trace: `[1, 2, 1, 2]`.
 
 
 ## Inspecting the IR
@@ -114,45 +112,44 @@ print(format_ir(inspect_ir(matvec2, ([[1,2],[3,4]], [5,6]))))
 ```
 
 ```text
-STORE v1                                # A[0][0] pushed (eager init)
-STORE v2                                # A[0][1]
-STORE v3                                # A[1][0]
-STORE v4                                # A[1][1]
-STORE v5                                # x[0]
-STORE v6                                # x[1]
-  READ v1@6  cost=3                     # A[0][0] at bottom of 6-element stack
-  READ v5@2  cost=2                     # x[0] near top (priced simultaneously)
-OP    mul(v1@6, v5@2)  cost=5           # A[0][0]*x[0]
+STORE v1                                # x[0] loaded first (deepest)
+STORE v2                                # x[1]
+STORE v3                                # A[0][0]
+STORE v4                                # A[0][1]
+STORE v5                                # A[1][0]
+STORE v6                                # A[1][1]
+  READ v3@4  cost=2                     # A[0][0] (left-to-right: A at top)
+  READ v1@6  cost=3                     # x[0] at bottom
+OP    mul(v3@4, v1@6)  cost=5           # A[0][0]*x[0]
 STORE v7
-  READ v2@6  cost=3                     # A[0][1] (v1 evicted after last use)
-  READ v6@3  cost=2                     # x[1]
-OP    mul(v2@6, v6@3)  cost=5           # A[0][1]*x[1]
+  READ v4@5  cost=3                     # A[0][1] (v3 evicted after last use)
+  READ v2@6  cost=3                     # x[1]
+OP    mul(v4@5, v2@6)  cost=6           # A[0][1]*x[1]
 STORE v8
-  READ v7@3  cost=2                     # hot hit: v7 sank as v2, v6 entered
+  READ v7@3  cost=2                     # hot hit: v7 sank as v4, v2 entered
   READ v8@1  cost=1                     # hot hit: v8 still at top
 OP    add(v7@3, v8@1)  cost=3           # y0
 STORE v9
-  READ v3@5  cost=3                     # A[1][0] (dead temps evicted)
-  READ v5@3  cost=2                     # hot hit: x[0] still on stack
-OP    mul(v3@5, v5@3)  cost=5
+  READ v5@5  cost=3                     # A[1][0] (dead temps evicted)
+  READ v1@3  cost=2                     # hot hit: x[0] still on stack
+OP    mul(v5@5, v1@3)  cost=5
 STORE v10
-  READ v4@4  cost=2                     # A[1][1]
-  READ v6@3  cost=2                     # hot hit: x[1]
-OP    mul(v4@4, v6@3)  cost=4
+  READ v6@4  cost=2                     # A[1][1]
+  READ v2@3  cost=2                     # hot hit: x[1]
+OP    mul(v6@4, v2@3)  cost=4
 STORE v11
   READ v10@2  cost=2
   READ v11@1  cost=1
 OP    add(v10@2, v11@1)  cost=3         # y1
 STORE v12
-# total cost = 25
+# total cost = 26
 ```
 
-Note the eager initialization: `STORE` events at the top push all input
-elements onto the stack before any computation. Liveness analysis
-aggressively evicts dead variables: after `v1`'s single read, it is removed
-from the stack and remaining elements slide up. This keeps the stack clamped
-to the active working set, rewarding algorithms that reuse data and
-penalizing those that don't.
+Note the left-to-right initialization: `A` elements (the first argument) sit
+at the top of the stack, while `x` elements (the second argument) are
+deeper. Liveness analysis aggressively evicts dead variables: after `v3`'s
+single read, it is removed and remaining elements slide up. This keeps the
+stack clamped to the active working set.
 
 ## ByteDMD benchmarks
 
@@ -162,16 +159,16 @@ See "benchmarks/" folder
 
 | Algorithm | Operation | ByteDMD Cost |
 |-----------|-----------|-------------|
-| matvec (i-j) | y = A @ x | 149 |
-| vecmat (j-i) | y = x^T @ A | 143 |
+| matvec (i-j) | y = A @ x | 157 |
+| vecmat (j-i) | y = x^T @ A | 150 |
 
 ### Matrix multiply (4x4)
 
 | Algorithm | Operation | ByteDMD Cost |
 |-----------|-----------|-------------|
-| naive matmul (i-j-k) | C = A @ B | 705 |
-| vanilla recursive (8-way D&C) | C = A @ B | 730 |
-| Strassen (7-way D&C) | C = A @ B | 1,645 |
+| naive matmul (i-j-k) | C = A @ B | 720 |
+| vanilla recursive (8-way D&C) | C = A @ B | 735 |
+| Strassen (7-way D&C) | C = A @ B | 1,636 |
 
 # Reports
 

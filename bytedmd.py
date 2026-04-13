@@ -3,8 +3,8 @@ ByteDMD tracer — LRU stack with eager initialization and aggressive compaction
 
   1. Simultaneous pricing: All inputs are priced against the pre-instruction
      stack state before LRU bumping, guaranteeing commutativity.
-  2. Eager initialization: Arguments are pushed onto the stack in Python
-     signature order on function entry (no cold misses).
+  2. Eager initialization: Arguments are loaded onto the stack left to right —
+     the first argument sits at the top (depth 1). No cold misses.
   3. Liveness Analysis and Aggressive Compaction: Two-pass analysis strictly
      limits stack size by immediately discarding elements when their last
      operation completes, dynamically sliding remaining items up the stack.
@@ -245,16 +245,20 @@ def _sum_usqrt(N):
 
 def traced_eval(func, args):
     ctx = _Context()
-    wrapped_args = tuple(_wrap(ctx, a) for a in args)
+    # Wrap in reverse order so the first argument ends up at the top of the
+    # stack (pushed last).  The wrapped_args tuple is kept in original order
+    # for passing to the function.
+    rev_wrapped = [_wrap(ctx, a) for a in reversed(args)]
+    wrapped_args = tuple(reversed(rev_wrapped))
     res = func(*wrapped_args)
-    
+
     _pass2(ctx, res)
-    
+
     memo = {}
     for orig, wrapped in ctx.sync:
         if isinstance(orig, list): orig[:] = _unwrap(wrapped, memo)
         elif type(orig).__name__ == 'ndarray': orig[...] = _unwrap(wrapped, memo)
-        
+
     return ctx.trace, _unwrap(res, memo)
 
 def trace_to_bytedmd(trace, bytes_per_element):
@@ -264,7 +268,8 @@ def trace_to_bytedmd(trace, bytes_per_element):
 
 def inspect_ir(func, args):
     ctx = _Context()
-    wrapped_args = tuple(_wrap(ctx, a) for a in args)
+    rev_wrapped = [_wrap(ctx, a) for a in reversed(args)]
+    wrapped_args = tuple(reversed(rev_wrapped))
     res = func(*wrapped_args)
     _pass2(ctx, res)
     return ctx.ir
@@ -311,7 +316,8 @@ def trace_ir(func, args):
     """Replay an IR step-by-step with variable names and the compacted logical stack state."""
     import inspect
     ctx = _Context()
-    wrapped_args = tuple(_wrap(ctx, a) for a in args)
+    rev_wrapped = [_wrap(ctx, a) for a in reversed(args)]
+    wrapped_args = tuple(reversed(rev_wrapped))
     res = func(*wrapped_args)
     
     _pass2(ctx, res)

@@ -9,17 +9,17 @@ def my_add(a, b, c):
 
 def test_my_add():
     cost = bytedmd(my_add, (1, 2, 3))
-    assert cost == 7
+    assert cost == 6
 
-    # Stack starts as [a, b, c]. a+b reads a@3, b@2 (cost 4).
-    # After compaction: [c, t]. t+c reads t@1, c@2 (cost 3). Total: 7.
+    # Stack starts as [c, b, a] (a at top, depth 1). a+b reads a@1, b@2.
+    # After compaction: [c, t]. t+c reads t@1, c@2. Total: 6.
     trace, _ = traced_eval(my_add, (1, 2, 3))
-    assert trace == [3, 2, 1, 2]
+    assert trace == [1, 2, 1, 2]
 
-    assert trace_to_bytedmd(trace, bytes_per_element=1) == 7
-    assert trace_to_bytedmd(trace, bytes_per_element=2) == 17
+    assert trace_to_bytedmd(trace, bytes_per_element=1) == 6
+    assert trace_to_bytedmd(trace, bytes_per_element=2) == 14
 
-    assert bytedmd(my_add, (1, 2, 3), bytes_per_element=2) == 17
+    assert bytedmd(my_add, (1, 2, 3), bytes_per_element=2) == 14
 
 
 def my_composite_func(a, b, c, d):
@@ -36,7 +36,7 @@ def test_repeated_operand_is_charged_twice():
 
 def test_my_composite_func():
     trace, result = traced_eval(my_composite_func, (1, 2, 3, 4))
-    assert trace == [3, 2, 3, 2, 2, 1]
+    assert trace == [2, 3, 2, 3, 2, 1]
     cost = bytedmd(my_composite_func, (1, 2, 3, 4))
     assert cost == 11
 
@@ -47,7 +47,7 @@ def test_dot_product():
     a, b = [0, 1], [2, 3]
     trace, result = traced_eval(dot, (a, b))
 
-    assert trace == [4, 2, 3, 2, 2, 1]
+    assert trace == [2, 4, 2, 3, 2, 1]
     assert result == 3
     assert bytedmd(dot, (a, b)) == 11
 
@@ -80,7 +80,7 @@ def test_divmod_tuple_allocation_trace():
         return q + r + a
         
     trace, result = traced_eval(my_divmod, (10, 3))
-    assert trace == [2, 1, 2, 1, 1, 2]
+    assert trace == [1, 2, 2, 1, 1, 2]
 
 
 def test_implicit_boolean_is_traced():
@@ -115,7 +115,7 @@ def test_index_protocol_works():
     assert result == [0, 1, 2]
 
     trace, result = traced_eval(lambda xs, i: xs[i], ([10, 20, 30], 1))
-    assert trace == [1]
+    assert trace == [2]
     assert result == 20
 
 
@@ -160,8 +160,8 @@ def test_matvec_costs():
     """Verify matvec costs with eager init + aggressive compaction.
     With eager init, matvec and vecmat are no longer symmetric because
     the traversal order matters against the pre-loaded stack."""
-    expected_mv = {2: 25, 3: 70, 4: 149, 5: 256, 6: 399, 7: 581, 8: 849}
-    expected_vm = {2: 25, 3: 68, 4: 143, 5: 245, 6: 375, 7: 539, 8: 787}
+    expected_mv = {2: 26, 3: 75, 4: 157, 5: 270, 6: 422, 7: 615, 8: 896}
+    expected_vm = {2: 25, 3: 72, 4: 150, 5: 258, 6: 397, 7: 572, 8: 832}
     for n in [2, 3, 4, 5, 6, 7, 8]:
         A = np.ones((n, n))
         x = np.ones(n)
