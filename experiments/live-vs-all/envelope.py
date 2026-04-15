@@ -4,23 +4,24 @@
 # dependencies = ["matplotlib", "numpy"]
 # ///
 """
-ByteDMD-classic vs ByteDMD-live — envelope experiment.
+Three-column comparison: Classic DMD, DMD-live, Tombstone allocator.
 
-Two L2-level measures, priced directly on the trace by an LRU stack:
+- Classic DMD — "Infinite Graveyard". LRU stack, no liveness compaction;
+  dead variables stay in the stack forever and push live data deeper. A
+  LOAD of X charges ceil(sqrt(depth)) where depth = #distinct vars
+  referenced since X's previous LOAD, dead or alive. RMM: O(N^3.5).
+- DMD-live — "Teleporting Cache". LRU stack with liveness compaction;
+  when a variable's last LOAD fires, it vaporizes and everything above
+  it slides inward for free. Depth = #live vars between X's prev and
+  current LOAD. RMM: O(N^3 log N).
+- Tombstone — concrete realistic allocator. Stationary slots: when a
+  variable dies it leaves a hole at its physical address; older live
+  variables do NOT slide. New variables recycle the closest available
+  hole (smallest free addr). RMM empirically O(N^4) — asymptotically
+  worse than DMD-live precisely because the cache cannot magically
+  shrink without physical movement.
 
-  ByteDMD-classic : LRU depth with no liveness compaction. The cost of a
-                    LOAD of X is determined by the total number of DISTINCT
-                    variables referenced since X's previous LOAD, dead or
-                    alive. Asymptotic on RMM: O(N^3.5).
-  ByteDMD-live    : LRU depth WITH liveness compaction. The cost of a LOAD
-                    of X is determined by the number of LIVE variables
-                    between X's previous LOAD and the current one. Matches
-                    the compiler + CPU physical-address-recycling model.
-                    Asymptotic on RMM: O(N^3 log N).
-
-Several stationary-slot register allocators (no_reuse, lru_static, belady,
-min_heap) provide intermediate points for reference. They do not do LRU
-bumping, so for matmul they cost more than either ByteDMD metric.
+Reference: gemini/15apr26-dmdlive-analysis.md.
 """
 
 import math
@@ -46,12 +47,9 @@ ALGORITHMS = [
 # kind='l2' -> computed directly on L2 trace
 # kind='l3' -> computed via allocator -> L3 trace
 MEASURES = [
-    ('bytedmd_classic', 'ByteDMD-classic',     'tab:red',    'o', '-',  'l2'),
-    ('bytedmd_live',    'ByteDMD-live',        'tab:green',  '^', '-',  'l2'),
-    ('no_reuse',        'No reuse',            'tab:purple', 'v', '--', 'l3'),
-    ('lru_static',      'LIFO slots',          'tab:orange', 's', ':',  'l3'),
-    ('belady',          'Belady (offline)',    'tab:blue',   'd', ':',  'l3'),
-    ('min_heap',        'Min-heap reuse',      'tab:cyan',   'x', ':',  'l3'),
+    ('bytedmd_classic', 'Classic DMD',     'tab:red',    'o', '-',  'l2'),
+    ('bytedmd_live',    'DMD-live',        'tab:green',  '^', '-',  'l2'),
+    ('min_heap',        'Tombstone',       'tab:blue',   's', '--', 'l3'),
 ]
 
 
@@ -78,7 +76,7 @@ def collect(Ns):
             row = run_one(func, N)
             rows.append(row)
             print(f"  classic={row['bytedmd_classic']:,}  live={row['bytedmd_live']:,}"
-                  f"  min_heap={row['min_heap']:,}")
+                  f"  tombstone={row['min_heap']:,}")
         table[label] = rows
     return table
 
@@ -97,13 +95,17 @@ def plot(table, Ns, out_path):
         N_max = Ns_arr[-1]
         classic_max = rows[-1]['bytedmd_classic']
         live_max = rows[-1]['bytedmd_live']
+        tomb_max = rows[-1]['min_heap']
         N3p5  = classic_max * (Ns_arr / N_max) ** 3.5
         N3logN = live_max * (Ns_arr / N_max) ** 3 * (np.log2(np.maximum(Ns_arr, 2))
                                                      / math.log2(max(N_max, 2)))
-        ax.loglog(Ns_arr, N3p5, color='gray', linestyle='-', alpha=0.35, linewidth=1.2,
-                  label=r'$N^{3.5}$ reference', zorder=1)
-        ax.loglog(Ns_arr, N3logN, color='gray', linestyle=':', alpha=0.45, linewidth=1.2,
+        N4    = tomb_max   * (Ns_arr / N_max) ** 4
+        ax.loglog(Ns_arr, N3logN, color='gray', linestyle=':',  alpha=0.45, linewidth=1.2,
                   label=r'$N^3 \log N$ reference', zorder=1)
+        ax.loglog(Ns_arr, N3p5,   color='gray', linestyle='-',  alpha=0.35, linewidth=1.2,
+                  label=r'$N^{3.5}$ reference', zorder=1)
+        ax.loglog(Ns_arr, N4,     color='gray', linestyle='--', alpha=0.30, linewidth=1.2,
+                  label=r'$N^4$ reference', zorder=1)
 
         for key, legend, color, marker, linestyle, _ in MEASURES:
             ys = np.array([r[key] for r in rows], dtype=float)
@@ -117,7 +119,7 @@ def plot(table, Ns, out_path):
         ax.legend(fontsize=9, loc='center left', bbox_to_anchor=(1.01, 0.5),
                   framealpha=0.95)
 
-    fig.suptitle('ByteDMD measures and register allocators\n'
+    fig.suptitle('Classic DMD  vs  DMD-live  vs  Tombstone (concrete allocator)\n'
                  'L1 → L2 (abstract IR) → L3 (concrete addrs)',
                  fontsize=14, y=1.00)
     plt.tight_layout()
