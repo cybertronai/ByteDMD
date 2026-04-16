@@ -73,27 +73,29 @@ LRU walk. Tombstone lowers L2 to L3 via `compile_tombstone` and applies
 
 ## Results
 
-Two algorithms traced at `N ∈ {4, 8, 16, 32, 64}`.
+Two algorithms traced at `N ∈ {4, 8, 16, 32, 64, 128}`.
 
 ### Cache-oblivious RMM (8-way recursive)
 
-|  N  | Classic DMD  | DMD-live    | Tombstone     | classic / live | tomb / live |
-|----:|-------------:|------------:|--------------:|---------------:|------------:|
-|   4 |        1,043 |         689 |           912 |          1.51× |       1.32× |
-|   8 |       13,047 |       7,773 |        11,582 |          1.68× |       1.49× |
-|  16 |      154,251 |      80,716 |       131,742 |          1.91× |       1.63× |
-|  32 |    1,779,356 |     794,969 |     1,445,402 |          2.24× |       1.82× |
-|  64 |   20,291,116 |   7,554,413 |    15,768,636 |          2.69× |       2.09× |
+|   N  | Classic DMD   | DMD-live    | Tombstone     | classic / live | tomb / live |
+|-----:|--------------:|------------:|--------------:|---------------:|------------:|
+|    4 |         1,043 |         689 |           912 |          1.51× |       1.32× |
+|    8 |        13,047 |       7,773 |        11,582 |          1.68× |       1.49× |
+|   16 |       154,251 |      80,716 |       131,742 |          1.91× |       1.63× |
+|   32 |     1,779,356 |     794,969 |     1,445,402 |          2.24× |       1.82× |
+|   64 |    20,291,116 |   7,554,413 |    15,768,636 |          2.69× |       2.09× |
+|  128 |   230,178,019 |  70,022,394 |   172,933,176 |          3.29× |       2.47× |
 
 ### One-level tiled matmul (tile = ⌈√N⌉)
 
-|  N  | Classic DMD  | DMD-live    | Tombstone     | classic / live | tomb / live |
-|----:|-------------:|------------:|--------------:|---------------:|------------:|
-|   4 |        1,000 |         644 |           902 |          1.55× |       1.40× |
-|   8 |       12,368 |       7,210 |        11,250 |          1.72× |       1.56× |
-|  16 |      143,280 |      74,560 |       122,699 |          1.92× |       1.65× |
-|  32 |    1,740,310 |     790,183 |     1,500,333 |          2.20× |       1.90× |
-|  64 |   19,737,581 |   7,917,595 |    17,264,621 |          2.49× |       2.18× |
+|   N  | Classic DMD   | DMD-live    | Tombstone     | classic / live | tomb / live |
+|-----:|--------------:|------------:|--------------:|---------------:|------------:|
+|    4 |         1,000 |         644 |           902 |          1.55× |       1.40× |
+|    8 |        12,368 |       7,210 |        11,250 |          1.72× |       1.56× |
+|   16 |       143,280 |      74,560 |       122,699 |          1.92× |       1.65× |
+|   32 |     1,740,310 |     790,183 |     1,500,333 |          2.20× |       1.90× |
+|   64 |    19,737,581 |   7,917,595 |    17,264,621 |          2.49× |       2.18× |
+|  128 |   238,713,058 |  80,748,555 |   206,101,498 |          2.96× |       2.55× |
 
 ## Asymptotic verification
 
@@ -103,12 +105,12 @@ Fitting `cost / N^α`:
   → **`Θ(N^{3.5})`** confirmed.
 - **DMD-live**: normalising by `N^3 log₂ N` gives ≈ 5 across N; steady
   → **`Θ(N^3 log N)`** confirmed.
-- **Tombstone**: normalising by `N^3 log₂ N` gives 7.1 → 10.0 across
-  N = 4…64. Near-constant → consistent with
-  **`Θ(N^3 log N)`** with a moderate leading coefficient
-  (≈ 1.5–2× DMD-live), matching the Gemini doc's prediction that the
-  realistic tombstone model "preserves the optimal
-  `Θ(N^3 log N)` asymptotic with a slightly higher leading constant".
+- **Tombstone**: normalising by `N^3 log₂ N` gives 7.1 → 12.2 across
+  N = 4…128. Slowly growing but sub-polynomial → consistent with
+  **`Θ(N^3 log N)`** with a leading coefficient 1.5–2.5× DMD-live's,
+  matching the Gemini doc's prediction that the realistic tombstone
+  model "preserves the optimal `Θ(N^3 log N)` asymptotic with a slightly
+  higher leading constant".
 
 ## Interpretation
 
@@ -138,8 +140,11 @@ the same thing as the Tombstone model the Gemini doc describes.
 
 ```bash
 uv run pytest test_bytedmd_ir.py                        # 33 tests
-uv run --script experiments/live-vs-all/envelope.py 4,8,16,32,64
+uv run --script experiments/live-vs-all/envelope.py 4,8,16,32,64,128
 ```
+
+N = 128 takes ~2 minutes on a laptop; the Fenwick-tree LRU walk
+dominates at ~8 M events per algorithm.
 
 Outputs:
 

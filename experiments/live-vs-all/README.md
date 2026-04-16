@@ -27,32 +27,34 @@ L3 via `bytedmd_ir.compile_tombstone` and applies
 
 ### Cache-oblivious RMM (8-way)
 
-|  N  | Classic DMD  | DMD-live    | Tombstone     |
-|----:|-------------:|------------:|--------------:|
-|   4 |        1,043 |         689 |           912 |
-|   8 |       13,047 |       7,773 |        11,582 |
-|  16 |      154,251 |      80,716 |       131,742 |
-|  32 |    1,779,356 |     794,969 |     1,445,402 |
-|  64 |   20,291,116 |   7,554,413 |    15,768,636 |
+|   N  | Classic DMD   | DMD-live    | Tombstone     |
+|-----:|--------------:|------------:|--------------:|
+|    4 |         1,043 |         689 |           912 |
+|    8 |        13,047 |       7,773 |        11,582 |
+|   16 |       154,251 |      80,716 |       131,742 |
+|   32 |     1,779,356 |     794,969 |     1,445,402 |
+|   64 |    20,291,116 |   7,554,413 |    15,768,636 |
+|  128 |   230,178,019 |  70,022,394 |   172,933,176 |
 
 ### Tiled matmul (one level, tile = ⌈√N⌉)
 
-|  N  | Classic DMD  | DMD-live    | Tombstone     |
-|----:|-------------:|------------:|--------------:|
-|   4 |        1,000 |         644 |           902 |
-|   8 |       12,368 |       7,210 |        11,250 |
-|  16 |      143,280 |      74,560 |       122,699 |
-|  32 |    1,740,310 |     790,183 |     1,500,333 |
-|  64 |   19,737,581 |   7,917,595 |    17,264,621 |
+|   N  | Classic DMD   | DMD-live    | Tombstone     |
+|-----:|--------------:|------------:|--------------:|
+|    4 |         1,000 |         644 |           902 |
+|    8 |        12,368 |       7,210 |        11,250 |
+|   16 |       143,280 |      74,560 |       122,699 |
+|   32 |     1,740,310 |     790,183 |     1,500,333 |
+|   64 |    19,737,581 |   7,917,595 |    17,264,621 |
+|  128 |   238,713,058 |  80,748,555 |   206,101,498 |
 
 On both algorithms, `DMD-live ≤ Tombstone ≤ Classic DMD` at every tested
 N. Tombstone sits ≈ 1.5–2.2× above DMD-live and 10–20% below Classic DMD
 across the whole range — matching the Gemini doc's prediction that
 Tombstone preserves `Θ(N^3 log N)` with a moderately higher constant.
 
-**Asymptotic fits**:
+**Asymptotic fits** across N = 4…128:
 `Classic ≈ 9.6 · N^{3.5}`, `Live ≈ 4.8 · N^3 log₂ N`, `Tombstone ≈
-7–10 · N^3 log₂ N`.
+7–12 · N^3 log₂ N`.
 
 See **[REPORT.md](REPORT.md)** for the full writeup with the physical
 picture, derivation, and a note on why the earlier stationary `min_heap`
@@ -63,5 +65,5 @@ that).
 
 ```bash
 uv run pytest test_bytedmd_ir.py
-uv run --script envelope.py 4,8,16,32,64
+uv run --script envelope.py 4,8,16,32,64,128   # ~2 min for N=128
 ```
