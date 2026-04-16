@@ -1,4 +1,4 @@
-#!/usr/bin/env -S uv run --script
+#!/Users/yaroslavvb/.local/bin/uv run --script
 # /// script
 # requires-python = ">=3.9"
 # dependencies = ["matplotlib", "numpy"]
