@@ -3,16 +3,16 @@
 # requires-python = ">=3.9"
 # dependencies = ["matplotlib", "numpy"]
 # ///
-"""Visualize the read-access trace of the Manual matmul implementations.
+"""Visualize the access trace of the Manual matmul implementations.
 
 Runs both `matmul_naive_manual` and `matmul_rmm_manual` with instrumented
-ManualAllocators that log every read address, then produces two side-by-side
+ManualAllocators that log every address, then produces two side-by-side
 comparison plots:
 
   manual_trace_n{N}.png         — address vs read-index scatter, with a
                                     per-read-cost panel underneath; naive
                                     on top, RMM on bottom.
-  manual_reads_per_addr_n{N}.png — #reads-per-address histogram and
+  manual_accesses_per_addr_n{N}.png — #reads-per-address histogram and
                                     per-address cost contribution; naive
                                     on top, RMM on bottom.
 
@@ -163,7 +163,7 @@ def _plot_trace_panel(ax_scatter, ax_cost, addrs, regions, algo_label, cost, y_m
                                 rasterized=True, linewidths=0)
     ax_scatter.set_ylabel('Physical address', fontsize=11)
     ax_scatter.set_ylim(0, y_max)
-    ax_scatter.set_title(f'{algo_label}  —  {len(addrs):,} reads,  cost ∑⌈√addr⌉ = {cost:,}',
+    ax_scatter.set_title(f'{algo_label}  —  {len(addrs):,} accesses,  cost ∑⌈√addr⌉ = {cost:,}',
                           fontsize=12)
     ax_scatter.grid(True, alpha=0.3)
     ax_scatter.legend(fontsize=8, loc='center left', bbox_to_anchor=(1.01, 0.5),
@@ -189,8 +189,8 @@ def plot_trace(N: int, tile_size: int, out_path: str) -> None:
     _plot_trace_panel(axes[2], axes[3], rmm_addrs, rmm_regions,
                        f'RMM + scratchpad   (N={N}, tile={tile_size})',
                        rmm_cost, y_max)
-    axes[3].set_xlabel('Read operation index', fontsize=11)
-    fig.suptitle(f'Manual matmul read traces  —  naive vs RMM  —  '
+    axes[3].set_xlabel('Access index', fontsize=11)
+    fig.suptitle(f'Manual matmul access traces  —  naive vs RMM  —  '
                   f'energy ratio  naive / rmm = {naive_cost / rmm_cost:.2f}×',
                   fontsize=14, y=1.00)
     plt.tight_layout()
@@ -198,12 +198,12 @@ def plot_trace(N: int, tile_size: int, out_path: str) -> None:
     print(f'Saved: {out_path}')
     plt.close()
 
-    print(f'NAIVE  — {len(naive_addrs):,} reads, cost {naive_cost:,}')
-    print(f'RMM    — {len(rmm_addrs):,} reads, cost {rmm_cost:,}')
+    print(f'NAIVE  — {len(naive_addrs):,} accesses, cost {naive_cost:,}')
+    print(f'RMM    — {len(rmm_addrs):,} accesses, cost {rmm_cost:,}')
     print(f'Energy ratio (naive / rmm)  = {naive_cost / rmm_cost:.2f}×')
 
 
-def _plot_reads_per_addr_panel(ax_cnt, ax_cost_bar, addrs, regions, algo_label, cost,
+def _plot_accesses_per_addr_panel(ax_cnt, ax_cost_bar, addrs, regions, algo_label, cost,
                                  x_max, cnt_ymax, cost_ymax):
     max_addr = max(addrs)
     counts = np.zeros(max_addr + 1, dtype=np.int64)
@@ -222,10 +222,10 @@ def _plot_reads_per_addr_panel(ax_cnt, ax_cost_bar, addrs, regions, algo_label, 
         ax_cost_bar.bar(reg_xs, per_addr_cost[lo - 1:hi], width=1.0, color=color,
                          edgecolor='none', zorder=3)
 
-    ax_cnt.set_ylabel('# reads', fontsize=11)
+    ax_cnt.set_ylabel('# accesses', fontsize=11)
     ax_cnt.set_xlim(0, x_max)
     ax_cnt.set_ylim(0, cnt_ymax)
-    ax_cnt.set_title(f'{algo_label}  —  {len(addrs):,} reads,  total cost = {cost:,}',
+    ax_cnt.set_title(f'{algo_label}  —  {len(addrs):,} accesses,  total cost = {cost:,}',
                       fontsize=12)
     ax_cnt.grid(True, axis='y', alpha=0.3)
     ax_cnt.legend(fontsize=8, loc='center left', bbox_to_anchor=(1.01, 0.5),
@@ -236,21 +236,21 @@ def _plot_reads_per_addr_panel(ax_cnt, ax_cost_bar, addrs, regions, algo_label, 
     ax_cost_bar.grid(True, axis='y', alpha=0.3)
 
     # Per-region summary
-    print(f'\n{algo_label}  — {len(addrs):,} reads, cost {cost:,}')
-    print(f"  {'region':>8s}  {'addrs':>12s}  {'reads':>8s}  {'mean':>6s}  "
+    print(f'\n{algo_label}  — {len(addrs):,} accesses, cost {cost:,}')
+    print(f"  {'region':>8s}  {'addrs':>12s}  {'accesses':>8s}  {'mean':>6s}  "
           f"{'cost':>10s}  {'%cost':>6s}")
     for region in REGION_COLORS:
         if region not in regions:
             continue
         lo, hi = regions[region]
-        reg_reads = int(counts[lo:hi + 1].sum())
+        reg_acc = int(counts[lo:hi + 1].sum())
         reg_cost = int(per_addr_cost[lo - 1:hi].sum())
-        mean_reads = reg_reads / (hi - lo + 1)
-        print(f"  {region:>8s}  {lo:>5}..{hi:<5}  {reg_reads:>8,}  "
-              f"{mean_reads:>6.1f}  {reg_cost:>10,}  {100 * reg_cost / cost:>5.1f}%")
+        mean_acc = reg_acc / (hi - lo + 1)
+        print(f"  {region:>8s}  {lo:>5}..{hi:<5}  {reg_acc:>8,}  "
+              f"{mean_acc:>6.1f}  {reg_cost:>10,}  {100 * reg_cost / cost:>5.1f}%")
 
 
-def plot_reads_per_addr(N: int, tile_size: int, out_path: str) -> None:
+def plot_accesses_per_addr(N: int, tile_size: int, out_path: str) -> None:
     naive_addrs, naive_regions, naive_cost = trace_naive(N)
     rmm_addrs, rmm_regions, rmm_cost = trace_rmm(N, tile_size)
 
@@ -274,14 +274,14 @@ def plot_reads_per_addr(N: int, tile_size: int, out_path: str) -> None:
 
     fig, axes = plt.subplots(4, 1, figsize=(14, 11), sharex=False,
                               gridspec_kw={'height_ratios': [1, 1, 1, 1]})
-    _plot_reads_per_addr_panel(axes[0], axes[1], naive_addrs, naive_regions,
+    _plot_accesses_per_addr_panel(axes[0], axes[1], naive_addrs, naive_regions,
                                 f'NAIVE triple-loop  (N={N})',
                                 naive_cost, x_max, cnt_ymax, cost_ymax)
-    _plot_reads_per_addr_panel(axes[2], axes[3], rmm_addrs, rmm_regions,
+    _plot_accesses_per_addr_panel(axes[2], axes[3], rmm_addrs, rmm_regions,
                                 f'RMM + scratchpad  (N={N}, tile={tile_size})',
                                 rmm_cost, x_max, cnt_ymax, cost_ymax)
     axes[3].set_xlabel('Physical address', fontsize=12)
-    fig.suptitle('Manual matmul:  reads & cost per physical address  —  '
+    fig.suptitle('Manual matmul:  accesses & cost per physical address  —  '
                   f'energy ratio  naive / rmm = {naive_cost / rmm_cost:.2f}×',
                   fontsize=14, y=1.00)
     plt.tight_layout()
@@ -295,7 +295,7 @@ def main() -> None:
     tile = int(sys.argv[2]) if len(sys.argv) > 2 else 4
     out_dir = os.path.dirname(__file__)
     plot_trace(N, tile, os.path.join(out_dir, f'manual_trace_n{N}.png'))
-    plot_reads_per_addr(N, tile, os.path.join(out_dir, f'manual_reads_per_addr_n{N}.png'))
+    plot_accesses_per_addr(N, tile, os.path.join(out_dir, f'manual_accesses_per_addr_n{N}.png'))
 
 
 if __name__ == '__main__':
