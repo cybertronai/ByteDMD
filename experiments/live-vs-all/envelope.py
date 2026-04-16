@@ -37,6 +37,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 
 import bytedmd_ir as b2
+import manual_matmul as mm
 
 
 ALGORITHMS = [
@@ -51,6 +52,8 @@ MEASURES = [
     ('bytedmd_classic', 'Classic DMD',     'tab:red',    'o', '-',  'l2'),
     ('bytedmd_live',    'DMD-live',        'tab:green',  '^', '-',  'l2'),
     ('tombstone',       'Tombstone',       'tab:blue',   's', '--', 'l3'),
+    ('ripple',          'Ripple Shift',    'tab:purple', 'D', ':',  'l3'),
+    ('manual',          'Manual',          'tab:brown',  'x', '-.', 'manual'),
 ]
 
 
@@ -65,6 +68,9 @@ def run_one(func, N: int) -> dict:
         if kind == 'l3':
             l3 = b2.ALLOCATORS[key](l2)
             results[key] = b2.cost(l3)
+    # Manual: hand-written RMM with bump-allocated physical memory +
+    # software-managed scratchpad. Runs the algorithm itself, not the trace.
+    results['manual'] = mm.matmul_rmm_manual(A, B, tile_size=4)
     return results
 
 
@@ -76,8 +82,9 @@ def collect(Ns):
             print(f'  {label}  N={N}', end='', flush=True)
             row = run_one(func, N)
             rows.append(row)
-            print(f"  classic={row['bytedmd_classic']:,}  live={row['bytedmd_live']:,}"
-                  f"  tombstone={row['tombstone']:,}")
+            print(f"  classic={row['bytedmd_classic']:,}  tombstone={row['tombstone']:,}"
+                  f"  ripple={row['ripple']:,}  live={row['bytedmd_live']:,}"
+                  f"  manual={row['manual']:,}")
         table[label] = rows
     return table
 
@@ -156,7 +163,7 @@ def main():
     if Ns_arg:
         Ns = [int(x) for x in Ns_arg.split(',')]
     else:
-        Ns = [4, 8, 16, 32]
+        Ns = [4, 8, 16, 32, 64]
     table = collect(Ns)
 
     out_dir = os.path.dirname(__file__)

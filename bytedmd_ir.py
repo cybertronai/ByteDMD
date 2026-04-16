@@ -401,12 +401,106 @@ def compile_tombstone(events: Sequence[L2Event]) -> List[L3Event]:
     return out
 
 
+def compile_ripple(events: Sequence[L2Event]) -> List[L3Event]:
+    """Ripple-shift cascaded eviction — realistic hardware allocator.
+
+    Fixes the "stack inflation bug" in compile_tombstone: when a LOAD finds
+    no hole above its slot, tombstone APPENDS to a new top, pushing every
+    dormant variable outward by 1. For RMM at N=32 this inflates the
+    physical stack to ~31 k slots while the true live working set stays
+    near 2.6 k — the dormant parents drift into the abyss and the cost
+    drifts toward Classic DMD.
+
+    Ripple Shift models a real cascaded-eviction cache (like a shift
+    register or systolic array). The touched variable is placed at the
+    premium center (addr = 1); dormant variables shift outward by 1 until
+    the cascade meets a hole, which absorbs the ripple. Crucially, the
+    physical footprint stays clamped to the live high-water mark.
+
+    Depth is computed over a Fenwick tree indexed by timestamps: each
+    occupied slot (live or tombstone) has a unique timestamp; higher
+    timestamps are closer to the top. Depth of variable v at timestamp
+    t = total_active - prefix(t - 1) = count of slots with timestamp >= t.
+    Reference: gemini/ripple-shift.md.
+    """
+    last_load = _liveness(events)
+    T_max = len(events) + 2
+    bit = _Fenwick(T_max)
+
+    var_ts: Dict[int, int] = {}
+    holes: List[int] = []  # max-heap of hole timestamps (negated)
+    out: List[L3Event] = []
+    next_ts = 0
+
+    def pop_max_hole(min_ts: int) -> Optional[int]:
+        """Pop the largest hole timestamp strictly greater than min_ts."""
+        while holes:
+            h = -holes[0]
+            if h > min_ts:
+                heapq.heappop(holes)
+                return h
+            break
+        return None
+
+    for i, ev in enumerate(events):
+        if isinstance(ev, L2Store):
+            next_ts += 1
+            t = next_ts
+            var_ts[ev.var] = t
+            bit.add(t, 1)
+            out.append(L3Store(ev.var, 1))
+
+            h = pop_max_hole(0)
+            if h is not None:
+                bit.add(h, -1)
+
+            if last_load.get(ev.var, -1) < i:
+                heapq.heappush(holes, -t)
+                del var_ts[ev.var]
+
+        elif isinstance(ev, L2Load):
+            t = var_ts[ev.var]
+            total_active = bit.prefix(T_max)
+            depth = total_active - bit.prefix(t - 1)
+            out.append(L3Load(ev.var, depth))
+
+            next_ts += 1
+            new_t = next_ts
+            var_ts[ev.var] = new_t
+            bit.add(new_t, 1)
+
+            h = pop_max_hole(t)
+            if h is not None:
+                bit.add(h, -1)
+                heapq.heappush(holes, -t)
+            else:
+                bit.add(t, -1)
+
+            if last_load.get(ev.var) == i:
+                heapq.heappush(holes, -new_t)
+                del var_ts[ev.var]
+
+        else:  # L2Op — metadata only
+            total_active = bit.prefix(T_max)
+            in_addrs = tuple(
+                (total_active - bit.prefix(var_ts[v] - 1)) if v in var_ts else 0
+                for v in ev.in_vars
+            )
+            out_addr = None
+            if ev.out_var is not None and ev.out_var in var_ts:
+                out_addr = total_active - bit.prefix(var_ts[ev.out_var] - 1)
+            out.append(L3Op(ev.name, ev.in_vars, in_addrs, ev.out_var, out_addr))
+
+    return out
+
+
 ALLOCATORS: Dict[str, Callable[[Sequence[L2Event]], List[L3Event]]] = {
     "no_reuse":   compile_no_reuse,
     "min_heap":   compile_min_heap,
     "lru_static": compile_lru_static,
     "belady":     compile_belady,
     "tombstone":  compile_tombstone,
+    "ripple":     compile_ripple,
 }
 
 # Human-readable display names for each allocator.
@@ -416,6 +510,7 @@ POLICY_DISPLAY: Dict[str, str] = {
     "lru_static": "LIFO slots",
     "belady":     "Belady (offline)",
     "tombstone":  "Tombstone (LRU+holes)",
+    "ripple":     "Ripple Shift",
 }
 
 

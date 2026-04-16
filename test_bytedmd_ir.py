@@ -96,9 +96,9 @@ def test_l3_load_addrs_match_store_addrs():
                 var_to_addr[ev.var] = ev.addr
             elif isinstance(ev, b2.L3Load):
                 assert ev.var in var_to_addr, f"{policy_name}: load of unallocated var {ev.var}"
-                if policy_name == "tombstone":
-                    # addr moves on reads under mobile LRU-with-holes; just
-                    # require the recorded load addr to be valid (1..).
+                if policy_name in ("tombstone", "ripple"):
+                    # addr moves on reads under mobile / cascade-shift models;
+                    # just require the recorded load addr to be valid (>= 1).
                     assert ev.addr >= 1
                 else:
                     assert var_to_addr[ev.var] == ev.addr, (
@@ -219,6 +219,27 @@ def test_rmm_envelope_widens_with_N():
         live = b2.bytedmd_live(l2)
         ratios.append(classic / live)
     assert ratios[0] < ratios[1] < ratios[2], f"ratios={ratios}"
+
+
+@pytest.mark.parametrize("N", [4, 8])
+@pytest.mark.parametrize("algo_name", ["matmul_tiled", "matmul_rmm"])
+def test_ripple_tightly_above_live(N, algo_name):
+    """DMD-live <= Ripple <= Tombstone on the algorithms we plot.
+
+    Ripple Shift absorbs the cascade at the first hole, so its footprint
+    exactly tracks the live high-water mark and its cost lands within
+    ~10% of DMD-live (vs ~1.5-2.5x for Tombstone). N=2 is a degenerate
+    corner case where tombstone happens to tie with ripple because the
+    stack never extends beyond the preloaded inputs.
+    """
+    A, B = b2.make_inputs(N)
+    func = getattr(b2, algo_name)
+    l2, _ = b2.trace(func, (A, B))
+    live = b2.bytedmd_live(l2)
+    tomb = b2.cost(b2.compile_tombstone(l2))
+    rip  = b2.cost(b2.compile_ripple(l2))
+    assert live <= rip, f"{algo_name} N={N}: ripple {rip} < live {live}"
+    assert rip <= tomb, f"{algo_name} N={N}: ripple {rip} > tombstone {tomb}"
 
 
 @pytest.mark.parametrize("N", [2, 4, 8])

@@ -1,69 +1,65 @@
-# Classic DMD · DMD-live · Tombstone
+# Classic DMD · DMD-live · Tombstone · Ripple Shift · Manual
 
-Three-column experiment: two ByteDMD measures priced directly on the L2
-trace (Classic DMD, DMD-live) plus one concrete LRU-with-holes allocator
-(Tombstone). Reference: `gemini/15apr26-dmdlive-analysis.md`.
+Five-column experiment on matmul:
 
-## The three measures
+| Column        | Level   | What it is                                                                            |
+|---------------|---------|---------------------------------------------------------------------------------------|
+| Classic DMD   | L2      | LRU stack, **no** liveness — dead vars pollute deeper rings (infinite graveyard).     |
+| DMD-live      | L2      | LRU stack **with** liveness — dead vars vaporize, stack slides inward for free.        |
+| Tombstone     | L3      | Mobile LRU with permanent holes. Has a stack-inflation bug.                           |
+| Ripple Shift  | L3      | Cascaded-eviction allocator; cascade absorbed at the first hole. Fixes the inflation. |
+| Manual        | direct  | Hand-written RMM on a bump-allocated address space with a software-managed scratchpad. |
 
-| Column       | What it is                                                                                                         | RMM asymptotic  |
-|--------------|--------------------------------------------------------------------------------------------------------------------|-----------------|
-| Classic DMD  | LRU stack, **no** liveness — dead vars pollute deeper rings ("graveyard")                                          | `Θ(N^{3.5})`    |
-| DMD-live     | LRU stack **with** liveness — dead vars vaporize and everything above slides inward for free ("teleporting cache") | `Θ(N^3 log N)`  |
-| Tombstone    | Mobile LRU stack with holes — dead vars leave permanent tombstones, LOADs bump the accessed value to the highest hole above it (or a new top), new STOREs take the highest hole (or extend) | `Θ(N^3 log N)` empirical |
-
-Classic DMD and DMD-live are computed directly on the L2 event stream
-(Fenwick-tree-indexed LRU, `O(log T)` per op). Tombstone lowers L2 to
-L3 via `bytedmd_ir.compile_tombstone` and applies
-`sum ceil(sqrt(addr))` on L3 LOADs.
+Classic DMD and DMD-live are priced directly on the L2 event stream.
+Tombstone and Ripple Shift lower L2 → L3 via allocators in
+`bytedmd_ir.py`. Manual runs the matmul itself on a bump-allocated
+memory in `manual_matmul.py` and accumulates cost as it executes — no
+tracer, no liveness oracle, no magic movement.
 
 ## The three IR levels
 
-- **L1** — Python source.
+- **L1** — Python source (algorithms as plain functions).
 - **L2** — abstract IR: `LOAD(var)`, `STORE(var)`, `OP(name, in, out)`.
-- **L3** — concrete IR: same events with `addr` per variable.
+- **L3** — concrete IR: same events with `addr` per variable assigned by
+  an allocator.
 
 ## Results
 
 ### Cache-oblivious RMM (8-way)
 
-|   N  | Classic DMD   | DMD-live    | Tombstone     |
-|-----:|--------------:|------------:|--------------:|
-|    4 |         1,043 |         689 |           912 |
-|    8 |        13,047 |       7,773 |        11,582 |
-|   16 |       154,251 |      80,716 |       131,742 |
-|   32 |     1,779,356 |     794,969 |     1,445,402 |
-|   64 |    20,291,116 |   7,554,413 |    15,768,636 |
-|  128 |   230,178,019 |  70,022,394 |   172,933,176 |
+|   N  | Classic DMD   | Tombstone     | Manual         | Ripple Shift | DMD-live    |
+|-----:|--------------:|--------------:|---------------:|-------------:|------------:|
+|    4 |         1,043 |           912 |          1,194 |          781 |         689 |
+|    8 |        13,047 |        11,582 |          9,465 |        8,568 |       7,773 |
+|   16 |       154,251 |       131,742 |         94,490 |       87,463 |      80,716 |
+|   32 |     1,779,356 |     1,445,402 |      1,085,426 |      852,117 |     794,969 |
+|   64 |    20,291,116 |    15,768,636 |     14,088,144 |    8,038,558 |   7,554,413 |
 
 ### Tiled matmul (one level, tile = ⌈√N⌉)
 
-|   N  | Classic DMD   | DMD-live    | Tombstone     |
-|-----:|--------------:|------------:|--------------:|
-|    4 |         1,000 |         644 |           902 |
-|    8 |        12,368 |       7,210 |        11,250 |
-|   16 |       143,280 |      74,560 |       122,699 |
-|   32 |     1,740,310 |     790,183 |     1,500,333 |
-|   64 |    19,737,581 |   7,917,595 |    17,264,621 |
-|  128 |   238,713,058 |  80,748,555 |   206,101,498 |
+|   N  | Classic DMD   | Tombstone     | Manual         | Ripple Shift | DMD-live    |
+|-----:|--------------:|--------------:|---------------:|-------------:|------------:|
+|    4 |         1,000 |           902 |          1,194 |          735 |         644 |
+|    8 |        12,368 |        11,250 |          9,465 |        7,906 |       7,210 |
+|   16 |       143,280 |       122,699 |         94,490 |       81,010 |      74,560 |
+|   32 |     1,740,310 |     1,500,333 |      1,085,426 |      829,469 |     790,183 |
+|   64 |    19,737,581 |    17,264,621 |     14,088,144 |    8,237,471 |   7,917,595 |
 
-On both algorithms, `DMD-live ≤ Tombstone ≤ Classic DMD` at every tested
-N. Tombstone sits ≈ 1.5–2.2× above DMD-live and 10–20% below Classic DMD
-across the whole range — matching the Gemini doc's prediction that
-Tombstone preserves `Θ(N^3 log N)` with a moderately higher constant.
+**Ordering at N ≥ 8**:
+`DMD-live  <  Ripple Shift  <  Manual  <  Tombstone  <  Classic DMD`
 
-**Asymptotic fits** across N = 4…128:
-`Classic ≈ 9.6 · N^{3.5}`, `Live ≈ 4.8 · N^3 log₂ N`, `Tombstone ≈
-7–12 · N^3 log₂ N`.
+Ripple Shift sits within ~5 % of DMD-live across the full range. Manual
+(a real hand-written implementation with a software scratchpad) sits
+between the two L3 allocators, showing what a practical programmer can
+achieve without the offline optimality of Ripple.
 
-See **[REPORT.md](REPORT.md)** for the full writeup with the physical
-picture, derivation, and a note on why the earlier stationary `min_heap`
-allocator landed above Classic DMD (and why the mobile variant fixes
-that).
+See **[REPORT.md](REPORT.md)** for the full writeup with physical
+picture, asymptotic derivations, and footprint comparison.
 
 ## Reproducibility
 
 ```bash
-uv run pytest test_bytedmd_ir.py
-uv run --script envelope.py 4,8,16,32,64,128   # ~2 min for N=128
+uv run pytest test_bytedmd_ir.py                  # 37 tests
+uv run --script envelope.py                       # default N up to 64, ~20 s
+uv run --script envelope.py 4,8,16,32,64,128      # ~3 min
 ```
