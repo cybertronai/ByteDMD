@@ -237,6 +237,62 @@ def manual_strassen(n: int, T: int = 4) -> int:
     return a.cost
 
 
+def manual_fused_strassen(n: int, T: int = 4) -> int:
+    """Zero-Allocation Fused Strassen (single-level outer Strassen, no
+    intermediate matrices — adds are fused into the L1 tile loads).
+    Ported from experiments/live-vs-all/efficient_strassen_trace.py."""
+    a = Allocator()
+    fast_A = a.alloc(T * T); fast_B = a.alloc(T * T); fast_C = a.alloc(T * T)
+    A = a.alloc(n * n); B = a.alloc(n * n); C = a.alloc(n * n)
+
+    def compute_fused_tile(ops_A, ops_B, ops_C, r, c, k_off):
+        # 1. Fused load A tile into fast_A (sum sign-weighted contributions)
+        for i in range(T):
+            for j in range(T):
+                for _sgn, rb, cb in ops_A:
+                    a.touch(A + (rb + r + i) * n + cb + k_off + j)
+        # 2. Fused load B tile into fast_B
+        for i in range(T):
+            for j in range(T):
+                for _sgn, rb, cb in ops_B:
+                    a.touch(B + (rb + k_off + i) * n + cb + c + j)
+        # 3. Read fast_C (existing accumulator)
+        for i in range(T * T):
+            a.touch(fast_C + i)
+        # 4. Tile MAC: fast_C += fast_A @ fast_B
+        for i in range(T):
+            for j in range(T):
+                for k in range(T):
+                    a.touch(fast_C + i * T + j)
+                    a.touch(fast_A + i * T + k)
+                    a.touch(fast_B + k * T + j)
+        # 5. Fan-out fast_C -> multiple C targets with signs
+        for _sgn, rb, cb, is_first in ops_C:
+            for i in range(T):
+                for j in range(T):
+                    a.touch(fast_C + i * T + j)
+                    if not is_first:
+                        a.touch(C + (rb + r + i) * n + cb + c + j)
+
+    h = n // 2
+    q11, q12, q21, q22 = (0, 0), (0, h), (h, 0), (h, h)
+    recipes = [
+        ([(1, *q11), (1, *q22)], [(1, *q11), (1, *q22)], [(1, *q11, True), (1, *q22, True)]),
+        ([(1, *q21), (1, *q22)], [(1, *q11)],            [(1, *q21, True), (-1, *q22, False)]),
+        ([(1, *q11)],            [(1, *q12), (-1, *q22)], [(1, *q12, True), (1, *q22, False)]),
+        ([(1, *q22)],            [(1, *q21), (-1, *q11)], [(1, *q11, False), (1, *q21, False)]),
+        ([(1, *q11), (1, *q12)], [(1, *q22)],             [(-1, *q11, False), (1, *q12, False)]),
+        ([(1, *q21), (-1, *q11)], [(1, *q11), (1, *q12)], [(1, *q22, False)]),
+        ([(1, *q12), (-1, *q22)], [(1, *q21), (1, *q22)], [(1, *q11, False)]),
+    ]
+    for A_ops, B_ops, C_ops in recipes:
+        for r, c in [(0, 0), (0, T), (T, 0), (T, T)]:
+            compute_fused_tile(A_ops, B_ops, C_ops, r, c, k_off=0)
+            C_ops_accum = [(sgn, rb, cb, False) for sgn, rb, cb, _ in C_ops]
+            compute_fused_tile(A_ops, B_ops, C_ops_accum, r, c, k_off=T)
+    return a.cost
+
+
 # ============================================================================
 # Attention family
 # ============================================================================

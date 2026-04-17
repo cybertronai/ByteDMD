@@ -15,12 +15,19 @@ approximates the total energy `∑ ceil(sqrt(addr))` over all memory touches.
 
 **Rows — algorithms**:
 
-| family    | variants                                                   |
-|-----------|------------------------------------------------------------|
-| matmul    | naive, tiled, rmm (cache-oblivious), strassen              |
-| attention | naive, flash (Bk-block online softmax)                     |
-| transpose | naive (column-major read), blocked, recursive (CO)         |
-| matvec    | row-major, column-major                                    |
+| family    | variants                                                          |
+|-----------|-------------------------------------------------------------------|
+| matmul    | naive, tiled, rmm (cache-oblivious), strassen, **fused strassen** |
+| attention | naive, flash (Bk-block online softmax)                            |
+| transpose | naive (column-major read), blocked, recursive (CO)                |
+| matvec    | row-major, column-major                                           |
+
+`fused_strassen` (Zero-Allocation Fused Strassen / ZAFS) shares the
+abstract arithmetic DAG of `strassen`, so its heuristic columns are
+identical — the fusion optimization lives entirely at the allocator
+level (M₁..M₇ are never materialized; their sub-additions are folded
+directly into the L1 tile loads). The `manual` column is what captures
+the win.
 
 **Columns — metrics** (cheapest to most faithful):
 
