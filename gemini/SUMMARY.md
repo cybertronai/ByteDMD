@@ -100,3 +100,5 @@ Research notes on **ByteDMD** (Byte-level Data Movement Distance): a concrete me
 | [strassen-manual.md](strassen-manual.md) | Strassen with manual memory placement and stack arena semantics, 3N^2 peak memory |
 | [strassen-vs-systolic.md](strassen-vs-systolic.md) | Single-processor Strassen and systolic arrays both hit O(N^3) energy floor on 2D silicon |
 | [efficient-strassen.md](efficient-strassen.md) | Zero-Allocation Fused Strassen eliminates temporaries via virtual matrices in L1 scratchpad |
+| [better-heuristics.md](better-heuristics.md) | Five hardware-agnostic cache-friendliness heuristics: stack distance, arithmetic intensity, liveness, byte-ticks, Belady AUC |
+| [simplified-manual-rmm.md](simplified-manual-rmm.md) | Pyramid-and-Forklift RMM walkthrough; connection to HMM (1987) and Hong-Kung; 3 ways to beat the 2D bound |
