@@ -1,7 +1,7 @@
 #!/Users/yaroslavvb/.local/bin/uv run --script
 # /// script
 # requires-python = ">=3.9"
-# dependencies = ["matplotlib", "numpy"]
+# dependencies = []
 # ///
 """Grid of cache-friendliness heuristics × algorithms.
 
@@ -30,11 +30,6 @@ import os
 import sys
 import time
 from typing import Callable, Dict, List, Sequence, Tuple
-
-import matplotlib
-matplotlib.use("Agg")
-import matplotlib.pyplot as plt
-import numpy as np
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.path.abspath(os.path.join(HERE, "..", ".."))
@@ -302,8 +297,8 @@ def main() -> None:
     # Fill the grid.
     col_names = [name for name, _, _ in algos]
     row_names = [h[0] for h in HEURISTICS]
-    grid = np.zeros((len(HEURISTICS), len(algos)), dtype=float)
-    cell_time = np.zeros_like(grid)
+    grid: List[List[int]] = [[0] * len(algos) for _ in HEURISTICS]
+    cell_time: List[List[float]] = [[0.0] * len(algos) for _ in HEURISTICS]
 
     for ci, name in enumerate(col_names):
         events = traces[name]
@@ -311,8 +306,8 @@ def main() -> None:
             t0 = time.perf_counter()
             val = hfn(events)
             dt = time.perf_counter() - t0
-            grid[ri, ci] = val
-            cell_time[ri, ci] = dt
+            grid[ri][ci] = int(val)
+            cell_time[ri][ci] = dt
             if dt > CELL_BUDGET_S:
                 print(f"WARN: cell ({hname}, {name}) took {dt:.2f}s > {CELL_BUDGET_S}s")
 
@@ -325,20 +320,21 @@ def main() -> None:
 
     # --- Print grid ---
     print("\nGrid (raw)")
-    header = f"{'heuristic':<18}" + "".join(f"{c:>20}" for c in col_names)
+    header = f"{'heuristic':<18}" + "".join(f"{c:>26}" for c in col_names)
     print(header)
     print("-" * len(header))
     for ri, hname in enumerate(row_names):
-        row = f"{hname:<18}" + "".join(f"{int(grid[ri, ci]):>20}" for ci in range(len(col_names)))
+        row = f"{hname:<18}" + "".join(f"{grid[ri][ci]:>26}" for ci in range(len(col_names)))
         print(row)
 
     print("\nCell time (s)")
-    print(f"{'heuristic':<18}" + "".join(f"{c:>20}" for c in col_names))
+    print(f"{'heuristic':<18}" + "".join(f"{c:>26}" for c in col_names))
     for ri, hname in enumerate(row_names):
-        print(f"{hname:<18}" + "".join(f"{cell_time[ri, ci]:>20.3f}" for ci in range(len(col_names))))
+        print(f"{hname:<18}" + "".join(f"{cell_time[ri][ci]:>26.3f}" for ci in range(len(col_names))))
 
-    total = cell_time.sum() + sum(trace_times.values())
-    print(f"\nTotal wall time: {total:.2f}s (trace: {sum(trace_times.values()):.2f}s, cells: {cell_time.sum():.2f}s)")
+    total_cells = sum(sum(row) for row in cell_time)
+    total = total_cells + sum(trace_times.values())
+    print(f"\nTotal wall time: {total:.2f}s (trace: {sum(trace_times.values()):.2f}s, cells: {total_cells:.2f}s)")
 
     # --- Save CSV ---
     csv_path = os.path.join(HERE, "grid.csv")
@@ -346,31 +342,27 @@ def main() -> None:
         w = csv.writer(f)
         w.writerow(["heuristic"] + col_names)
         for ri, hname in enumerate(row_names):
-            w.writerow([hname] + [int(grid[ri, ci]) for ci in range(len(col_names))])
+            w.writerow([hname] + [grid[ri][ci] for ci in range(len(col_names))])
     print(f"Saved {csv_path}")
 
-    # --- Save heatmap (column-normalized so cell = ratio to that column's min) ---
-    col_min = grid.min(axis=0, keepdims=True)
-    col_min = np.where(col_min == 0, 1, col_min)
-    normalized = grid / col_min
-
-    fig, ax = plt.subplots(figsize=(10, 5))
-    im = ax.imshow(normalized, aspect="auto", cmap="viridis")
-    ax.set_xticks(range(len(col_names)))
-    ax.set_xticklabels(col_names, rotation=30, ha="right")
-    ax.set_yticks(range(len(row_names)))
-    ax.set_yticklabels(row_names)
-    for ri in range(len(row_names)):
-        for ci in range(len(col_names)):
-            ax.text(ci, ri, f"{int(grid[ri, ci])}", ha="center", va="center",
-                    color="white" if normalized[ri, ci] > normalized.max() * 0.5 else "black",
-                    fontsize=7)
-    ax.set_title("heuristic cost per algorithm (cell label = raw value, color = ratio to column min)")
-    fig.colorbar(im, ax=ax, label="ratio to column min")
-    fig.tight_layout()
-    png_path = os.path.join(HERE, "grid.png")
-    fig.savefig(png_path, dpi=140)
-    print(f"Saved {png_path}")
+    # --- Save markdown table ---
+    md_path = os.path.join(HERE, "grid.md")
+    col_widths = [max(len(c), max(len(str(grid[ri][ci])) for ri in range(len(row_names))))
+                  for ci, c in enumerate(col_names)]
+    first_w = max(len("heuristic"), max(len(r) for r in row_names))
+    with open(md_path, "w") as f:
+        f.write("| " + "heuristic".ljust(first_w) + " | "
+                + " | ".join(c.ljust(col_widths[ci]) for ci, c in enumerate(col_names))
+                + " |\n")
+        f.write("|" + "-" * (first_w + 2)
+                + "|" + "|".join("-" * (w + 2) for w in col_widths)
+                + "|\n")
+        for ri, hname in enumerate(row_names):
+            f.write("| " + hname.ljust(first_w) + " | "
+                    + " | ".join(str(grid[ri][ci]).rjust(col_widths[ci])
+                                 for ci in range(len(col_names)))
+                    + " |\n")
+    print(f"Saved {md_path}")
 
 
 if __name__ == "__main__":

@@ -36,7 +36,7 @@ Rows (heuristics):
 
     ./run_grid.py
 
-Outputs: `grid.csv`, `grid.png` (heatmap), stdout table.
+Outputs: `grid.csv`, `grid.md` (markdown table), stdout table.
 
 ## Notes
 
