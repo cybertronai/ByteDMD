@@ -26,11 +26,9 @@ approximates the total energy `∑ ceil(sqrt(addr))` over all memory touches.
 
 | row               | meaning                                                          |
 |-------------------|------------------------------------------------------------------|
-| `n_loads`         | raw load count — energy if every access cost 1                   |
 | `mwis_lower_bound`| interval-LP lower bound on any allocator's cost                   |
 | `bytedmd_classic` | Mattson LRU stack-depth estimate (no liveness)                    |
 | `bytedmd_live`    | LRU with liveness compaction                                      |
-| `min_heap`        | greedy live-bytes allocator — realistic automatic placement       |
 | `belady`          | offline-optimal allocator — best automatic placement              |
 | `manual`          | hand-placed schedule — **gold standard** per-algorithm reference  |
 
@@ -50,9 +48,6 @@ Outputs: `grid.csv`, `grid.md`, stdout table.
 
 ## Notes
 
-- `min_heap == belady` everywhere here: each intermediate in these traces
-  is read exactly once, so the greedy online allocator coincides with the
-  offline oracle.
 - **Transpose is degenerate in the fixed-address Manhattan model**: every
   A-cell is touched exactly once, so naive, blocked, and recursive all
   produce the same manual cost (22352 at n=32). The *recency-aware*

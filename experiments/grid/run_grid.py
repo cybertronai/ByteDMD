@@ -35,13 +35,11 @@ from bytedmd_ir import (
     bytedmd_classic,
     bytedmd_live,
     compile_belady,
-    compile_min_heap,
     cost,
     matmul_naive,
     matmul_rmm,
     matmul_tiled,
     mwis_lower_bound,
-    n_loads,
     trace,
 )
 import algorithms as alg
@@ -107,19 +105,14 @@ ALGOS: List[Tuple[str, Callable, Tuple, Callable[[], int]]] = [
 ]
 
 
-def min_heap_cost(events: Sequence[L2Event]) -> int:
-    return cost(compile_min_heap(events))
-
 def belady_cost(events: Sequence[L2Event]) -> int:
     return cost(compile_belady(events))
 
 
 HEURISTICS: List[Tuple[str, Callable[[Sequence[L2Event]], int]]] = [
-    ("n_loads",          n_loads),
     ("mwis_lower_bound", mwis_lower_bound),
     ("bytedmd_classic",  bytedmd_classic),
     ("bytedmd_live",     bytedmd_live),
-    ("min_heap",         min_heap_cost),
     ("belady",           belady_cost),
 ]
 
