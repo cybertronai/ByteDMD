@@ -49,13 +49,13 @@ ALGORITHMS = [
 # kind='l2' -> computed directly on L2 trace
 # kind='l3' -> computed via allocator -> L3 trace
 MEASURES = [
-    ('mwis_lb',         'MWIS lower',      'black',      'v', ':',  'bound'),
+    ('lp_lb',           'LP lower',        'black',      'v', ':',  'bound'),
+    ('mwis_lb',         'MWIS lower',      'dimgray',    '2', ':',  'bound'),
     ('bytedmd_live',    'DMD-live',        'tab:green',  '^', '-',  'l2'),
     ('ripple',          'Ripple Shift',    'tab:purple', 'D', '-',  'l3'),
     ('manual',          'Manual',          'tab:brown',  'x', '-.', 'manual'),
     ('tombstone',       'Tombstone',       'tab:blue',   's', '--', 'l3'),
     ('bytedmd_classic', 'Classic DMD',     'tab:red',    'o', '-',  'l2'),
-    ('static_ub',       'Static upper',    'dimgray',    'P', ':',  'bound'),
 ]
 
 
@@ -67,7 +67,7 @@ def run_one(func, N: int) -> dict:
     results['bytedmd_classic'] = b2.bytedmd_classic(l2)
     results['bytedmd_live']    = b2.bytedmd_live(l2)
     results['mwis_lb']         = b2.mwis_lower_bound(l2)
-    results['static_ub']       = b2.static_upper_bound(l2)
+    results['lp_lb']           = b2.lp_lower_bound(l2)
     for key, _, _, _, _, kind in MEASURES:
         if kind == 'l3':
             l3 = b2.ALLOCATORS[key](l2)
@@ -84,9 +84,9 @@ def collect(Ns):
             print(f'  {label}  N={N}', end='', flush=True)
             row = run_one(func, N)
             rows.append(row)
-            print(f"  mwis_lb={row['mwis_lb']:,}  live={row['bytedmd_live']:,}"
+            print(f"  lp_lb={row['lp_lb']:,.0f}  live={row['bytedmd_live']:,}"
                   f"  ripple={row['ripple']:,}  manual={row['manual']:,}"
-                  f"  classic={row['bytedmd_classic']:,}  static_ub={row['static_ub']:,}")
+                  f"  classic={row['bytedmd_classic']:,}")
         table[label] = rows
     return table
 
@@ -184,7 +184,11 @@ def main():
         print(header)
         print('  ' + '-' * (len(header) - 2))
         for r in rows:
-            cells = " | ".join(f"{r[m[0]]:>{col_w},}" for m in MEASURES)
+            def fmt(v):
+                if isinstance(v, float):
+                    return f"{v:>{col_w},.0f}"
+                return f"{v:>{col_w},}"
+            cells = " | ".join(fmt(r[m[0]]) for m in MEASURES)
             print(f"  {r['N']:>3} | {cells}")
 
         print()

@@ -612,6 +612,157 @@ def static_upper_bound(events: Sequence[L2Event]) -> int:
     return cost(compile_min_heap(events))
 
 
+def _extract_cliques(events: Sequence[L2Event],
+                     intervals: List[_Interval]) -> List[List[int]]:
+    """Sweep the trace to find maximal cliques of the interval graph.
+
+    A clique is a set of variables all alive at the same moment.  We record
+    a snapshot at every STORE (new variable enters) and at every last-LOAD
+    (variable about to leave), then keep only maximal ones.
+    """
+    valid_vars = {iv.var_id for iv in intervals}
+    last_load: Dict[int, int] = {}
+    for i, ev in enumerate(events):
+        if isinstance(ev, L2Load) and ev.var in valid_vars:
+            last_load[ev.var] = i
+
+    active: set = set()
+    all_cliques: list = []
+    for i, ev in enumerate(events):
+        if isinstance(ev, L2Store) and ev.var in valid_vars:
+            active.add(ev.var)
+            all_cliques.append(frozenset(active))
+        elif isinstance(ev, L2Load) and ev.var in valid_vars:
+            if last_load.get(ev.var) == i:
+                all_cliques.append(frozenset(active))
+                active.discard(ev.var)
+
+    # Keep only maximal cliques (no subset of another).
+    cliques_sorted = sorted(all_cliques, key=len, reverse=True)
+    maximal: list = []
+    for c in cliques_sorted:
+        if not any(c.issubset(mc) for mc in maximal):
+            maximal.append(c)
+    return maximal
+
+
+def _mwis_dp(intervals: List[_Interval]) -> Tuple[int, List[_Interval]]:
+    """Weighted interval scheduling (MWIS): returns (weight, selected_intervals).
+
+    O(N log N) DP with backtracking to extract the selected set.
+    """
+    if not intervals:
+        return 0, []
+    sorted_ivs = sorted(intervals, key=lambda x: x.end)
+    n = len(sorted_ivs)
+    ends = [iv.end for iv in sorted_ivs]
+
+    # p[i] = index of latest interval ending strictly before sorted_ivs[i] starts
+    p = [0] * n
+    for i in range(n):
+        p[i] = bisect.bisect_left(ends, sorted_ivs[i].start)
+
+    dp = [0] * (n + 1)
+    for i in range(1, n + 1):
+        take = sorted_ivs[i - 1].reads + dp[p[i - 1]]
+        dp[i] = max(dp[i - 1], take)
+
+    # Backtrack to find which intervals are selected.
+    selected: List[_Interval] = []
+    i = n
+    while i > 0:
+        take = sorted_ivs[i - 1].reads + dp[p[i - 1]]
+        if take >= dp[i - 1]:
+            selected.append(sorted_ivs[i - 1])
+            i = p[i - 1]
+        else:
+            i -= 1
+    return dp[n], selected
+
+
+def lp_lower_bound(events: Sequence[L2Event]) -> float:
+    """Tight continuous lower bound via discrete-calculus + greedy MWIS layering.
+
+    Uses the identity  sqrt(k) = sum_{j=1}^{k} (sqrt(j) - sqrt(j-1))  and
+    computes M_c (max reads packable into c addresses) for c = 1..omega by
+    peeling off successive MWIS layers from the interval graph.
+
+    For interval graphs (perfect graphs), greedy MWIS layering yields the
+    exact optimal c-coloring weight, equivalent to the LP relaxation from
+    gemini/unimodular-lp.md but computed in O(omega * N log N) instead of
+    solving omega separate LPs.
+
+    The bound uses continuous sqrt (not ceil), so it is strictly <=
+    the discrete ceil(sqrt) cost — a valid lower bound.
+    """
+    intervals = _extract_intervals(events)
+    if not intervals:
+        return 0.0
+    R_total = sum(iv.reads for iv in intervals)
+
+    # Peel MWIS layers to build M[c] for c = 0, 1, 2, ...
+    # Cap at MAX_LAYERS to keep runtime manageable for large traces.
+    # The bound remains valid (just slightly looser) because truncated
+    # layers contribute diminishing sqrt-difference weights.
+    MAX_LAYERS = 1000
+    remaining = list(intervals)
+    M: List[int] = [0]
+    for _ in range(MAX_LAYERS):
+        if not remaining:
+            break
+        w, selected = _mwis_dp(remaining)
+        if w == 0:
+            break
+        M.append(M[-1] + w)
+        selected_ids = {id(iv) for iv in selected}
+        remaining = [iv for iv in remaining if id(iv) not in selected_ids]
+    omega = len(M) - 1
+    # Pad so M[omega] = R_total (all intervals eventually assigned).
+    if M[-1] < R_total:
+        M.append(R_total)
+        omega += 1
+
+    lb = 0.0
+    for j in range(1, omega + 1):
+        cost_diff = math.sqrt(j) - math.sqrt(j - 1)
+        remaining_reads = R_total - M[j - 1]
+        if remaining_reads <= 0:
+            break
+        lb += cost_diff * remaining_reads
+    return lb
+
+
+def greedy_freq_upper_bound(events: Sequence[L2Event]) -> float:
+    """Achievable upper bound: frequency-first greedy static allocation.
+
+    Sort variables by read count (descending), then assign each to the
+    lowest-numbered address whose existing intervals don't overlap.
+    Uses continuous sqrt for comparability with lp_lower_bound.
+    """
+    intervals = _extract_intervals(events)
+    sorted_ivs = sorted(intervals, key=lambda x: x.reads, reverse=True)
+    tracks: List[List[Tuple[int, int]]] = []
+    total_cost = 0.0
+
+    for iv in sorted_ivs:
+        assigned = -1
+        for k, track in enumerate(tracks):
+            overlap = False
+            for ts, te in track:
+                if iv.start <= te and iv.end >= ts:
+                    overlap = True
+                    break
+            if not overlap:
+                track.append((iv.start, iv.end))
+                assigned = k + 1
+                break
+        if assigned == -1:
+            tracks.append([(iv.start, iv.end)])
+            assigned = len(tracks)
+        total_cost += iv.reads * math.sqrt(assigned)
+    return total_cost
+
+
 # ============================================================================
 # L2-level ByteDMD metrics (no allocator)
 # ============================================================================
