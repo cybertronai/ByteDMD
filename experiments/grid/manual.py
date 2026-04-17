@@ -502,6 +502,39 @@ def manual_transpose_recursive(n: int) -> int:
 # Matrix-vector
 # ============================================================================
 
+def manual_matvec(n: int) -> int:
+    """y = A · x. Hot slots s, tmp, y, x at addrs 1..2n+2; A cold at
+    2n+3.. . A read row-major (contiguous); x reused every row."""
+    a = _alloc()
+    s = a.alloc(1); tmp = a.alloc(1)
+    y = a.alloc(n); x = a.alloc(n)
+    A = a.alloc(n * n)
+    for i in range(n):
+        a.touch(A + i * n + 0); a.touch(x + 0)
+        for j in range(1, n):
+            a.touch(A + i * n + j); a.touch(x + j)
+            a.touch(s); a.touch(tmp)
+        a.touch(s)  # write y[i]
+    return a.cost
+
+
+def manual_vecmat(n: int) -> int:
+    """y = xᵀ · A. Hot slots s, tmp, y, x at addrs 1..2n+2; A cold at
+    2n+3.. . A read column-major (stride-n jumps); y accumulates once
+    per column j."""
+    a = _alloc()
+    s = a.alloc(1); tmp = a.alloc(1)
+    y = a.alloc(n); x = a.alloc(n)
+    A = a.alloc(n * n)
+    for j in range(n):
+        a.touch(x + 0); a.touch(A + 0 * n + j)
+        for i in range(1, n):
+            a.touch(x + i); a.touch(A + i * n + j)
+            a.touch(s); a.touch(tmp)
+        a.touch(s)  # write y[j]
+    return a.cost
+
+
 def manual_matvec_row(n: int) -> int:
     """y[i] = sum_j A[i][j] * x[j], outer loop over i — A read row-major.
     Hot slots first: s, tmp, y, x at low addrs; A is the cold bulk region."""
