@@ -46,6 +46,8 @@ placement strategies:
 | [spatial_conv(32x32,K=5)](#spatial_conv)                              |      373,936 |     527,312 |         678,749 |
 | [regular_conv(16x16,K=3,Cin=4,Cout=4)](#regular_conv)                 |      762,860 |     963,512 |       1,289,844 |
 | [fft_conv(N=256)](#fft_conv)                                          |      148,320 |     138,238 |         243,230 |
+| [quicksort(N=64)](#quicksort)                                         |        2,382 |       3,974 |           3,661 |
+| [heapsort(N=64)](#heapsort)                                           |        4,548 |       4,779 |           7,164 |
 | [mergesort(N=64)](#mergesort)                                         |        2,691 |       8,416 |           4,344 |
 | [lcs_dp(32x32)](#lcs_dp)                                              |       30,253 |      85,929 |          47,066 |
 
@@ -300,6 +302,44 @@ though the margin narrows at N=256 because the 3N hot region is no
 longer negligibly small.
 
 ![](traces/fft_conv_n_256.png)
+
+---
+
+## quicksort
+`N=64`. **Algorithm.** In-place recursive quicksort, data-oblivious
+partition stand-in (`_Tracked` has no `__lt__`). At each level, scan
+all sz-1 non-pivot elements, reading each with the pivot (2 reads,
+result discarded). Recurses on two equal halves.
+
+**Manual placement.** Only the input array at addrs 1..N — no temps,
+since quicksort partitions in place. Pivot address is `base + sz - 1`
+(highest slot in current subarray), which ends up at the "high"
+address of each recursion window. `manual` (3,974) slightly exceeds
+`bytedmd_classic` (3,661) because every pivot touch pays the full
+`⌈√(base+sz-1)⌉` under fixed placement, while LRU bumping would keep
+the pivot at depth 1 after its first read inside the inner loop.
+
+![](traces/quicksort_n_64.png)
+
+---
+
+## heapsort
+`N=64`. **Algorithm.** Two phases on an implicit binary max-heap:
+**build** (sift-down from `n/2-1` down to 0 to establish the heap
+property) and **extract** (swap root with last, sift-down over
+shrinking prefix, N-1 times). Each sift-down step reads parent and
+one or two children at indices `j, 2j+1, 2j+2`, implementing the
+classic tree-index address pattern.
+
+**Manual placement.** In-place on the input array at addrs 1..N. The
+heap's tree structure means accesses always link a node at addr `j`
+with its children at `2j+1` and `2j+2` — stride patterns that are
+neither row-major nor column-major but follow the powers-of-2
+backbone of a pointer-less heap. `manual` (4,779) lands between
+`bytedmd_live` (4,548) and `bytedmd_classic` (7,164), and well under
+`mergesort`'s 8,416 — in-place + no temps buys it a lot.
+
+![](traces/heapsort_n_64.png)
 
 ---
 

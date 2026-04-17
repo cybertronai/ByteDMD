@@ -24,7 +24,7 @@ approximates the total energy `∑ ceil(sqrt(addr))` over all memory touches.
 | stencil      | naive row-major sweep, tile-recursive (leaf=8)                  |
 | convolution  | spatial (single-channel 2D), regular (multi-channel CNN)        |
 | FFT-conv     | N=256 circular convolution via two FFTs + pointwise + IFFT      |
-| sort         | mergesort (data-oblivious merge stand-in)                       |
+| sort         | quicksort (in-place), heapsort (in-place), mergesort (with temps) |
 | DP           | LCS dynamic programming (branch-free recurrence)                |
 
 Only `fused_strassen` (Zero-Allocation Fused Strassen / ZAFS) is shown for

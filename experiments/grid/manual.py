@@ -729,6 +729,56 @@ def manual_regular_convolution(H: int, W: int, K: int, Cin: int, Cout: int) -> i
 # Mergesort (recursive, out-of-place merge with push/pop stack of temps)
 # ============================================================================
 
+def manual_quicksort(N: int) -> int:
+    """In-place recursive quicksort. Only the input array at addrs 1..N —
+    no temp allocations (quicksort partitions in place). At each level,
+    scan sz-1 elements against the pivot (2 reads each); recurse on halves."""
+    a = _alloc()
+    arr = a.alloc(N)
+
+    def rec(base: int, sz: int) -> None:
+        if sz <= 1:
+            return
+        pivot_addr = base + sz - 1
+        for i in range(sz - 1):
+            a.touch(base + i)
+            a.touch(pivot_addr)
+        mid = sz // 2
+        rec(base, mid)
+        rec(base + mid, sz - mid)
+
+    rec(arr, N)
+    return a.cost
+
+
+def manual_heapsort(N: int) -> int:
+    """In-place heapsort. Only the input array at addrs 1..N — binary-heap
+    index arithmetic is in-place. Two phases: build (sift-down from n/2-1
+    down to 0), then extract (N-1 iterations of root-swap + sift-down
+    over a shrinking prefix). Each sift-down step reads parent+child(ren)
+    at tree-linked addresses."""
+    a = _alloc()
+    arr = a.alloc(N)
+
+    def sift_down(j: int, heap_size: int) -> None:
+        while 2 * j + 1 < heap_size:
+            child = 2 * j + 1
+            if child + 1 < heap_size:
+                a.touch(arr + child)
+                a.touch(arr + child + 1)
+            a.touch(arr + j)
+            a.touch(arr + child)
+            j = child
+
+    for i in range(N // 2 - 1, -1, -1):
+        sift_down(i, N)
+    for k in range(N - 1, 0, -1):
+        a.touch(arr + k)
+        a.touch(arr + 0)
+        sift_down(0, k)
+    return a.cost
+
+
 def manual_mergesort(N: int) -> int:
     """Recursive mergesort on an N-slot array at addr 1..N. Each merge level
     allocates a temp of the merge size (popped after copy-back). Each merge

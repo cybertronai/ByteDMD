@@ -388,6 +388,55 @@ def regular_convolution(A, Wk):
 # read/write pattern of mergesort without actually comparing)
 # ============================================================================
 
+def quicksort(arr):
+    """Data-oblivious quicksort stand-in. At each level, reads every
+    element against the last-position pivot (2 reads per compare, writes
+    discarded), then recurses on two equal halves. In-place — no temp
+    arrays. Emits ~2n events per level over log n levels."""
+    n = len(arr)
+    if n <= 1:
+        return [v + 0 for v in arr] if n == 1 else []
+    pivot = arr[-1]
+    # Partition pass: compare every other element to pivot (oblivious)
+    for i in range(n - 1):
+        _ = arr[i] + pivot   # two reads per element; result discarded
+    mid = n // 2
+    left = quicksort(arr[:mid])
+    right = quicksort(arr[mid:])
+    return left + right
+
+
+def heapsort(arr):
+    """Data-oblivious heapsort stand-in. Builds a binary max-heap via
+    sift-down from n/2-1 down to 0, then repeatedly extracts root and
+    restores heap over a shrinking prefix. Each sift-down step reads
+    parent + left child (and, when present, right sibling for the
+    larger-child choice) and writes one slot — emits O(n log n) events."""
+    n = len(arr)
+    out = [v + 0 for v in arr]
+    if n <= 1:
+        return out
+
+    def sift_down(j, heap_size):
+        while 2 * j + 1 < heap_size:
+            child = 2 * j + 1
+            if child + 1 < heap_size:
+                # pick larger of two children (branch-free combine)
+                out[child] = out[child] + out[child + 1]
+            # compare parent & (chosen) child, swap-write (branch-free combine)
+            out[j] = out[j] + out[child]
+            j = child
+
+    # Build heap: bottom-up sift-down
+    for i in range(n // 2 - 1, -1, -1):
+        sift_down(i, n)
+    # Extract: swap root with last, then sift-down over shrinking prefix
+    for k in range(n - 1, 0, -1):
+        out[k] = out[k] + out[0]     # swap root & last
+        sift_down(0, k)
+    return out
+
+
 def mergesort(arr):
     """Recursive mergesort. The merge step is oblivious: each output cell
     combines one element from the left half and one from the right half,
