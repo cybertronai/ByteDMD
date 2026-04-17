@@ -107,3 +107,5 @@ Research notes on **ByteDMD** (Byte-level Data Movement Distance): a concrete me
 | [flops-are-a-lie.md](flops-are-a-lie.md) | Six cross-CS examples where FLOP counts mislead: Fibonacci heaps, sparse matmul, Winograd vs Im2Col, gradient checkpointing, LUTs, quicksort vs heapsort, Flash vs Sparse attention |
 | [space-dmd.md](space-dmd.md) | SpaceDMD: density-ranked spatial liveness heuristic modeling optimal static allocators (TPU scratchpads) |
 | [mattson-trap.md](mattson-trap.md) | Three algorithms (Karatsuba, BPTT, out-of-place FFT) where Mattson's LRU stack hallucinates bottlenecks that Live-Bytes correctly resolves |
+| [debug-spacedmd-scratchpad.md](debug-spacedmd-scratchpad.md) | Why SpaceDMD diverges from manual: implicit vs explicit scratchpad in traced code, fix via materialized DMA copies |
+| [beyond-mattson-prior-work.md](beyond-mattson-prior-work.md) | Prior work on liveness-aware cache models: Belady OPT, Ideal Cache, Dead-Block Pollution, Live Distance, HMM connection |
