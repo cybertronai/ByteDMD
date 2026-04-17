@@ -62,6 +62,9 @@ N_MM = 16            # matrix size for matmul family
 N_TR = 32            # size for transpose
 N_MV = 64            # size for matvec
 N_ATT, D_ATT, BK = 32, 2, 8  # attention
+N_FFT = 32           # FFT input length (power of 2)
+N_STENCIL = 32       # stencil grid side
+LEAF_STENCIL = 8     # tile-recursion base size
 
 # Each algorithm is (display_name, traced_fn, traced_args, manual_cost_fn)
 ALGOS: List[Tuple[str, Callable, Tuple, Callable[[], int]]] = [
@@ -99,6 +102,19 @@ ALGOS: List[Tuple[str, Callable, Tuple, Callable[[], int]]] = [
     (f"matvec_col(n={N_MV})",
         alg.matvec_col,            (mat(N_MV), vec(N_MV)),
         lambda: man.manual_matvec_col(N_MV)),
+    (f"fft_iterative(N={N_FFT})",
+        alg.fft_iterative,         (vec(N_FFT),),
+        lambda: man.manual_fft_iterative(N_FFT)),
+    (f"fft_recursive(N={N_FFT})",
+        alg.fft_recursive,         (vec(N_FFT),),
+        lambda: man.manual_fft_recursive(N_FFT)),
+    (f"stencil_naive({N_STENCIL}x{N_STENCIL})",
+        alg.stencil_naive,         (mat(N_STENCIL),),
+        lambda: man.manual_stencil_naive(N_STENCIL)),
+    (f"stencil_recursive({N_STENCIL}x{N_STENCIL},leaf={LEAF_STENCIL})",
+        lambda A: alg.stencil_recursive(A, leaf=LEAF_STENCIL),
+        (mat(N_STENCIL),),
+        lambda: man.manual_stencil_recursive(N_STENCIL, leaf=LEAF_STENCIL)),
 ]
 
 

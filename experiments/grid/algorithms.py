@@ -218,3 +218,93 @@ def matvec_col(A, x):
         for i in range(n):
             y[i] = y[i] + A[i][j] * x[j]
     return y
+
+
+# ============================================================================
+# FFT (radix-2 Cooley–Tukey, real twiddle stand-in — we only care about the
+# read/write pattern, not the numeric result)
+# ============================================================================
+
+def fft_iterative(x_in):
+    """In-place iterative radix-2 Cooley-Tukey on a length-N array.
+    Uses a constant real factor in place of the complex twiddle — the
+    load pattern is identical."""
+    x = [v + 0 for v in x_in]  # force per-element load into fresh vars
+    N = len(x)
+    # Bit-reverse permutation
+    j = 0
+    for i in range(1, N):
+        bit = N >> 1
+        while j & bit:
+            j ^= bit
+            bit >>= 1
+        j ^= bit
+        if i < j:
+            t = x[i] + 0
+            x[i] = x[j] + 0
+            x[j] = t
+    # Butterflies
+    m = 1
+    while m < N:
+        for k in range(0, N, m * 2):
+            for jj in range(m):
+                t = x[k + jj + m] * 1.5   # twiddle stand-in
+                u = x[k + jj]
+                x[k + jj] = u + t
+                x[k + jj + m] = u - t
+        m *= 2
+    return x
+
+
+def fft_recursive(x_in):
+    """Out-of-place recursive radix-2 Cooley-Tukey."""
+    N = len(x_in)
+    if N == 1:
+        return [x_in[0] + 0]
+    even = fft_recursive([x_in[2 * i] + 0 for i in range(N // 2)])
+    odd  = fft_recursive([x_in[2 * i + 1] + 0 for i in range(N // 2)])
+    out = [None] * N
+    for k in range(N // 2):
+        t = odd[k] * 1.5
+        out[k] = even[k] + t
+        out[k + N // 2] = even[k] - t
+    return out
+
+
+# ============================================================================
+# 2D Jacobi stencil (5-point, one sweep)
+# ============================================================================
+
+def stencil_naive(A):
+    """Row-major sweep: B[i][j] = 0.2 * (A[i][j] + A[i-1][j] + A[i+1][j]
+    + A[i][j-1] + A[i][j+1]). Boundary cells are left None."""
+    n = len(A)
+    B = [[None] * n for _ in range(n)]
+    for i in range(1, n - 1):
+        for j in range(1, n - 1):
+            B[i][j] = (A[i][j] + A[i - 1][j] + A[i + 1][j]
+                       + A[i][j - 1] + A[i][j + 1]) * 0.2
+    return B
+
+
+def stencil_recursive(A, leaf=8):
+    """Tile-recursive split: quad-tree over the 2D grid, naive sweep at leaves."""
+    n = len(A)
+    B = [[None] * n for _ in range(n)]
+
+    def rec(r0, c0, sz):
+        if sz <= leaf:
+            for i in range(r0, r0 + sz):
+                for j in range(c0, c0 + sz):
+                    if 0 < i < n - 1 and 0 < j < n - 1:
+                        B[i][j] = (A[i][j] + A[i - 1][j] + A[i + 1][j]
+                                   + A[i][j - 1] + A[i][j + 1]) * 0.2
+            return
+        h = sz // 2
+        rec(r0,     c0,     h)
+        rec(r0,     c0 + h, h)
+        rec(r0 + h, c0,     h)
+        rec(r0 + h, c0 + h, h)
+
+    rec(0, 0, n)
+    return B

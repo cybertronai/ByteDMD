@@ -511,3 +511,109 @@ def manual_matvec_col(n: int) -> int:
             else:
                 a.touch(y + i); a.touch(tmp)
     return a.cost
+
+
+# ============================================================================
+# FFT
+# ============================================================================
+
+def manual_fft_iterative(N: int) -> int:
+    """In-place radix-2 Cooley-Tukey on an N-slot array at low addresses."""
+    a = Allocator()
+    x = a.alloc(N)
+    # Bit-reverse permutation — ~N/2 real swaps, 2 reads each
+    j = 0
+    for i in range(1, N):
+        bit = N >> 1
+        while j & bit:
+            j ^= bit
+            bit >>= 1
+        j ^= bit
+        if i < j:
+            a.touch(x + i); a.touch(x + j)
+    # Butterflies: log2(N) stages × N/2 butterflies × 2 reads
+    # (t = twiddle * x[k+j+m], then u = x[k+j] is reused; writes are free)
+    m = 1
+    while m < N:
+        for k in range(0, N, m * 2):
+            for jj in range(m):
+                a.touch(x + k + jj + m)  # t = w * x[k+j+m]
+                a.touch(x + k + jj)      # u = x[k+j]
+        m *= 2
+    return a.cost
+
+
+def manual_fft_recursive(N: int) -> int:
+    """Out-of-place recursive radix-2: at each level push/pop fresh
+    even/odd temp arrays. Temps live briefly but drive the allocator
+    pointer up during recursion."""
+    a = Allocator()
+    x = a.alloc(N)
+
+    def rec(base: int, sz: int) -> None:
+        if sz == 1:
+            return
+        ckpt = a.push()
+        even = a.alloc(sz // 2)
+        odd  = a.alloc(sz // 2)
+        # Split: read x[2i] and x[2i+1] → write even[i], odd[i]
+        for i in range(sz // 2):
+            a.touch(base + 2 * i)
+            a.touch(base + 2 * i + 1)
+        rec(even, sz // 2)
+        rec(odd,  sz // 2)
+        # Combine: t = w * odd[k]; base[k] = even[k] + t; base[k+sz/2] = even[k] - t
+        for k in range(sz // 2):
+            a.touch(odd + k)
+            a.touch(even + k)
+        a.pop(ckpt)
+
+    rec(x, N)
+    return a.cost
+
+
+# ============================================================================
+# 2D Jacobi stencil
+# ============================================================================
+
+def manual_stencil_naive(n: int) -> int:
+    """Row-major single sweep of 5-point Jacobi. 5 reads of A per
+    interior cell; writes to B are free."""
+    a = Allocator()
+    A = a.alloc(n * n); B = a.alloc(n * n)
+    for i in range(1, n - 1):
+        for j in range(1, n - 1):
+            a.touch(A + i * n + j)
+            a.touch(A + (i - 1) * n + j)
+            a.touch(A + (i + 1) * n + j)
+            a.touch(A + i * n + j - 1)
+            a.touch(A + i * n + j + 1)
+    return a.cost
+
+
+def manual_stencil_recursive(n: int, leaf: int = 8) -> int:
+    """Tile-recursive 5-point Jacobi. Same set of reads as naive — in
+    the fixed-placement Manhattan model the total cost is identical;
+    only access ORDER differs (visible to bytedmd_classic/bytedmd_live)."""
+    a = Allocator()
+    A = a.alloc(n * n); B = a.alloc(n * n)
+
+    def rec(r0: int, c0: int, sz: int) -> None:
+        if sz <= leaf:
+            for i in range(r0, r0 + sz):
+                for j in range(c0, c0 + sz):
+                    if 0 < i < n - 1 and 0 < j < n - 1:
+                        a.touch(A + i * n + j)
+                        a.touch(A + (i - 1) * n + j)
+                        a.touch(A + (i + 1) * n + j)
+                        a.touch(A + i * n + j - 1)
+                        a.touch(A + i * n + j + 1)
+            return
+        h = sz // 2
+        rec(r0,     c0,     h)
+        rec(r0,     c0 + h, h)
+        rec(r0 + h, c0,     h)
+        rec(r0 + h, c0 + h, h)
+
+    rec(0, 0, n)
+    return a.cost
