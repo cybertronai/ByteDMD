@@ -39,7 +39,6 @@ from bytedmd_ir import (
     matmul_naive,
     matmul_rmm,
     matmul_tiled,
-    mwis_lower_bound,
     trace,
 )
 import algorithms as alg
@@ -110,10 +109,9 @@ def belady_cost(events: Sequence[L2Event]) -> int:
 
 
 HEURISTICS: List[Tuple[str, Callable[[Sequence[L2Event]], int]]] = [
-    ("mwis_lower_bound", mwis_lower_bound),
-    ("bytedmd_classic",  bytedmd_classic),
-    ("bytedmd_live",     bytedmd_live),
-    ("belady",           belady_cost),
+    ("bytedmd_classic", bytedmd_classic),
+    ("bytedmd_live",    bytedmd_live),
+    ("belady",          belady_cost),
 ]
 
 
@@ -125,7 +123,9 @@ CELL_BUDGET_S = 10.0
 
 
 def main() -> None:
-    col_names = [a[0] for a in ALGOS]
+    # Rows = algorithms, Cols = heuristics + manual.
+    algo_names = [a[0] for a in ALGOS]
+    metric_names = [h[0] for h in HEURISTICS] + ["manual"]
 
     # Pre-trace each algorithm once.
     traces: Dict[str, List[L2Event]] = {}
@@ -136,55 +136,52 @@ def main() -> None:
         trace_times[name] = time.perf_counter() - t0
         traces[name] = events
 
-    # Fill the grid (heuristic rows + manual row).
-    row_names: List[str] = [h[0] for h in HEURISTICS] + ["manual"]
-    grid: List[List[int]] = [[0] * len(ALGOS) for _ in row_names]
-    cell_time: List[List[float]] = [[0.0] * len(ALGOS) for _ in row_names]
+    # Fill the grid: grid[algo_index][metric_index]
+    grid: List[List[int]] = [[0] * len(metric_names) for _ in ALGOS]
+    cell_time: List[List[float]] = [[0.0] * len(metric_names) for _ in ALGOS]
 
-    for ci, name in enumerate(col_names):
+    for ri, (name, _, _, manual_fn) in enumerate(ALGOS):
         events = traces[name]
-        for ri, (hname, hfn) in enumerate(HEURISTICS):
+        for ci, (hname, hfn) in enumerate(HEURISTICS):
             t0 = time.perf_counter()
             val = hfn(events)
             dt = time.perf_counter() - t0
             grid[ri][ci] = int(val)
             cell_time[ri][ci] = dt
             if dt > CELL_BUDGET_S:
-                print(f"WARN cell ({hname},{name}) {dt:.2f}s > {CELL_BUDGET_S}s")
-
-    # Manual row
-    manual_ri = len(HEURISTICS)
-    for ci, (_, _, _, manual_fn) in enumerate(ALGOS):
+                print(f"WARN cell ({name},{hname}) {dt:.2f}s > {CELL_BUDGET_S}s")
+        # manual column
+        ci = len(HEURISTICS)
         t0 = time.perf_counter()
         val = manual_fn()
         dt = time.perf_counter() - t0
-        grid[manual_ri][ci] = int(val)
-        cell_time[manual_ri][ci] = dt
+        grid[ri][ci] = int(val)
+        cell_time[ri][ci] = dt
         if dt > CELL_BUDGET_S:
-            print(f"WARN manual cell ({col_names[ci]}) {dt:.2f}s > {CELL_BUDGET_S}s")
+            print(f"WARN manual cell ({name}) {dt:.2f}s > {CELL_BUDGET_S}s")
 
     # --- Trace stats ---
     print("\nTrace sizes")
     print(f"{'algorithm':<36} {'events':>8} {'trace_s':>8}")
     print("-" * 54)
-    for name in col_names:
+    for name in algo_names:
         print(f"{name:<36} {len(traces[name]):>8} {trace_times[name]:>8.3f}")
 
-    # --- Stdout table ---
-    col_w = max(18, max(len(c) for c in col_names))
-    first_w = max(len("heuristic"), max(len(r) for r in row_names))
+    # --- Stdout table (algorithms as rows) ---
+    algo_w = max(len("algorithm"), max(len(a) for a in algo_names))
+    col_w = max(16, max(len(m) for m in metric_names))
     print("\nGrid (raw)")
-    header = f"{'heuristic':<{first_w}}" + "".join(f"{c:>{col_w+2}}" for c in col_names)
+    header = f"{'algorithm':<{algo_w}}" + "".join(f"{m:>{col_w+2}}" for m in metric_names)
     print(header)
     print("-" * len(header))
-    for ri, hname in enumerate(row_names):
-        row = f"{hname:<{first_w}}" + "".join(f"{grid[ri][ci]:>{col_w+2},}" for ci in range(len(col_names)))
+    for ri, aname in enumerate(algo_names):
+        row = f"{aname:<{algo_w}}" + "".join(f"{grid[ri][ci]:>{col_w+2},}" for ci in range(len(metric_names)))
         print(row)
 
     print("\nCell time (s)")
-    print(f"{'heuristic':<{first_w}}" + "".join(f"{c:>{col_w+2}}" for c in col_names))
-    for ri, hname in enumerate(row_names):
-        print(f"{hname:<{first_w}}" + "".join(f"{cell_time[ri][ci]:>{col_w+2}.3f}" for ci in range(len(col_names))))
+    print(f"{'algorithm':<{algo_w}}" + "".join(f"{m:>{col_w+2}}" for m in metric_names))
+    for ri, aname in enumerate(algo_names):
+        print(f"{aname:<{algo_w}}" + "".join(f"{cell_time[ri][ci]:>{col_w+2}.3f}" for ci in range(len(metric_names))))
 
     total_cells = sum(sum(row) for row in cell_time)
     total = total_cells + sum(trace_times.values())
@@ -194,29 +191,29 @@ def main() -> None:
     csv_path = os.path.join(HERE, "grid.csv")
     with open(csv_path, "w", newline="") as f:
         w = csv.writer(f)
-        w.writerow(["heuristic"] + col_names)
-        for ri, hname in enumerate(row_names):
-            w.writerow([hname] + [grid[ri][ci] for ci in range(len(col_names))])
+        w.writerow(["algorithm"] + metric_names)
+        for ri, aname in enumerate(algo_names):
+            w.writerow([aname] + [grid[ri][ci] for ci in range(len(metric_names))])
     print(f"Saved {csv_path}")
 
     # --- Markdown table ---
     md_path = os.path.join(HERE, "grid.md")
     def fmt(v: int) -> str:
         return f"{v:,}"
-    col_widths = [max(len(c), max(len(fmt(grid[ri][ci])) for ri in range(len(row_names))))
-                  for ci, c in enumerate(col_names)]
-    fw = max(len("heuristic"), max(len(r) for r in row_names))
+    col_widths = [max(len(m), max(len(fmt(grid[ri][ci])) for ri in range(len(ALGOS))))
+                  for ci, m in enumerate(metric_names)]
+    fw = max(len("algorithm"), max(len(a) for a in algo_names))
     with open(md_path, "w") as f:
-        f.write("| " + "heuristic".ljust(fw) + " | "
-                + " | ".join(c.ljust(col_widths[ci]) for ci, c in enumerate(col_names))
+        f.write("| " + "algorithm".ljust(fw) + " | "
+                + " | ".join(m.ljust(col_widths[ci]) for ci, m in enumerate(metric_names))
                 + " |\n")
         f.write("|" + "-" * (fw + 2)
                 + "|" + "|".join("-" * (w + 2) for w in col_widths)
                 + "|\n")
-        for ri, hname in enumerate(row_names):
-            f.write("| " + hname.ljust(fw) + " | "
+        for ri, aname in enumerate(algo_names):
+            f.write("| " + aname.ljust(fw) + " | "
                     + " | ".join(fmt(grid[ri][ci]).rjust(col_widths[ci])
-                                 for ci in range(len(col_names)))
+                                 for ci in range(len(metric_names)))
                     + " |\n")
     print(f"Saved {md_path}")
 

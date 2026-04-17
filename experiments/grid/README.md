@@ -13,7 +13,7 @@ approximates the total energy `∑ ceil(sqrt(addr))` over all memory touches.
 
 ## Axes
 
-**Columns — algorithms**:
+**Rows — algorithms**:
 
 | family    | variants                                                   |
 |-----------|------------------------------------------------------------|
@@ -22,11 +22,10 @@ approximates the total energy `∑ ceil(sqrt(addr))` over all memory touches.
 | transpose | naive (column-major read), blocked, recursive (CO)         |
 | matvec    | row-major, column-major                                    |
 
-**Rows — heuristics** (cheapest to most faithful):
+**Columns — metrics** (cheapest to most faithful):
 
-| row               | meaning                                                          |
-|-------------------|------------------------------------------------------------------|
-| `mwis_lower_bound`| interval-LP lower bound on any allocator's cost                   |
+| column            | meaning                                                           |
+|-------------------|-------------------------------------------------------------------|
 | `bytedmd_classic` | Mattson LRU stack-depth estimate (no liveness)                    |
 | `bytedmd_live`    | LRU with liveness compaction                                      |
 | `belady`          | offline-optimal allocator — best automatic placement              |
