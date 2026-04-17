@@ -67,4 +67,5 @@ def test_collect_results_has_expected_shape_and_budget():
 
     assert len(rows) == len(build_algorithm_specs())
     assert results["overall_max_cell_seconds"] < 10.0
+    assert results["metric_columns"] == [TARGET, CLASSIC, LIVE]
     assert all(TARGET in row and CLASSIC in row and LIVE in row for row in rows)
