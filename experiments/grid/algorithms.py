@@ -237,31 +237,6 @@ def transpose_recursive(A):
 # Matrix-vector
 # ============================================================================
 
-def matvec(A, x):
-    """y = A · x. Outer loop over rows i; A read row-major, x reused each row."""
-    n = len(x)
-    y = [None] * n
-    for i in range(n):
-        s = A[i][0] * x[0]
-        for j in range(1, n):
-            s = s + A[i][j] * x[j]
-        y[i] = s
-    return y
-
-
-def vecmat(A, x):
-    """y = xᵀ · A. Outer loop over cols j; A read column-major (stride-n),
-    y accumulates once per column."""
-    n = len(x)
-    y = [None] * n
-    for j in range(n):
-        s = x[0] * A[0][j]
-        for i in range(1, n):
-            s = s + x[i] * A[i][j]
-        y[j] = s
-    return y
-
-
 def matvec_row(A, x):
     """Row-major matvec: y[i] = sum_j A[i][j] * x[j]."""
     n = len(A)

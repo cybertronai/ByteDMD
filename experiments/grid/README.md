@@ -39,7 +39,7 @@ placement strategies:
 |--------------|-------------------------------------------------------------------|
 | matmul       | naive (AB^T), tiled, rmm (cache-oblivious), naive_strassen, fused_strassen (ZAFS) |
 | attention    | naive, flash (Bk-block online softmax)                            |
-| matvec       | matvec (y=A·x), vecmat (y=xᵀ·A), matvec_row / matvec_col variants |
+| matvec       | row-major, column-major                                           |
 | FFT          | iterative (in-place), recursive (out-of-place), N=256             |
 | stencil      | naive row-major sweep, tile-recursive (leaf=8)                    |
 | convolution  | spatial (single-channel 2D), regular (multi-channel CNN)          |
@@ -67,8 +67,6 @@ DAGs are identical, so `bytedmd_live` / `bytedmd_classic` match — only
 | [fused_strassen(n=16)](#fused_strassen)                               |   131,673 |      173,919 |     140,526 |         353,901 |
 | [naive_attn(N=32,d=2)](#naive_attn)                                   |   136,933 |      145,972 |     242,843 |         286,197 |
 | [flash_attn(N=32,d=2,Bk=8)](#flash_attn)                              |    83,163 |       97,856 |     137,184 |         167,803 |
-| [matvec(n=32)](#matvec)                                               |    13,508 |       32,318 |      34,861 |          62,694 |
-| [vecmat(n=32)](#vecmat)                                               |    15,562 |       26,094 |      34,861 |          59,331 |
 | [matvec_row(n=64)](#matvec_row)                                       |    72,775 |      229,199 |     238,853 |         450,939 |
 | [matvec_col(n=64)](#matvec_col)                                       |    88,673 |      177,873 |     212,776 |         433,535 |
 | [fft_iterative(N=256)](#fft_iterative)                                |    29,324 |       44,212 |      25,528 |          68,311 |
@@ -284,37 +282,6 @@ K, V, O live in main memory — the saved N² footprint drops manual from
 naive's 242k to 137k.
 
 ![](traces/flash_attn_n_32_d_2_bk_8.png)
-
----
-
-## matvec
-`n=32`. **Algorithm.** `y = A · x`. Outer loop over rows `i`; inner sum
-over columns `j`. A is read row-major (contiguous), `x` is re-read n
-times (once per output row).
-
-**Manual placement.** Hot scalars `s, tmp` (1, 2), then `y` and `x`
-(3..2n+2); A as bulk at 2n+3.. . Each output row reads `x` in full
-through its hot region, so the cost is dominated by A reads.
-
-![](traces/matvec_n_32.png)
-
----
-
-## vecmat
-`n=32`. **Algorithm.** `y = xᵀ · A`. Outer loop over columns `j`; inner
-sum over rows `i`. Same total traffic as matvec but with A accessed
-column-major (stride-n jumps); `y` accumulates once per column.
-
-**Manual placement.** Identical layout to matvec. In the fixed-address
-Manhattan model the **manual cost is exactly equal to matvec's
-(34,861)** — the set of A cells touched is the same and each cell is
-touched the same number of times, so `Σ ⌈√addr⌉` is order-invariant.
-Only the recency-aware heuristics distinguish the two: `bytedmd_live`
-is *lower* for vecmat (26,094 vs 32,318) because the column-major
-traversal keeps each A column's rows "fresh" in the LRU stack better
-than the row-major traversal keeps each row's elements fresh.
-
-![](traces/vecmat_n_32.png)
 
 ---
 
