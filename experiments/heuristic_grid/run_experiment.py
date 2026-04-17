@@ -17,15 +17,17 @@ if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
 from experiments.heuristic_grid.algorithms import build_algorithm_specs
-from experiments.heuristic_grid.measure import measure_function
+from experiments.heuristic_grid.manual_2d import measure_manual_2d
+from experiments.heuristic_grid.measure import measure_function, measure_space_dmd
 
 
+SPACE = "SpaceDMD"
 TARGET = "Manual-2D"
 CLASSIC = "ByteDMD-classic"
 LIVE = "ByteDMD-live"
 
-METRIC_COLUMNS = [TARGET, CLASSIC, LIVE]
-TRACED_COLUMNS = [TARGET, CLASSIC, LIVE]
+METRIC_COLUMNS = [SPACE, LIVE, TARGET, CLASSIC]
+TRACED_COLUMNS = [SPACE, LIVE, TARGET, CLASSIC]
 
 
 def _average_ranks(values: list[float]) -> list[float]:
@@ -65,7 +67,7 @@ def _fit_scale(values: list[float], target: list[float]) -> float:
 def compute_ranking(rows: list[dict[str, object]]) -> list[dict[str, object]]:
     target = [float(row[TARGET]) for row in rows]
     ranking = []
-    for metric in [CLASSIC, LIVE]:
+    for metric in [SPACE, CLASSIC, LIVE]:
         values = [float(row[metric]) for row in rows]
         scale = _fit_scale(values, target)
         mape = sum(abs(scale * value - goal) / goal for value, goal in zip(values, target)) / len(target)
@@ -92,7 +94,23 @@ def collect_results() -> dict[str, object]:
         total_seconds = 0.0
         max_cell_seconds = 0.0
 
-        for strategy in ("unmanaged", "tombstone", "aggressive"):
+        started = time.perf_counter()
+        space_measurement = measure_space_dmd(spec.func, spec.args_factory())
+        wall_seconds = time.perf_counter() - started
+        space_measurement["wall_seconds"] = round(wall_seconds, 4)
+        total_seconds += wall_seconds
+        max_cell_seconds = max(max_cell_seconds, wall_seconds)
+        overall_max_cell = max(overall_max_cell, wall_seconds)
+
+        started = time.perf_counter()
+        manual_measurement = measure_manual_2d(spec.key)
+        wall_seconds = time.perf_counter() - started
+        manual_measurement["wall_seconds"] = round(wall_seconds, 4)
+        total_seconds += wall_seconds
+        max_cell_seconds = max(max_cell_seconds, wall_seconds)
+        overall_max_cell = max(overall_max_cell, wall_seconds)
+
+        for strategy in ("unmanaged", "aggressive"):
             started = time.perf_counter()
             measurement = measure_function(spec.func, spec.args_factory(), strategy=strategy)
             wall_seconds = time.perf_counter() - started
@@ -107,13 +125,15 @@ def collect_results() -> dict[str, object]:
             "algorithm": spec.label,
             "workload": spec.workload,
             "notes": spec.notes,
-            TARGET: int(strategy_data["tombstone"]["cost_discrete"]),
-            CLASSIC: int(strategy_data["unmanaged"]["cost_discrete"]),
+            SPACE: int(space_measurement["cost_discrete"]),
             LIVE: int(strategy_data["aggressive"]["cost_discrete"]),
+            TARGET: int(manual_measurement["cost_discrete"]),
+            CLASSIC: int(strategy_data["unmanaged"]["cost_discrete"]),
             "cell_seconds": {
-                TARGET: strategy_data["tombstone"]["wall_seconds"],
-                CLASSIC: strategy_data["unmanaged"]["wall_seconds"],
+                SPACE: space_measurement["wall_seconds"],
                 LIVE: strategy_data["aggressive"]["wall_seconds"],
+                TARGET: manual_measurement["wall_seconds"],
+                CLASSIC: strategy_data["unmanaged"]["wall_seconds"],
             },
             "max_cell_seconds": round(max_cell_seconds, 4),
             "total_traced_seconds": round(total_seconds, 4),
@@ -185,7 +205,7 @@ def render_report(results: dict[str, object]) -> str:
     lines = [
         "# Heuristic Grid for ByteDMD-Style Metrics",
         "",
-        "This experiment compares a concrete no-free-compaction 2D cost against the two abstract ByteDMD heuristics on a small suite of workloads.",
+        "This experiment compares a concrete no-free-compaction 2D cost against SpaceDMD and the two abstract ByteDMD heuristics on a small suite of workloads.",
         "",
         f"Every traced metric cell finished under {overall_max_cell:.3f} seconds on this run.",
         "",
@@ -195,9 +215,14 @@ def render_report(results: dict[str, object]) -> str:
         "",
         "## Measures",
         "",
-        f"- `{TARGET}`: the concrete tombstone/no-compaction 2D cost used as the target.",
-        f"- `{CLASSIC}`: graveyard model with no reclamation.",
+        f"- `{SPACE}`: density-ranked spatial liveness, following the April 17, 2026 gist heuristic for ahead-of-time static pinning.",
         f"- `{LIVE}`: aggressive live-only compaction.",
+        f"- `{TARGET}`: hand-scheduled fixed-address implementations under the 2D `ceil(sqrt(addr))` cost model.",
+        f"- `{CLASSIC}`: graveyard model with no reclamation.",
+        "",
+        "The `Manual-2D` column uses explicit fixed-address kernels rather than the tombstone allocator. Traversal-only variants can collapse when they read the same fixed addresses exactly once; scratch-heavy kernels separate much more strongly.",
+        "",
+        "SpaceDMD globally ranks variables by access density (`access_count / lifespan`) and then charges each read by that variable's rank among the currently live variables.",
         "",
         "Attention uses proxy `max`, `exp`, and reciprocal operators with the same read arity as the real kernels, so the table focuses on data movement rather than numerical fidelity.",
         "",
@@ -229,7 +254,7 @@ def main() -> None:
     results_path = out_dir / "results.json"
     results_path.write_text(json.dumps(results, indent=2))
 
-    report_path = out_dir / "report.md"
+    report_path = out_dir / "README.md"
     report_path.write_text(render_report(results))
 
     print(f"Saved {results_path}")
