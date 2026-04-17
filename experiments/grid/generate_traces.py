@@ -68,7 +68,7 @@ def main() -> None:
             man.set_allocator(None)
 
         out_path = os.path.join(traces_dir, f"{slug}.png")
-        title = f"{name}  —  {len(logged.log):,} accesses, cost = {logged.cost:,}"
+        title = f"{name}  —  cost = {logged.cost:,}"
         plot_trace(logged.log, title, out_path)
         rel = os.path.relpath(out_path, HERE)
         print(f"{name:<40} {len(logged.log):>10,} {logged.cost:>12,}  {rel}")
