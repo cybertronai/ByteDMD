@@ -519,35 +519,36 @@ def manual_matvec_row(n: int) -> int:
 
 
 def manual_matvec_blocked(n: int, B: int = 4) -> int:
-    """Blocked matvec with streaming-A and x-tile scratchpad, per
-    gemini/efficient-matvec.md. Layout:
-      addrs 1..B        : B accumulators s[0..B-1]
-      addrs B+1..2B     : x_tile (B-slot scratchpad)
-      addr  2B+1        : tmp (A·x product)
-      addr  2B+2        : A_stream — single streaming FIFO port
-      addrs 2B+3..2B+n+2: x_main (cold bulk for x)
-    A is never statically stored in the spatial grid; every read of
-    an A element goes to the same A_stream address."""
+    """Blocked matvec with x-tile scratchpad. A is placed as a full
+    n×n slab in the spatial grid — every A[i][j] read pays
+    ceil(sqrt(its actual address)) under the 2D cache model. Layout:
+      addrs 1..B                 : B accumulators s[0..B-1]
+      addrs B+1..2B              : x_tile (hot B-slot scratchpad)
+      addr  2B+1                 : tmp (A·x intermediate)
+      addrs 2B+2..2B+n+1         : x_main (cold bulk for x)
+      addrs 2B+n+2..2B+n+1+n*n   : A (n×n slab)
+    The only blocking benefit here is reusing the x-slice in x_tile
+    across B rows — A's per-cell cost is unchanged from matvec_row."""
     a = _alloc()
-    s = [a.alloc(1) for _ in range(B)]            # 1..B
-    x_tile = a.alloc(B)                            # B+1..2B
-    tmp = a.alloc(1)                               # 2B+1
-    A_stream = a.alloc(1)                          # 2B+2
-    x_main = a.alloc(n)                            # 2B+3..2B+n+2
+    s = [a.alloc(1) for _ in range(B)]
+    x_tile = a.alloc(B)
+    tmp = a.alloc(1)
+    x_main = a.alloc(n)
+    A = a.alloc(n * n)
 
     for i_out in range(0, n, B):
         for j_out in range(0, n, B):
-            # DMA-load x tile from x_main → x_tile (writes free)
+            # DMA-load x slice from x_main → x_tile (writes free; read x_main)
             for j in range(B):
                 a.touch(x_main + j_out + j)
-            # B×B MAC, streaming A through a single port
+            # B×B MAC: A from its real spatial address, x from hot tile
             for i in range(B):
                 for j in range(B):
-                    a.touch(A_stream)              # stream next A element
-                    a.touch(x_tile + j)            # hot x tile read
+                    a.touch(A + (i_out + i) * n + (j_out + j))
+                    a.touch(x_tile + j)
                     if j_out != 0 or j != 0:
-                        a.touch(s[i])              # read accumulator
-                    a.touch(tmp)                   # read A*x product
+                        a.touch(s[i])
+                    a.touch(tmp)
         # Flush accumulators to y (reads of s, writes of y are free)
         for i in range(B):
             a.touch(s[i])
