@@ -56,6 +56,12 @@ def rect(rows: int, cols: int, val: float = 1.0) -> List[List[float]]:
 def vec(n: int, val: float = 1.0) -> List[float]:
     return [val] * n
 
+def cube(d0: int, d1: int, d2: int, val: float = 1.0):
+    return [[[val] * d2 for _ in range(d1)] for _ in range(d0)]
+
+def tensor4(d0: int, d1: int, d2: int, d3: int, val: float = 1.0):
+    return [[[[val] * d3 for _ in range(d2)] for _ in range(d1)] for _ in range(d0)]
+
 
 # Sizes
 N_MM = 16            # matrix size for matmul family
@@ -65,6 +71,8 @@ N_ATT, D_ATT, BK = 32, 2, 8  # attention
 N_FFT = 32           # FFT input length (power of 2)
 N_STENCIL = 32       # stencil grid side
 LEAF_STENCIL = 8     # tile-recursion base size
+H_SP, W_SP, K_SP = 32, 32, 5           # spatial (single-channel) convolution
+H_CV, W_CV, K_CV, CIN, COUT = 16, 16, 3, 4, 4   # regular (multi-channel) conv
 
 # Each algorithm is (display_name, traced_fn, traced_args, manual_cost_fn)
 ALGOS: List[Tuple[str, Callable, Tuple, Callable[[], int]]] = [
@@ -115,6 +123,14 @@ ALGOS: List[Tuple[str, Callable, Tuple, Callable[[], int]]] = [
         lambda A: alg.stencil_recursive(A, leaf=LEAF_STENCIL),
         (mat(N_STENCIL),),
         lambda: man.manual_stencil_recursive(N_STENCIL, leaf=LEAF_STENCIL)),
+    (f"spatial_conv({H_SP}x{W_SP},K={K_SP})",
+        alg.spatial_convolution,
+        (rect(H_SP, W_SP), rect(K_SP, K_SP)),
+        lambda: man.manual_spatial_convolution(H_SP, W_SP, K_SP)),
+    (f"regular_conv({H_CV}x{W_CV},K={K_CV},Cin={CIN},Cout={COUT})",
+        alg.regular_convolution,
+        (cube(H_CV, W_CV, CIN), tensor4(K_CV, K_CV, CIN, COUT)),
+        lambda: man.manual_regular_convolution(H_CV, W_CV, K_CV, CIN, COUT)),
 ]
 
 

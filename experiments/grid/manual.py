@@ -617,3 +617,50 @@ def manual_stencil_recursive(n: int, leaf: int = 8) -> int:
 
     rec(0, 0, n)
     return a.cost
+
+
+# ============================================================================
+# Convolution
+# ============================================================================
+
+def manual_spatial_convolution(H: int, W: int, K: int) -> int:
+    """2D single-channel convolution. Accumulator s and the K*K kernel Wk
+    live at the lowest addresses (hot); the H*W image is the cold bulk.
+    Per output cell: 1 accumulator read + K*K * (image read + kernel read)."""
+    a = Allocator()
+    s = a.alloc(1)
+    Wk = a.alloc(K * K)
+    img = a.alloc(H * W)
+    out_h = H - K + 1
+    out_w = W - K + 1
+    for i in range(out_h):
+        for j in range(out_w):
+            a.touch(s)
+            for ki in range(K):
+                for kj in range(K):
+                    a.touch(img + (i + ki) * W + (j + kj))
+                    a.touch(Wk + ki * K + kj)
+    return a.cost
+
+
+def manual_regular_convolution(H: int, W: int, K: int, Cin: int, Cout: int) -> int:
+    """Full multi-channel CNN layer. Layout: s (1) | Wk (K*K*Cin*Cout) |
+    img (H*W*Cin). Image channel-inner-most, kernel channel-pair inner-most.
+    Per output cell: 1 accumulator read + K*K*Cin*Cout * (image + kernel)
+    for each of Cout output channels."""
+    a = Allocator()
+    s = a.alloc(1)
+    Wk = a.alloc(K * K * Cin * Cout)
+    img = a.alloc(H * W * Cin)
+    out_h = H - K + 1
+    out_w = W - K + 1
+    for i in range(out_h):
+        for j in range(out_w):
+            for co in range(Cout):
+                a.touch(s)
+                for ki in range(K):
+                    for kj in range(K):
+                        for ci in range(Cin):
+                            a.touch(img + ((i + ki) * W + (j + kj)) * Cin + ci)
+                            a.touch(Wk + ((ki * K + kj) * Cin + ci) * Cout + co)
+    return a.cost

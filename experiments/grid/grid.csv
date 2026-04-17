@@ -14,3 +14,5 @@ fft_iterative(N=32),1646,788,2330
 fft_recursive(N=32),1461,2775,2468
 stencil_naive(32x32),44468,99276,92817
 "stencil_recursive(32x32,leaf=8)",37737,99276,85079
+"spatial_conv(32x32,K=5)",373936,527312,678749
+"regular_conv(16x16,K=3,Cin=4,Cout=4)",762860,963512,1289844

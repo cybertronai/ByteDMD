@@ -308,3 +308,51 @@ def stencil_recursive(A, leaf=8):
 
     rec(0, 0, n)
     return B
+
+
+# ============================================================================
+# Convolution
+# ============================================================================
+
+def spatial_convolution(A, Wk):
+    """2D single-channel convolution. A: HxW, Wk: KxK.
+    Output O: (H-K+1) x (W-K+1) with O[i][j] = sum_{ki,kj} A[i+ki][j+kj] * Wk[ki][kj]."""
+    H = len(A); Wd = len(A[0])
+    K = len(Wk)
+    out_h = H - K + 1
+    out_w = Wd - K + 1
+    O = [[None] * out_w for _ in range(out_h)]
+    for i in range(out_h):
+        for j in range(out_w):
+            acc = A[i][j] * Wk[0][0]
+            for ki in range(K):
+                for kj in range(K):
+                    if ki == 0 and kj == 0:
+                        continue
+                    acc = acc + A[i + ki][j + kj] * Wk[ki][kj]
+            O[i][j] = acc
+    return O
+
+
+def regular_convolution(A, Wk):
+    """Full multi-channel CNN layer.
+    A: H x W x Cin (nested list). Wk: K x K x Cin x Cout.
+    Output: (H-K+1) x (W-K+1) x Cout,
+      O[i][j][co] = sum_{ki,kj,ci} A[i+ki][j+kj][ci] * Wk[ki][kj][ci][co]."""
+    H = len(A); Wd = len(A[0]); Cin = len(A[0][0])
+    K = len(Wk); Cout = len(Wk[0][0][0])
+    out_h = H - K + 1
+    out_w = Wd - K + 1
+    O = [[[None] * Cout for _ in range(out_w)] for _ in range(out_h)]
+    for i in range(out_h):
+        for j in range(out_w):
+            for co in range(Cout):
+                acc = A[i][j][0] * Wk[0][0][0][co]
+                for ki in range(K):
+                    for kj in range(K):
+                        for ci in range(Cin):
+                            if ki == 0 and kj == 0 and ci == 0:
+                                continue
+                            acc = acc + A[i + ki][j + kj][ci] * Wk[ki][kj][ci][co]
+                O[i][j][co] = acc
+    return O
