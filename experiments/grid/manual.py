@@ -68,8 +68,10 @@ def _alloc() -> Allocator:
 # ============================================================================
 
 def manual_naive_matmul(n: int) -> int:
-    """Hand-placed naive triple loop. Accumulator s at addr 1; read once per
-    (i,j) outside the k-loop, 2 reads (A, B) per MAC."""
+    """Hand-placed naive triple loop computing C = A @ B^T.
+    C[i][j] = sum_k A[i][k] * B[j][k] — both A and B are traversed
+    row-major (contiguous) in the inner k-loop. Accumulator s at addr 1
+    (read once per (i,j)); 2 reads (A[i][k], B[j][k]) per MAC."""
     a = _alloc()
     s = a.alloc(1)
     A = a.alloc(n * n); B = a.alloc(n * n); C = a.alloc(n * n)
@@ -78,7 +80,7 @@ def manual_naive_matmul(n: int) -> int:
             a.touch(s)  # accumulator init read, once per (i,j)
             for k in range(n):
                 a.touch(A + i * n + k)
-                a.touch(B + k * n + j)
+                a.touch(B + j * n + k)   # row-major B (AB^T access)
             # write C[i][j] = s (free)
     return a.cost
 

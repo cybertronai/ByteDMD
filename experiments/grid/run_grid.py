@@ -34,7 +34,6 @@ from bytedmd_ir import (
     L2Event,
     bytedmd_classic,
     bytedmd_live,
-    matmul_naive,
     matmul_rmm,
     matmul_tiled,
     trace,
@@ -68,19 +67,19 @@ N_MM = 16            # matrix size for matmul family
 N_TR = 32            # size for transpose
 N_MV = 64            # size for matvec
 N_ATT, D_ATT, BK = 32, 2, 8  # attention
-N_FFT = 32           # FFT input length (power of 2)
+N_FFT = 256          # FFT input length (power of 2)
 N_STENCIL = 32       # stencil grid side
 LEAF_STENCIL = 8     # tile-recursion base size
 H_SP, W_SP, K_SP = 32, 32, 5           # spatial (single-channel) convolution
 H_CV, W_CV, K_CV, CIN, COUT = 16, 16, 3, 4, 4   # regular (multi-channel) conv
-N_FFTC = 32                              # FFT-accelerated 1D convolution
+N_FFTC = 256                             # FFT-accelerated 1D convolution
 N_SORT = 64                              # mergesort input length
 M_LCS, N_LCS = 32, 32                    # LCS DP table (m+1) x (n+1)
 
 # Each algorithm is (display_name, traced_fn, traced_args, manual_cost_fn)
 ALGOS: List[Tuple[str, Callable, Tuple, Callable[[], int]]] = [
     (f"naive_matmul(n={N_MM})",
-        matmul_naive,              (mat(N_MM), mat(N_MM)),
+        alg.matmul_naive_abt,      (mat(N_MM), mat(N_MM)),
         lambda: man.manual_naive_matmul(N_MM)),
     (f"tiled_matmul(n={N_MM})",
         matmul_tiled,              (mat(N_MM), mat(N_MM)),
@@ -101,15 +100,6 @@ ALGOS: List[Tuple[str, Callable, Tuple, Callable[[], int]]] = [
         lambda Q, K, V: alg.flash_attention(Q, K, V, Bk=BK),
         (rect(N_ATT, D_ATT), rect(N_ATT, D_ATT), rect(N_ATT, D_ATT)),
         lambda: man.manual_flash_attention(N_ATT, D_ATT, BK)),
-    (f"transpose_naive(n={N_TR})",
-        alg.transpose_naive,       (mat(N_TR),),
-        lambda: man.manual_transpose_naive(N_TR)),
-    (f"transpose_blocked(n={N_TR})",
-        alg.transpose_blocked,     (mat(N_TR),),
-        lambda: man.manual_transpose_blocked(N_TR)),
-    (f"transpose_recursive(n={N_TR})",
-        alg.transpose_recursive,   (mat(N_TR),),
-        lambda: man.manual_transpose_recursive(N_TR)),
     (f"matvec_row(n={N_MV})",
         alg.matvec_row,            (mat(N_MV), vec(N_MV)),
         lambda: man.manual_matvec_row(N_MV)),

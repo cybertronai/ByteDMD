@@ -30,39 +30,41 @@ placement strategies:
 
 | algorithm                                                             | bytedmd_live | manual      | bytedmd_classic |
 |-----------------------------------------------------------------------|-------------:|------------:|----------------:|
-| [naive_matmul(n=16)](#naive_matmul)                                   |      107,178 |     128,304 |         178,324 |
+| [naive_matmul(n=16)](#naive_matmul)                                   |      107,675 |     128,304 |         178,716 |
 | [tiled_matmul(n=16)](#tiled_matmul)                                   |       74,560 |      86,030 |         143,280 |
 | [rmm(n=16)](#rmm)                                                     |       80,716 |      95,222 |         154,251 |
 | [naive_strassen(n=16)](#naive_strassen)                               |      173,919 |     282,382 |         353,901 |
 | [fused_strassen(n=16)](#fused_strassen)                               |      173,919 |     140,526 |         353,901 |
 | [naive_attn(N=32,d=2)](#naive_attn)                                   |      145,972 |     242,843 |         286,197 |
 | [flash_attn(N=32,d=2,Bk=8)](#flash_attn)                              |       97,856 |     137,184 |         167,803 |
-| [transpose_naive(n=32)](#transpose_naive)                             |       15,636 |      22,352 |          36,637 |
-| [transpose_blocked(n=32)](#transpose_blocked)                         |       16,654 |      22,352 |          37,206 |
-| [transpose_recursive(n=32)](#transpose_recursive)                     |       18,016 |      22,352 |          38,034 |
 | [matvec_row(n=64)](#matvec_row)                                       |      229,199 |     238,853 |         450,939 |
 | [matvec_col(n=64)](#matvec_col)                                       |      177,873 |     212,776 |         433,535 |
-| [fft_iterative(N=32)](#fft_iterative)                                 |        1,646 |         788 |           2,330 |
-| [fft_recursive(N=32)](#fft_recursive)                                 |        1,461 |       2,775 |           2,468 |
+| [fft_iterative(N=256)](#fft_iterative)                                |       44,212 |      25,528 |          68,311 |
+| [fft_recursive(N=256)](#fft_recursive)                                |       30,012 |     103,290 |          63,195 |
 | [stencil_naive(32x32)](#stencil_naive)                                |       44,468 |      99,276 |          92,817 |
 | [stencil_recursive(32x32,leaf=8)](#stencil_recursive)                 |       37,737 |      99,276 |          85,079 |
 | [spatial_conv(32x32,K=5)](#spatial_conv)                              |      373,936 |     527,312 |         678,749 |
 | [regular_conv(16x16,K=3,Cin=4,Cout=4)](#regular_conv)                 |      762,860 |     963,512 |       1,289,844 |
-| [fft_conv(N=32)](#fft_conv)                                           |        5,629 |       4,253 |           8,489 |
+| [fft_conv(N=256)](#fft_conv)                                          |      148,320 |     138,238 |         243,230 |
 | [mergesort(N=64)](#mergesort)                                         |        2,691 |       8,416 |           4,344 |
 | [lcs_dp(32x32)](#lcs_dp)                                              |       30,253 |      85,929 |          47,066 |
 
 ---
 
 ## naive_matmul
-`n=16`. **Algorithm.** Standard triple-nested-loop matrix multiplication:
-`C[i][j] = Σ_k A[i][k] · B[k][j]`. A is read row-major per output row; B
-sweeps column-major across `k`.
+`n=16`. **Algorithm.** Triple-nested-loop computing $C = A \cdot B^{\mathsf T}$:
+`C[i][j] = Σ_k A[i][k] · B[j][k]`. Both A and B are traversed row-major
+(contiguous) in the inner k-loop — the symmetric, cache-friendly twin
+of the standard AB variant.
 
 **Manual placement.** Accumulator `s` at addr 1 (hot scalar); then `A`,
 `B`, `C` laid out contiguously at addrs 2..n²+1, n²+2..2n²+1, 2n²+2..3n²+1.
 Each output cell reads `s` once outside the k-loop, then touches A[i][k]
-and B[k][j] per k-iteration. `C[i][j]` is written for free.
+and B[j][k] per k-iteration. `C[i][j]` is written for free. Cost in this
+fixed-placement model is identical to the AB variant (same set of
+addresses touched the same number of times) — only the LRU-recency
+heuristics distinguish them, and even there the differences are tiny
+because the two variants are symmetric.
 
 ![](traces/naive_matmul_n_16.png)
 
@@ -167,50 +169,6 @@ naive's 242k to 137k.
 
 ---
 
-## transpose_naive
-`n=32`. **Algorithm.** `B[i][j] = A[j][i]` in row-major sweep over B,
-which reads A in column-major (strided) order.
-
-**Manual placement.** A at addrs 1..n², B at n²+1..2n² (writes free). No
-scratchpad — in the fixed-address Manhattan model, blocking gives zero
-savings when each A cell is touched exactly once (the total
-`Σ ⌈√addr⌉` is order-independent). The recency-aware heuristics catch
-the stride penalty; manual cannot.
-
-![](traces/transpose_naive_n_32.png)
-
----
-
-## transpose_blocked
-`n=32, T=6`. **Algorithm.** Iterate over T×T blocks of B; within each
-block, the column-major A reads are still strided but stay within one
-narrow band of rows, improving hit rates on a real cache.
-
-**Manual placement.** Same A, B layout as naive — no scratchpad
-(redundant here: a copy-in/copy-out would double the touches without
-changing the `Σ ⌈√addr⌉` total). Only the access order changes, so
-manual cost equals the naive case; `bytedmd_classic` / `bytedmd_live`
-differ because their LRU stacks grow differently under block-order
-reads.
-
-![](traces/transpose_blocked_n_32.png)
-
----
-
-## transpose_recursive
-`n=32`. **Algorithm.** Cache-oblivious 4-way recursive split of both
-input and output quadrants, bottoming out at single elements.
-
-**Manual placement.** A at 1..n², B at n²+1..2n², no scratchpad — same
-reasoning as blocked. Recursion yields a Z-order (Morton) walk over A,
-which the recency heuristics like slightly less than naive's row-major
-and slightly more than blocked's tile-major, but all three manual costs
-collapse to the same 22,352.
-
-![](traces/transpose_recursive_n_32.png)
-
----
-
 ## matvec_row
 `n=64`. **Algorithm.** `y[i] = Σ_j A[i][j] · x[j]`, outer loop over `i`.
 A is read row-major (contiguous); `x` is re-read n times.
@@ -239,32 +197,36 @@ again, the sum is fixed.
 ---
 
 ## fft_iterative
-`N=32`. **Algorithm.** In-place iterative radix-2 Cooley–Tukey:
-bit-reverse permutation followed by `log₂N` stages of N/2 butterflies
+`N=256`. **Algorithm.** In-place iterative radix-2 Cooley–Tukey:
+bit-reverse permutation followed by `log₂N = 8` stages of N/2 butterflies
 each. Real twiddle stand-in (the ByteDMD cost depends only on the
 load pattern).
 
 **Manual placement.** Single N-slot array `x` at addrs 1..N — the entire
 working set lives in the hot region. No temps, no recursion, no bulk
-data region. Manual cost (788) is *below* `bytedmd_live` (1,646) — a
-cheap-placement win that recency heuristics can't anticipate.
+data region. Manual cost (25,528) is well *below* `bytedmd_live`
+(44,212) — a cheap-placement win that recency heuristics can't
+anticipate once the working set fits entirely at low addresses.
 
-![](traces/fft_iterative_n_32.png)
+![](traces/fft_iterative_n_256.png)
 
 ---
 
 ## fft_recursive
-`N=32`. **Algorithm.** Out-of-place recursive radix-2 Cooley–Tukey:
+`N=256`. **Algorithm.** Out-of-place recursive radix-2 Cooley–Tukey:
 split into even/odd halves, recurse, then combine with twiddles.
 
 **Manual placement.** Top-level `x` at 1..N; each recursion level uses
 `push/pop` to allocate fresh `even` and `odd` buffers (size N/2 each)
 just above the pointer. The allocator climbs during recursion (peak
-~2N), so deeper levels pay `⌈√addr⌉` at higher addrs. The temps also
-push manual cost above `bytedmd_classic` (2,775 vs 2,468) — stack
-discipline alone can't match liveness-aware LRU at this scale.
+~2N slots = 512), so deeper levels pay `⌈√addr⌉` at much higher addrs
+than iterative does. At N=256 the gap widens dramatically — manual
+(103,290) is now **4× `bytedmd_iterative` manual (25,528)** and above
+`bytedmd_classic` (63,195), because stack discipline alone cannot
+match the aggressive recency-based compaction of live-only LRU when
+log₂N is large.
 
-![](traces/fft_recursive_n_32.png)
+![](traces/fft_recursive_n_256.png)
 
 ---
 
@@ -325,17 +287,19 @@ position.
 ---
 
 ## fft_conv
-`N=32`. **Algorithm.** 1D circular convolution via FFT:
+`N=256`. **Algorithm.** 1D circular convolution via FFT:
 `IFFT(FFT(x) · FFT(y))`. Two forward FFTs, an N-element pointwise
 multiply, and one inverse FFT.
 
 **Manual placement.** Three N-slot arrays `X, Y, Z` at addrs 1..3N in
 the hot region; each FFT runs in-place on its own array. Total cost is
-≈ 3× the iterative FFT cost plus the pointwise multiply. Note manual
-(4,253) is below `bytedmd_live` (5,629) — the tight in-place FFT
-layout is cheaper than any trace-only LRU estimate.
+≈ 3× the iterative FFT cost plus the pointwise multiply. Manual
+(138,238) is slightly below `bytedmd_live` (148,320) — the tight
+in-place FFT layout still wins over any trace-only LRU estimate,
+though the margin narrows at N=256 because the 3N hot region is no
+longer negligibly small.
 
-![](traces/fft_conv_n_32.png)
+![](traces/fft_conv_n_256.png)
 
 ---
 

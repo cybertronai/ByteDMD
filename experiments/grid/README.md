@@ -13,20 +13,19 @@ approximates the total energy `∑ ceil(sqrt(addr))` over all memory touches.
 
 ## Axes
 
-**Rows — algorithms** (20 total):
+**Rows — algorithms**:
 
-| family       | variants                                                     |
-|--------------|--------------------------------------------------------------|
-| matmul       | naive, tiled, rmm (cache-oblivious), fused_strassen (ZAFS)   |
-| attention    | naive, flash (Bk-block online softmax)                       |
-| transpose    | naive (column-major read), blocked, recursive (CO)           |
-| matvec       | row-major, column-major                                      |
-| FFT          | iterative (in-place), recursive (out-of-place)               |
-| stencil      | naive row-major sweep, tile-recursive (leaf=8)               |
-| convolution  | spatial (single-channel 2D), regular (multi-channel CNN)     |
-| FFT-conv     | N-point circular convolution via two FFTs + pointwise + IFFT |
-| sort         | mergesort (data-oblivious merge stand-in)                    |
-| DP           | LCS dynamic programming (branch-free recurrence)             |
+| family       | variants                                                        |
+|--------------|-----------------------------------------------------------------|
+| matmul       | naive (AB^T), tiled, rmm (cache-oblivious), naive_strassen, fused_strassen (ZAFS) |
+| attention    | naive, flash (Bk-block online softmax)                          |
+| matvec       | row-major, column-major                                         |
+| FFT          | iterative (in-place), recursive (out-of-place), N=256           |
+| stencil      | naive row-major sweep, tile-recursive (leaf=8)                  |
+| convolution  | spatial (single-channel 2D), regular (multi-channel CNN)        |
+| FFT-conv     | N=256 circular convolution via two FFTs + pointwise + IFFT      |
+| sort         | mergesort (data-oblivious merge stand-in)                       |
+| DP           | LCS dynamic programming (branch-free recurrence)                |
 
 Only `fused_strassen` (Zero-Allocation Fused Strassen / ZAFS) is shown for
 the Strassen family — its abstract arithmetic DAG is identical to standard
@@ -67,13 +66,6 @@ descriptions, manual allocation strategies, and embedded memory traces.
 
 ## Notes
 
-- **Transpose is degenerate in the fixed-address Manhattan model**: every
-  A-cell is touched exactly once, so naive, blocked, and recursive all
-  produce the same manual cost (22352 at n=32). The *recency-aware*
-  heuristics (`bytedmd_classic`, `bytedmd_live`) are what distinguish
-  transpose variants — their LRU stacks grow differently under row-major
-  vs block-order access. This is the clearest signal that the Manhattan
-  model is a **placement** cost, not a **scheduling** cost.
 - Hot-slot allocation matters a lot for `matvec`: putting accumulator `y`
   and input `x` at addresses 1..2n cuts manual cost roughly in half
   compared to the default order.

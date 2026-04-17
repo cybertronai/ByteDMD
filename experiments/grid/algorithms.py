@@ -35,6 +35,21 @@ def _subm(A, B):
     return [[A[i][j] - B[i][j] for j in range(n)] for i in range(n)]
 
 
+def matmul_naive_abt(A, B):
+    """Naive triple loop computing C = A @ B^T, i.e.,
+    C[i][j] = sum_k A[i][k] * B[j][k]. Both A and B are read row-major
+    (contiguous) in the inner k-loop — the cache-friendly variant."""
+    n = len(A)
+    C = [[None] * n for _ in range(n)]
+    for i in range(n):
+        for j in range(n):
+            s = A[i][0] * B[j][0]
+            for k in range(1, n):
+                s = s + A[i][k] * B[j][k]
+            C[i][j] = s
+    return C
+
+
 def matmul_strassen(A, B):
     n = len(A)
     if n == 1:
