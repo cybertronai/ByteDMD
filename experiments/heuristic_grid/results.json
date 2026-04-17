@@ -1,0 +1,257 @@
+{
+  "algorithms": [
+    {
+      "key": "matvec-32",
+      "algorithm": "Matvec",
+      "workload": "32x32 by 32",
+      "notes": "row-wise matrix-vector baseline",
+      "Manual-2D": 47951,
+      "ByteDMD-classic": 62694,
+      "ByteDMD-live": 46926,
+      "Reads\u00d7sqrt(Peak)": 137088,
+      "Reads": 4032,
+      "Peak live slots": 1090,
+      "FLOPs": 2016,
+      "cell_seconds": {
+        "Manual-2D": 0.0715,
+        "ByteDMD-classic": 0.1109,
+        "ByteDMD-live": 0.0569
+      },
+      "max_cell_seconds": 0.1109,
+      "total_traced_seconds": 0.2393
+    },
+    {
+      "key": "vecmat-32",
+      "algorithm": "Vecmat",
+      "workload": "32 by 32x32",
+      "notes": "column-oriented access order",
+      "Manual-2D": 43860,
+      "ByteDMD-classic": 59331,
+      "ByteDMD-live": 42795,
+      "Reads\u00d7sqrt(Peak)": 137088,
+      "Reads": 4032,
+      "Peak live slots": 1090,
+      "FLOPs": 2016,
+      "cell_seconds": {
+        "Manual-2D": 0.0709,
+        "ByteDMD-classic": 0.1008,
+        "ByteDMD-live": 0.0677
+      },
+      "max_cell_seconds": 0.1008,
+      "total_traced_seconds": 0.2395
+    },
+    {
+      "key": "naive-matmul-16",
+      "algorithm": "Naive Matmul",
+      "workload": "16x16",
+      "notes": "standard i-j-k triple loop",
+      "Manual-2D": 121869,
+      "ByteDMD-classic": 178324,
+      "ByteDMD-live": 117935,
+      "Reads\u00d7sqrt(Peak)": 444416,
+      "Reads": 15872,
+      "Peak live slots": 770,
+      "FLOPs": 7936,
+      "cell_seconds": {
+        "Manual-2D": 0.1149,
+        "ByteDMD-classic": 0.2216,
+        "ByteDMD-live": 0.1067
+      },
+      "max_cell_seconds": 0.2216,
+      "total_traced_seconds": 0.4432
+    },
+    {
+      "key": "tiled-matmul-16",
+      "algorithm": "Tiled Matmul",
+      "workload": "16x16, tile=4",
+      "notes": "one explicit blocking level",
+      "Manual-2D": 96306,
+      "ByteDMD-classic": 143280,
+      "ByteDMD-live": 88687,
+      "Reads\u00d7sqrt(Peak)": 444416,
+      "Reads": 15872,
+      "Peak live slots": 771,
+      "FLOPs": 7936,
+      "cell_seconds": {
+        "Manual-2D": 0.0769,
+        "ByteDMD-classic": 0.244,
+        "ByteDMD-live": 0.0643
+      },
+      "max_cell_seconds": 0.244,
+      "total_traced_seconds": 0.3851
+    },
+    {
+      "key": "rmm-16",
+      "algorithm": "Recursive Matmul",
+      "workload": "16x16",
+      "notes": "8-way cache-oblivious recursion",
+      "Manual-2D": 106395,
+      "ByteDMD-classic": 154251,
+      "ByteDMD-live": 95462,
+      "Reads\u00d7sqrt(Peak)": 476160,
+      "Reads": 15872,
+      "Peak live slots": 896,
+      "FLOPs": 7936,
+      "cell_seconds": {
+        "Manual-2D": 0.0944,
+        "ByteDMD-classic": 0.2255,
+        "ByteDMD-live": 0.0754
+      },
+      "max_cell_seconds": 0.2255,
+      "total_traced_seconds": 0.3954
+    },
+    {
+      "key": "rmm-lex-16",
+      "algorithm": "Recursive In-Place (Lex)",
+      "workload": "16x16",
+      "notes": "manual in-place schedule, lexicographic order",
+      "Manual-2D": 96130,
+      "ByteDMD-classic": 162049,
+      "ByteDMD-live": 91212,
+      "Reads\u00d7sqrt(Peak)": 458752,
+      "Reads": 16384,
+      "Peak live slots": 770,
+      "FLOPs": 7936,
+      "cell_seconds": {
+        "Manual-2D": 0.0749,
+        "ByteDMD-classic": 0.2789,
+        "ByteDMD-live": 0.072
+      },
+      "max_cell_seconds": 0.2789,
+      "total_traced_seconds": 0.4257
+    },
+    {
+      "key": "rmm-gray-16",
+      "algorithm": "Recursive In-Place (Gray)",
+      "workload": "16x16",
+      "notes": "manual in-place schedule, Gray-code order",
+      "Manual-2D": 89378,
+      "ByteDMD-classic": 155454,
+      "ByteDMD-live": 86402,
+      "Reads\u00d7sqrt(Peak)": 458752,
+      "Reads": 16384,
+      "Peak live slots": 770,
+      "FLOPs": 7936,
+      "cell_seconds": {
+        "Manual-2D": 0.0712,
+        "ByteDMD-classic": 0.2417,
+        "ByteDMD-live": 0.0676
+      },
+      "max_cell_seconds": 0.2417,
+      "total_traced_seconds": 0.3805
+    },
+    {
+      "key": "strassen-16",
+      "algorithm": "Strassen",
+      "workload": "16x16",
+      "notes": "leaf size 1 to expose temporary traffic",
+      "Manual-2D": 250051,
+      "ByteDMD-classic": 353207,
+      "ByteDMD-live": 204752,
+      "Reads\u00d7sqrt(Peak)": 1068970,
+      "Reads": 30542,
+      "Peak live slots": 1194,
+      "FLOPs": 15271,
+      "cell_seconds": {
+        "Manual-2D": 0.2084,
+        "ByteDMD-classic": 0.6163,
+        "ByteDMD-live": 0.157
+      },
+      "max_cell_seconds": 0.6163,
+      "total_traced_seconds": 0.9816
+    },
+    {
+      "key": "regular-attention-32x4",
+      "algorithm": "Regular Attention",
+      "workload": "N=32, d=4",
+      "notes": "materializes the full score matrix",
+      "Manual-2D": 320318,
+      "ByteDMD-classic": 474581,
+      "ByteDMD-live": 303850,
+      "Reads\u00d7sqrt(Peak)": 2072640,
+      "Reads": 40640,
+      "Peak live slots": 2565,
+      "FLOPs": 20320,
+      "cell_seconds": {
+        "Manual-2D": 0.3829,
+        "ByteDMD-classic": 0.9429,
+        "ByteDMD-live": 0.3797
+      },
+      "max_cell_seconds": 0.9429,
+      "total_traced_seconds": 1.7055
+    },
+    {
+      "key": "flash-attention-32x4",
+      "algorithm": "Flash Attention",
+      "workload": "N=32, d=4, Bq=8, Bk=4",
+      "notes": "double-tiled Q/KV blocks with snake KV order",
+      "Manual-2D": 234485,
+      "ByteDMD-classic": 335704,
+      "ByteDMD-live": 197629,
+      "Reads\u00d7sqrt(Peak)": 1218240,
+      "Reads": 45120,
+      "Peak live slots": 723,
+      "FLOPs": 22560,
+      "cell_seconds": {
+        "Manual-2D": 0.1312,
+        "ByteDMD-classic": 0.486,
+        "ByteDMD-live": 0.1207
+      },
+      "max_cell_seconds": 0.486,
+      "total_traced_seconds": 0.738
+    }
+  ],
+  "ranking": [
+    {
+      "metric": "ByteDMD-live",
+      "spearman_rho": 0.9878787878787879,
+      "scale_fit": 1.1095724291621605,
+      "scaled_mape": 0.06027031384778422
+    },
+    {
+      "metric": "ByteDMD-classic",
+      "spearman_rho": 0.9030303030303031,
+      "scale_fit": 0.6805630822248392,
+      "scaled_mape": 0.062317069207140585
+    },
+    {
+      "metric": "FLOPs",
+      "spearman_rho": 0.8952737857857515,
+      "scale_fit": 13.429806851752828,
+      "scaled_mape": 0.19730557025424464
+    },
+    {
+      "metric": "Reads\u00d7sqrt(Peak)",
+      "spearman_rho": 0.8379557545683967,
+      "scale_fit": 0.18270557018703465,
+      "scaled_mape": 0.22217650841859746
+    },
+    {
+      "metric": "Reads",
+      "spearman_rho": 0.759389481241052,
+      "scale_fit": 6.693573578427083,
+      "scaled_mape": 0.20436892364522713
+    },
+    {
+      "metric": "Peak live slots",
+      "spearman_rho": 0.14770978917519928,
+      "scale_fit": 127.5623308430187,
+      "scaled_mape": 0.5499136954935199
+    }
+  ],
+  "metric_columns": [
+    "Manual-2D",
+    "ByteDMD-classic",
+    "ByteDMD-live",
+    "Reads\u00d7sqrt(Peak)",
+    "Reads",
+    "Peak live slots",
+    "FLOPs"
+  ],
+  "traced_columns": [
+    "Manual-2D",
+    "ByteDMD-classic",
+    "ByteDMD-live"
+  ],
+  "overall_max_cell_seconds": 0.9429
+}
