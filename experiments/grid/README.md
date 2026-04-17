@@ -28,14 +28,14 @@ Strassen's, so the heuristic columns would be the same either way; only
 the `manual` column differs (M₁..M₇ are never materialized; their
 sub-additions are folded directly into the L1 tile loads).
 
-**Columns — metrics** (cheapest to most faithful):
+**Columns — metrics** (ordered lower-envelope → upper-envelope):
 
 | column            | meaning                                                           |
 |-------------------|-------------------------------------------------------------------|
-| `bytedmd_classic` | Mattson LRU stack-depth estimate (no liveness)                    |
-| `bytedmd_live`    | LRU with liveness compaction                                      |
-| `belady`          | offline-optimal allocator — best automatic placement              |
+| `bytedmd_live`    | LRU with liveness compaction (lower-envelope heuristic)           |
 | `manual`          | hand-placed schedule — **gold standard** per-algorithm reference  |
+| `belady`          | offline-optimal allocator — best automatic placement              |
+| `bytedmd_classic` | Mattson LRU stack-depth estimate, no liveness (upper-envelope)    |
 
 ## Manual placement
 

@@ -108,10 +108,13 @@ def belady_cost(events: Sequence[L2Event]) -> int:
     return cost(compile_belady(events))
 
 
-HEURISTICS: List[Tuple[str, Callable[[Sequence[L2Event]], int]]] = [
-    ("bytedmd_classic", bytedmd_classic),
+# Column order for the output table. "manual" is a sentinel — value comes
+# from ALGOS[i][3]() rather than from a trace-based heuristic.
+METRICS: List[Tuple[str, Callable[[Sequence[L2Event]], int] | None]] = [
     ("bytedmd_live",    bytedmd_live),
+    ("manual",          None),
     ("belady",          belady_cost),
+    ("bytedmd_classic", bytedmd_classic),
 ]
 
 
@@ -123,9 +126,9 @@ CELL_BUDGET_S = 10.0
 
 
 def main() -> None:
-    # Rows = algorithms, Cols = heuristics + manual.
+    # Rows = algorithms, Cols = metrics (heuristics + manual, in METRICS order).
     algo_names = [a[0] for a in ALGOS]
-    metric_names = [h[0] for h in HEURISTICS] + ["manual"]
+    metric_names = [m[0] for m in METRICS]
 
     # Pre-trace each algorithm once.
     traces: Dict[str, List[L2Event]] = {}
@@ -137,28 +140,19 @@ def main() -> None:
         traces[name] = events
 
     # Fill the grid: grid[algo_index][metric_index]
-    grid: List[List[int]] = [[0] * len(metric_names) for _ in ALGOS]
-    cell_time: List[List[float]] = [[0.0] * len(metric_names) for _ in ALGOS]
+    grid: List[List[int]] = [[0] * len(METRICS) for _ in ALGOS]
+    cell_time: List[List[float]] = [[0.0] * len(METRICS) for _ in ALGOS]
 
     for ri, (name, _, _, manual_fn) in enumerate(ALGOS):
         events = traces[name]
-        for ci, (hname, hfn) in enumerate(HEURISTICS):
+        for ci, (mname, mfn) in enumerate(METRICS):
             t0 = time.perf_counter()
-            val = hfn(events)
+            val = manual_fn() if mfn is None else mfn(events)
             dt = time.perf_counter() - t0
             grid[ri][ci] = int(val)
             cell_time[ri][ci] = dt
             if dt > CELL_BUDGET_S:
-                print(f"WARN cell ({name},{hname}) {dt:.2f}s > {CELL_BUDGET_S}s")
-        # manual column
-        ci = len(HEURISTICS)
-        t0 = time.perf_counter()
-        val = manual_fn()
-        dt = time.perf_counter() - t0
-        grid[ri][ci] = int(val)
-        cell_time[ri][ci] = dt
-        if dt > CELL_BUDGET_S:
-            print(f"WARN manual cell ({name}) {dt:.2f}s > {CELL_BUDGET_S}s")
+                print(f"WARN cell ({name},{mname}) {dt:.2f}s > {CELL_BUDGET_S}s")
 
     # --- Trace stats ---
     print("\nTrace sizes")
