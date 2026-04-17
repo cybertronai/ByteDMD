@@ -34,7 +34,7 @@ Instead of moving memory dynamically on every read, SpaceDMD simulates a perfect
 
 1. **Trace:** It evaluates the exact temporal lifespan (`first_read` to `last_read`) and the total `access_count` of every variable.
 
-2. **Calculate Density:** $\text{Density} = \text{access\_count} / \text{lifespan}$.
+2. **Calculate Density:** Density = `access_count / lifespan`.
 
 3. **Optimal Pinning:** Variables are globally sorted by Density. Highly reused scratchpads and Strassen temporaries automatically achieve astronomical densities, permanently securing Rank 1. Massive main-memory matrices receive lower priority and sit behind them.
 
