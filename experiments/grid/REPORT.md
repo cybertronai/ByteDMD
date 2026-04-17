@@ -33,6 +33,7 @@ placement strategies:
 | [naive_matmul(n=16)](#naive_matmul)                                   |      107,178 |     128,304 |         178,324 |
 | [tiled_matmul(n=16)](#tiled_matmul)                                   |       74,560 |      86,030 |         143,280 |
 | [rmm(n=16)](#rmm)                                                     |       80,716 |      95,222 |         154,251 |
+| [naive_strassen(n=16)](#naive_strassen)                               |      173,919 |     282,382 |         353,901 |
 | [fused_strassen(n=16)](#fused_strassen)                               |      173,919 |     140,526 |         353,901 |
 | [naive_attn(N=32,d=2)](#naive_attn)                                   |      145,972 |     242,843 |         286,197 |
 | [flash_attn(N=32,d=2,Bk=8)](#flash_attn)                              |       97,856 |     137,184 |         167,803 |
@@ -94,6 +95,27 @@ strassen_trace's cache semantic), so 7 of 8 consecutive base calls reload
 C while 1 skips the pre-fetch.
 
 ![](traces/rmm_n_16.png)
+
+---
+
+## naive_strassen
+`n=16, T=4`. **Algorithm.** Standard recursive Strassen: at each level
+split A and B into 2×2 quadrants and compute 7 matrix products
+$M_1 \ldots M_7$ (plus 10 matrix adds/subs), then assemble the 4 C
+quadrants from linear combinations of the M matrices. Bottoms out at
+T×T scratchpad tile kernels.
+
+**Manual placement.** Scratchpads `sA, sB, sC` at the lowest addresses;
+`A, B, C` bulk at addrs 3T²+1 onwards. Each recursion level uses
+`push/pop` to allocate **7 temporary M matrices plus 2 sum buffers SA,
+SB** just above the current allocator pointer — so the pointer climbs
+to ~9·h² extra slots per level before unwinding. Those M matrices are
+where the cost goes: every read of M[i] during the assembly phase pays
+full `⌈√addr⌉` on the stack-high region. Manual cost 282,382 is **2.01×
+higher than `fused_strassen`** (140,526) — the entire ZAFS win is the
+avoidance of these materialized intermediates.
+
+![](traces/naive_strassen_n_16.png)
 
 ---
 

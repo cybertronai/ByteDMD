@@ -2,6 +2,7 @@ algorithm,bytedmd_live,manual,bytedmd_classic
 naive_matmul(n=16),107178,128304,178324
 tiled_matmul(n=16),74560,86030,143280
 rmm(n=16),80716,95222,154251
+naive_strassen(n=16),173919,282382,353901
 fused_strassen(n=16),173919,140526,353901
 "naive_attn(N=32,d=2)",145972,242843,286197
 "flash_attn(N=32,d=2,Bk=8)",97856,137184,167803
