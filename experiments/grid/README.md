@@ -186,6 +186,10 @@ Median depth is 25, max is 512.
 
 ![](traces/naive_matmul_n_16_reuse_distance.png)
 
+**Working-set size over a τ = 537-event window** (max = 378).
+
+![](traces/naive_matmul_n_16_wss.png)
+
 ---
 
 ## tiled_matmul [(code)](scripts/tiled_matmul_n_16.py)
@@ -207,6 +211,10 @@ load C tile into sC; for each bk: load A/B tiles into sA/sB; MAC into sC
 **Reuse distance per load** (max = 512).
 
 ![](traces/tiled_matmul_n_16_reuse_distance.png)
+
+**Working-set size over a τ = 537-event window** (max = 355).
+
+![](traces/tiled_matmul_n_16_wss.png)
 
 ---
 
@@ -250,6 +258,10 @@ it has the same cost (86,030) — all three "explicit" / "manual" /
 
 ![](traces/tiled_matmul_explicit_n_16_t_4_reuse_distance.png)
 
+**Working-set size over a τ = 611-event window** (max = 378).
+
+![](traces/tiled_matmul_explicit_n_16_t_4_wss.png)
+
 ---
 
 ## rmm [(code)](scripts/rmm_n_16.py)
@@ -273,6 +285,10 @@ C while 1 skips the pre-fetch.
 **Reuse distance per load** (max = 522).
 
 ![](traces/rmm_n_16_reuse_distance.png)
+
+**Working-set size over a τ = 537-event window** (max = 400).
+
+![](traces/rmm_n_16_wss.png)
 
 ---
 
@@ -303,6 +319,10 @@ avoidance of these materialized intermediates.
 
 ![](traces/naive_strassen_n_16_reuse_distance.png)
 
+**Working-set size over a τ = 743-event window** (max = 558).
+
+![](traces/naive_strassen_n_16_wss.png)
+
 ---
 
 ## fused_strassen [(code)](scripts/fused_strassen_n_16.py)
@@ -328,6 +348,10 @@ matrices — the ZAFS win shows up entirely here in manual (140,526 vs
 
 ![](traces/fused_strassen_n_16_reuse_distance.png)
 
+**Working-set size over a τ = 743-event window** (max = 558).
+
+![](traces/fused_strassen_n_16_wss.png)
+
 ---
 
 ## naive_attn [(code)](scripts/naive_attn_n_32_d_2.py)
@@ -349,6 +373,10 @@ cost — every access pays `⌈√(addr ≈ N²)⌉`.
 **Reuse distance per load** (max = 1,059).
 
 ![](traces/naive_attn_n_32_d_2_reuse_distance.png)
+
+**Working-set size over a τ = 683-event window** (max = 328).
+
+![](traces/naive_attn_n_32_d_2_wss.png)
 
 ---
 
@@ -375,6 +403,10 @@ naive's 242k to 137k.
 
 ![](traces/flash_attn_n_32_d_2_bk_8_reuse_distance.png)
 
+**Working-set size over a τ = 683-event window** (max = 283).
+
+![](traces/flash_attn_n_32_d_2_bk_8_wss.png)
+
 ---
 
 ## matvec_row [(code)](scripts/matvec_row_n_64.py)
@@ -395,6 +427,10 @@ all of `x` sits in the hot region so its cost is amortized.
 **Reuse distance per load** (max = 4,160).
 
 ![](traces/matvec_row_n_64_reuse_distance.png)
+
+**Working-set size over a τ = 541-event window** (max = 302).
+
+![](traces/matvec_row_n_64_wss.png)
 
 ---
 
@@ -417,6 +453,10 @@ again, the sum is fixed.
 **Reuse distance per load** (max = 4,160).
 
 ![](traces/matvec_col_n_64_reuse_distance.png)
+
+**Working-set size over a τ = 541-event window** (max = 271).
+
+![](traces/matvec_col_n_64_wss.png)
 
 ---
 
@@ -455,6 +495,10 @@ address and be read exactly once.
 
 ![](traces/matvec_blocked_n_64_b_4_reuse_distance.png)
 
+**Working-set size over a τ = 568-event window** (max = 269).
+
+![](traces/matvec_blocked_n_64_b_4_wss.png)
+
 ---
 
 ## fft_iterative [(code)](scripts/fft_iterative_n_256.py)
@@ -478,6 +522,10 @@ anticipate once the working set fits entirely at low addresses.
 **Reuse distance per load** (max = 256).
 
 ![](traces/fft_iterative_n_256_reuse_distance.png)
+
+**Working-set size over a τ = 342-event window** (max = 282).
+
+![](traces/fft_iterative_n_256_wss.png)
 
 ---
 
@@ -506,6 +554,10 @@ butterfly passes + 1 output epilogue), and it even beats
 
 ![](traces/fft_recursive_n_256_reuse_distance.png)
 
+**Working-set size over a τ = 407-event window** (max = 301).
+
+![](traces/fft_recursive_n_256_wss.png)
+
 ---
 
 ## stencil_naive [(code)](scripts/stencil_naive_32x32.py)
@@ -526,6 +578,10 @@ pattern-independent.
 **Reuse distance per load** (max = 1,023).
 
 ![](traces/stencil_naive_32x32_reuse_distance.png)
+
+**Working-set size over a τ = 402-event window** (max = 402).
+
+![](traces/stencil_naive_32x32_wss.png)
 
 ---
 
@@ -551,6 +607,10 @@ effects only.
 
 ![](traces/stencil_recursive_32x32_leaf_8_reuse_distance.png)
 
+**Working-set size over a τ = 402-event window** (max = 402).
+
+![](traces/stencil_recursive_32x32_leaf_8_wss.png)
+
 ---
 
 ## spatial_conv [(code)](scripts/spatial_conv_32x32_k_5.py)
@@ -571,6 +631,10 @@ K² times.
 **Reuse distance per load** (max = 1,049).
 
 ![](traces/spatial_conv_32x32_k_5_reuse_distance.png)
+
+**Working-set size over a τ = 1,179-event window** (max = 937).
+
+![](traces/spatial_conv_32x32_k_5_wss.png)
 
 ---
 
@@ -593,6 +657,10 @@ position.
 **Reuse distance per load** (max = 1,168).
 
 ![](traces/regular_conv_16x16_k_3_cin_4_cout_4_reuse_distance.png)
+
+**Working-set size over a τ = 1,418-event window** (max = 1,058).
+
+![](traces/regular_conv_16x16_k_3_cin_4_cout_4_wss.png)
 
 ---
 
@@ -619,6 +687,10 @@ longer negligibly small.
 
 ![](traces/fft_conv_n_256_reuse_distance.png)
 
+**Working-set size over a τ = 597-event window** (max = 448).
+
+![](traces/fft_conv_n_256_wss.png)
+
 ---
 
 ## quicksort [(code)](scripts/quicksort_n_64.py)
@@ -644,6 +716,10 @@ the pivot at depth 1 after its first read inside the inner loop.
 **Reuse distance per load** (max = 64).
 
 ![](traces/quicksort_n_64_reuse_distance.png)
+
+**Working-set size over a τ = 118-event window** (max = 82).
+
+![](traces/quicksort_n_64_wss.png)
 
 ---
 
@@ -673,6 +749,10 @@ backbone of a pointer-less heap. `manual` (4,779) lands between
 
 ![](traces/heapsort_n_64_reuse_distance.png)
 
+**Working-set size over a τ = 165-event window** (max = 110).
+
+![](traces/heapsort_n_64_wss.png)
+
 ---
 
 ## mergesort [(code)](scripts/mergesort_n_64.py)
@@ -697,6 +777,10 @@ pointer high, and fixed placement pays full cost on every access.
 **Reuse distance per load** (max = 65).
 
 ![](traces/mergesort_n_64_reuse_distance.png)
+
+**Working-set size over a τ = 127-event window** (max = 86).
+
+![](traces/mergesort_n_64_wss.png)
 
 ---
 
@@ -724,6 +808,10 @@ upper envelope.
 
 ![](traces/lcs_dp_32x32_reuse_distance.png)
 
+**Working-set size over a τ = 421-event window** (max = 164).
+
+![](traces/lcs_dp_32x32_wss.png)
+
 ---
 
 ## lu_no_pivot [(code)](scripts/lu_no_pivot_n_32.py)
@@ -749,6 +837,10 @@ contribution is the trailing submatrix rank-1 loop.
 **Reuse distance per load** (max = 1,024).
 
 ![](traces/lu_no_pivot_n_32_reuse_distance.png)
+
+**Working-set size over a τ = 882-event window** (max = 882).
+
+![](traces/lu_no_pivot_n_32_wss.png)
 
 ---
 
@@ -780,6 +872,10 @@ costs more than the hot panel reads save at n=32, NB=8.
 
 ![](traces/blocked_lu_n_32_nb_8_reuse_distance.png)
 
+**Working-set size over a τ = 882-event window** (max = 882).
+
+![](traces/blocked_lu_n_32_nb_8_wss.png)
+
 ---
 
 ## recursive_lu [(code)](scripts/recursive_lu_n_32.py)
@@ -803,6 +899,10 @@ heuristics spread them differently.
 **Reuse distance per load** (max = 1,024).
 
 ![](traces/recursive_lu_n_32_reuse_distance.png)
+
+**Working-set size over a τ = 897-event window** (max = 897).
+
+![](traces/recursive_lu_n_32_wss.png)
 
 ---
 
@@ -828,6 +928,10 @@ real but modest, since the dominant cost remains the rank-1 update.
 
 ![](traces/lu_partial_pivot_n_32_reuse_distance.png)
 
+**Working-set size over a τ = 903-event window** (max = 903).
+
+![](traces/lu_partial_pivot_n_32_wss.png)
+
 ---
 
 ## cholesky [(code)](scripts/cholesky_n_32.py)
@@ -851,6 +955,10 @@ textbook "locality isolate" benchmark.
 **Reuse distance per load** (max = 1,024).
 
 ![](traces/cholesky_n_32_reuse_distance.png)
+
+**Working-set size over a τ = 649-event window** (max = 649).
+
+![](traces/cholesky_n_32_wss.png)
 
 ---
 
@@ -876,6 +984,10 @@ read-read-write" pattern.
 
 ![](traces/householder_qr_32x32_reuse_distance.png)
 
+**Working-set size over a τ = 1,258-event window** (max = 1,085).
+
+![](traces/householder_qr_32x32_wss.png)
+
 ---
 
 ## blocked_qr [(code)](scripts/blocked_qr_32x32_nb_8.py)
@@ -900,6 +1012,10 @@ pay off in the fixed-placement model at this size.
 **Reuse distance per load** (max = 1,024).
 
 ![](traces/blocked_qr_32x32_nb_8_reuse_distance.png)
+
+**Working-set size over a τ = 1,258-event window** (max = 1,085).
+
+![](traces/blocked_qr_32x32_nb_8_wss.png)
 
 ---
 
@@ -928,6 +1044,10 @@ the tall-skinny shape makes each local QR dominate less.
 
 ![](traces/tsqr_64x16_br_8_reuse_distance.png)
 
+**Working-set size over a τ = 1,024-event window** (max = 1,024).
+
+![](traces/tsqr_64x16_br_8_wss.png)
+
 ## transpose_naive [(code)](scripts/transpose_naive_n_32.py)
 `n=32`. **Algorithm.** `B[i][j] = A[j][i]` read column-major. The cache-thrashing baseline — every A-read jumps by `n` bytes.
 
@@ -942,6 +1062,10 @@ the tall-skinny shape makes each local QR dominate less.
 **Reuse distance per load** (max = 1,024).
 
 ![](traces/transpose_naive_n_32_reuse_distance.png)
+
+**Working-set size over a τ = 192-event window** (max = 192).
+
+![](traces/transpose_naive_n_32_wss.png)
 
 ---
 
@@ -960,6 +1084,10 @@ the tall-skinny shape makes each local QR dominate less.
 
 ![](traces/transpose_blocked_n_32_reuse_distance.png)
 
+**Working-set size over a τ = 192-event window** (max = 192).
+
+![](traces/transpose_blocked_n_32_wss.png)
+
 ---
 
 ## transpose_recursive [(code)](scripts/transpose_recursive_n_32.py)
@@ -976,6 +1104,10 @@ the tall-skinny shape makes each local QR dominate less.
 **Reuse distance per load** (max = 1,024).
 
 ![](traces/transpose_recursive_n_32_reuse_distance.png)
+
+**Working-set size over a τ = 192-event window** (max = 192).
+
+![](traces/transpose_recursive_n_32_wss.png)
 
 ---
 
@@ -994,6 +1126,10 @@ the tall-skinny shape makes each local QR dominate less.
 
 ![](traces/stencil_time_naive_16x16_t_4_reuse_distance.png)
 
+**Working-set size over a τ = 387-event window** (max = 306).
+
+![](traces/stencil_time_naive_16x16_t_4_wss.png)
+
 ---
 
 ## stencil_time_diamond [(code)](scripts/stencil_time_diamond_16x16_t_4.py)
@@ -1010,6 +1146,10 @@ the tall-skinny shape makes each local QR dominate less.
 **Reuse distance per load** (max = 383).
 
 ![](traces/stencil_time_diamond_16x16_t_4_reuse_distance.png)
+
+**Working-set size over a τ = 907-event window** (max = 558).
+
+![](traces/stencil_time_diamond_16x16_t_4_wss.png)
 
 ---
 
@@ -1028,6 +1168,10 @@ the tall-skinny shape makes each local QR dominate less.
 
 ![](traces/floyd_warshall_naive_v_16_reuse_distance.png)
 
+**Working-set size over a τ = 551-event window** (max = 368).
+
+![](traces/floyd_warshall_naive_v_16_wss.png)
+
 ---
 
 ## floyd_warshall_recursive [(code)](scripts/floyd_warshall_recursive_v_16.py)
@@ -1044,6 +1188,10 @@ the tall-skinny shape makes each local QR dominate less.
 **Reuse distance per load** (max = 256).
 
 ![](traces/floyd_warshall_recursive_v_16_reuse_distance.png)
+
+**Working-set size over a τ = 551-event window** (max = 368).
+
+![](traces/floyd_warshall_recursive_v_16_wss.png)
 
 ---
 
@@ -1062,6 +1210,10 @@ the tall-skinny shape makes each local QR dominate less.
 
 ![](traces/layernorm_unfused_n_256_reuse_distance.png)
 
+**Working-set size over a τ = 259-event window** (max = 258).
+
+![](traces/layernorm_unfused_n_256_wss.png)
+
 ---
 
 ## layernorm_fused [(code)](scripts/layernorm_fused_n_256.py)
@@ -1078,6 +1230,10 @@ the tall-skinny shape makes each local QR dominate less.
 **Reuse distance per load** (max = 258).
 
 ![](traces/layernorm_fused_n_256_reuse_distance.png)
+
+**Working-set size over a τ = 258-event window** (max = 257).
+
+![](traces/layernorm_fused_n_256_wss.png)
 
 ---
 
@@ -1096,6 +1252,10 @@ the tall-skinny shape makes each local QR dominate less.
 
 ![](traces/matrix_powers_naive_n_16_s_4_reuse_distance.png)
 
+**Working-set size over a τ = 268-event window** (max = 134).
+
+![](traces/matrix_powers_naive_n_16_s_4_wss.png)
+
 ---
 
 ## matrix_powers_ca [(code)](scripts/matrix_powers_ca_n_16_s_4.py)
@@ -1112,6 +1272,10 @@ the tall-skinny shape makes each local QR dominate less.
 **Reuse distance per load** (max = 287).
 
 ![](traces/matrix_powers_ca_n_16_s_4_reuse_distance.png)
+
+**Working-set size over a τ = 272-event window** (max = 133).
+
+![](traces/matrix_powers_ca_n_16_s_4_wss.png)
 
 ---
 
@@ -1130,6 +1294,10 @@ the tall-skinny shape makes each local QR dominate less.
 
 ![](traces/cholesky_left_looking_n_32_reuse_distance.png)
 
+**Working-set size over a τ = 670-event window** (max = 670).
+
+![](traces/cholesky_left_looking_n_32_wss.png)
+
 ---
 
 ## spmv_csr_banded [(code)](scripts/spmv_csr_banded_n_32_bw_3.py)
@@ -1146,6 +1314,10 @@ the tall-skinny shape makes each local QR dominate less.
 **Reuse distance per load** (max = 213).
 
 ![](traces/spmv_csr_banded_n_32_bw_3_reuse_distance.png)
+
+**Working-set size over a τ = 142-event window** (max = 79).
+
+![](traces/spmv_csr_banded_n_32_bw_3_wss.png)
 
 ---
 
@@ -1164,6 +1336,10 @@ the tall-skinny shape makes each local QR dominate less.
 
 ![](traces/spmv_csr_random_n_32_nnz_7_reuse_distance.png)
 
+**Working-set size over a τ = 146-event window** (max = 88).
+
+![](traces/spmv_csr_random_n_32_nnz_7_wss.png)
+
 ---
 
 ## bitonic_sort [(code)](scripts/bitonic_sort_n_64.py)
@@ -1180,6 +1356,10 @@ the tall-skinny shape makes each local QR dominate less.
 **Reuse distance per load** (max = 64).
 
 ![](traces/bitonic_sort_n_64_reuse_distance.png)
+
+**Working-set size over a τ = 251-event window** (max = 145).
+
+![](traces/bitonic_sort_n_64_wss.png)
 
 ---
 

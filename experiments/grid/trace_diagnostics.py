@@ -3,16 +3,20 @@
 # requires-python = ">=3.9"
 # dependencies = ["matplotlib"]
 # ///
-"""Two ByteDMD-live + two-stack diagnostic plots per algorithm in
+"""Three ByteDMD-live + two-stack diagnostic plots per algorithm in
 run_grid.ALGOS:
 
   <slug>_liveset.png           — live working-set size over time
   <slug>_reuse_distance.png    — LRU depth at each L2Load
+  <slug>_wss.png               — Denning-style working-set size over
+                                 time (sliding fixed-τ window)
 
-Both walk the L2 trace with the same Fenwick-tree semantics as
-bytedmd_ir._lru_cost (compaction + arg-stack first-touch promotion).
-Prints per-algorithm peak-live and max/median reuse distance so the
-numbers can be quoted in the README captions."""
+The first two walk the L2 trace with the same Fenwick-tree semantics
+as bytedmd_ir._lru_cost (compaction + arg-stack first-touch promotion).
+The WSS plot slides a fixed-τ window across the reference stream and
+counts distinct variables touched in each [t-τ+1, t] window — the
+cache-size lens on memory behaviour. Per-algorithm τ is picked via
+pick_wss_window(n_events) and printed in the caption."""
 from __future__ import annotations
 
 import os
@@ -127,6 +131,63 @@ def plot_liveset(times, sizes, title, out_path):
     plt.close(fig)
 
 
+def pick_wss_window(n_events: int) -> int:
+    """Choose a sliding-window size τ from the event-stream length.
+
+    Heuristic: τ = max(50, round(3 * sqrt(n_events))). This grows with
+    the problem but slowly enough that a 30-event algorithm is sampled
+    on a useful fraction of its runtime (~τ=50) while a 200 k-event
+    algorithm gets a τ≈1300 window that's still << the whole trace.
+    """
+    import math as _math
+    if n_events <= 0:
+        return 1
+    return max(50, round(3 * _math.sqrt(n_events)))
+
+
+def working_set_over_time(events, window):
+    """Denning's working-set: for each index t, report how many distinct
+    variables were referenced (L2Load or L2Store) in the inclusive
+    window [max(0, t - window + 1), t]. Each variable identity is one
+    'page'. Returns (times, sizes) sampled at every reference event."""
+    refs = [getattr(ev, "var", None) for ev in events]
+    counts = {}
+    current = 0
+    times, sizes = [], []
+    for i, v in enumerate(refs):
+        if v is not None:
+            if counts.get(v, 0) == 0:
+                current += 1
+            counts[v] = counts.get(v, 0) + 1
+        if i >= window:
+            old = refs[i - window]
+            if old is not None:
+                counts[old] -= 1
+                if counts[old] == 0:
+                    current -= 1
+                    del counts[old]
+        times.append(i); sizes.append(current)
+    return times, sizes
+
+
+def plot_wss(times, sizes, window, title, out_path):
+    fig, ax = plt.subplots(figsize=(11, 3.2))
+    ax.plot(times, sizes, color="tab:orange", linewidth=0.8,
+            drawstyle="steps-post", rasterized=True)
+    ax.fill_between(times, 0, sizes, color="tab:orange", alpha=0.18,
+                    linewidth=0, step="post", rasterized=True)
+    ax.set_xlabel(f"Access index (time, τ = {window:,}-event window)")
+    ax.set_ylabel("Distinct vars touched in last τ events")
+    ax.set_title(title)
+    ax.grid(True, alpha=0.3)
+    if times:
+        ax.set_xlim(0, times[-1] + 1)
+    ax.set_ylim(bottom=0)
+    fig.tight_layout()
+    fig.savefig(out_path, dpi=200, bbox_inches="tight")
+    plt.close(fig)
+
+
 def plot_reuse_distance(times, distances, title, out_path):
     fig, ax = plt.subplots(figsize=(11, 3.2))
     ax.scatter(times, distances, s=0.8, c="tab:purple", alpha=0.35,
@@ -148,15 +209,19 @@ def main() -> None:
     os.makedirs(traces_dir, exist_ok=True)
 
     print(f"{'algorithm':<42} {'events':>8} {'peak_live':>10} "
-          f"{'max_rd':>8} {'med_rd':>8}")
-    print("-" * 82)
-    summary: List[Tuple[str, str, int, int, int]] = []
+          f"{'max_rd':>8} {'med_rd':>8} {'wss_tau':>8} {'wss_max':>8}")
+    print("-" * 100)
+    summary = []
     for name, fn, args, _ in rg.ALGOS:
         events, input_vars = trace(fn, args)
         ls_t, ls_s, rd_t, rd_d = walk_live_and_reuse(events, input_vars)
         peak = max(ls_s) if ls_s else 0
         mx = max(rd_d) if rd_d else 0
         med = sorted(rd_d)[len(rd_d) // 2] if rd_d else 0
+
+        window = pick_wss_window(len(events))
+        wss_t, wss_s = working_set_over_time(events, window)
+        wss_max = max(wss_s) if wss_s else 0
 
         slug = slugify(name)
         plot_liveset(ls_t, ls_s,
@@ -166,17 +231,21 @@ def main() -> None:
             rd_t, rd_d,
             f"{name} — reuse distance per load (max = {mx:,})",
             os.path.join(traces_dir, f"{slug}_reuse_distance.png"))
-        summary.append((name, slug, peak, mx, med))
+        plot_wss(
+            wss_t, wss_s, window,
+            f"{name} — WSS over time (τ = {window:,}, max = {wss_max:,})",
+            os.path.join(traces_dir, f"{slug}_wss.png"))
+        summary.append((name, slug, peak, mx, med, window, wss_max))
         print(f"{name:<42} {len(events):>8,} {peak:>10,} "
-              f"{mx:>8,} {med:>8,}")
+              f"{mx:>8,} {med:>8,} {window:>8,} {wss_max:>8,}")
 
-    # Emit a small machine-readable summary so README captions can be
-    # regenerated without re-running the diagnostic walk.
     summary_path = os.path.join(HERE, "trace_diagnostics_summary.tsv")
     with open(summary_path, "w") as f:
-        f.write("name\tslug\tpeak_live\tmax_reuse\tmedian_reuse\n")
-        for name, slug, peak, mx, med in summary:
-            f.write(f"{name}\t{slug}\t{peak}\t{mx}\t{med}\n")
+        f.write("name\tslug\tpeak_live\tmax_reuse\tmedian_reuse"
+                "\twss_window\twss_max\n")
+        for name, slug, peak, mx, med, window, wss_max in summary:
+            f.write(f"{name}\t{slug}\t{peak}\t{mx}\t{med}"
+                    f"\t{window}\t{wss_max}\n")
     print(f"\nSaved summary: {summary_path}")
 
 
