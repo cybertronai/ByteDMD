@@ -34,9 +34,13 @@ def slugify(name: str) -> str:
 
 
 def plot_trace(log: list[int], writes: list[tuple[int, int]],
-               title: str, out_path: str) -> None:
+               peak: int, title: str, out_path: str) -> None:
+    """Reads plotted at their real addresses (tab:blue, below `peak`).
+    Writes are shifted up by `peak` so they occupy a dedicated
+    visualization band [peak, 2*peak] above the highest used byte —
+    matching the "outputs above peak" convention."""
     n = len(log)
-    fig, ax = plt.subplots(figsize=(11, 3.2))
+    fig, ax = plt.subplots(figsize=(11, 3.4))
     if n > 0:
         ax.scatter(
             np.arange(n), np.asarray(log),
@@ -46,12 +50,20 @@ def plot_trace(log: list[int], writes: list[tuple[int, int]],
         )
     if writes:
         wt, wa = zip(*writes)
+        # Shift write addresses above `peak` so reads and writes don't
+        # visually overlap — preserves each write's relative position
+        # within its slab.
+        wa_shifted = [peak + addr for addr in wa]
         ax.scatter(
-            wt, wa,
+            wt, wa_shifted,
             s=0.8, c="tab:orange", alpha=0.55,
             rasterized=True, linewidths=0,
-            label="write",
+            label="write (shifted +peak)",
         )
+        # Dashed horizontal line marking the boundary between the
+        # "real address" band (below) and the "phantom output" band (above).
+        ax.axhline(peak, color="gray", linestyle="--",
+                   linewidth=0.6, alpha=0.5)
     ax.set_xlabel("Access index (time)")
     ax.set_ylabel("Physical address")
     ax.set_title(title)
@@ -81,7 +93,7 @@ def main() -> None:
 
         out_path = os.path.join(traces_dir, f"{slug}.png")
         title = f"{name}  —  cost = {logged.cost:,}"
-        plot_trace(logged.log, logged.writes, title, out_path)
+        plot_trace(logged.log, logged.writes, logged.peak, title, out_path)
         rel = os.path.relpath(out_path, HERE)
         print(f"{name:<40} {len(logged.log):>10,} {len(logged.writes):>10,} "
               f"{logged.cost:>12,}  {rel}")
