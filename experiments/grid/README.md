@@ -148,7 +148,7 @@ DAGs are identical, so `bytedmd_live` / `bytedmd_classic` match — only
   ranking when the working set shifts over time.
 ---
 
-## naive_matmul
+## naive_matmul [(code)](scripts/naive_matmul_n_16.py)
 `n=16`. **Algorithm.** Triple-nested-loop computing $C = A \cdot B^{\mathsf T}$:
 `C[i][j] = Σ_k A[i][k] · B[j][k]`. Both A and B are traversed row-major
 (contiguous) in the inner k-loop — the symmetric, cache-friendly twin
@@ -188,7 +188,7 @@ Median depth is 25, max is 512.
 
 ---
 
-## tiled_matmul
+## tiled_matmul [(code)](scripts/tiled_matmul_n_16.py)
 `n=16, T=4`. **Algorithm.** One-level blocked matmul — iterate over
 `(bi, bj, bk)` tiles of size T×T, compute each inner tile with the triple
 loop. Same arithmetic as naive but in block-major order for locality.
@@ -210,7 +210,7 @@ load C tile into sC; for each bk: load A/B tiles into sA/sB; MAC into sC
 
 ---
 
-## tiled_matmul_explicit
+## tiled_matmul_explicit [(code)](scripts/tiled_matmul_explicit_n_16_t_4.py)
 `n=16, T=4`. **Algorithm.** Same arithmetic as `tiled_matmul` but with
 **explicit DMA materialization** in the trace: before each tile's MAC,
 `sA, sB, sC` are populated by `[... A[..] + 0.0 ...]` comprehensions
@@ -252,7 +252,7 @@ it has the same cost (86,030) — all three "explicit" / "manual" /
 
 ---
 
-## rmm
+## rmm [(code)](scripts/rmm_n_16.py)
 `n=16, T=4`. **Algorithm.** Cache-oblivious recursive matmul: split each
 of A, B, C into 4 quadrants and make 8 recursive calls (2×2×2 = 8
 sub-products in Hamiltonian order), descending until `sz = T` where the
@@ -276,7 +276,7 @@ C while 1 skips the pre-fetch.
 
 ---
 
-## naive_strassen
+## naive_strassen [(code)](scripts/naive_strassen_n_16.py)
 `n=16, T=4`. **Algorithm.** Standard recursive Strassen: at each level
 split A and B into 2×2 quadrants and compute 7 matrix products
 $M_1 \ldots M_7$ (plus 10 matrix adds/subs), then assemble the 4 C
@@ -305,7 +305,7 @@ avoidance of these materialized intermediates.
 
 ---
 
-## fused_strassen
+## fused_strassen [(code)](scripts/fused_strassen_n_16.py)
 `n=16, T=4`. **Algorithm.** Zero-Allocation Fused Strassen (ZAFS):
 single-level outer Strassen (7 matrix multiplies instead of 8) where the
 sub-additions (A₁₁+A₂₂, etc.) are evaluated **on-the-fly** while loading
@@ -330,7 +330,7 @@ matrices — the ZAFS win shows up entirely here in manual (140,526 vs
 
 ---
 
-## naive_attn
+## naive_attn [(code)](scripts/naive_attn_n_32_d_2.py)
 `N=32, d=2`. **Algorithm.** Standard attention: compute full N×N
 score matrix `S = Q·Kᵀ/√d`, row-wise softmax into `P`, then `O = P·V`.
 The whole N×N matrix is materialized in memory.
@@ -352,7 +352,7 @@ cost — every access pays `⌈√(addr ≈ N²)⌉`.
 
 ---
 
-## flash_attn
+## flash_attn [(code)](scripts/flash_attn_n_32_d_2_bk_8.py)
 `N=32, d=2, Bk=8`. **Algorithm.** Flash attention with online softmax
 over K/V blocks of size Bk: for each query row, stream blocks of K and
 V, compute block scores, update running `(m, l)` softmax stats, and
@@ -377,7 +377,7 @@ naive's 242k to 137k.
 
 ---
 
-## matvec_row
+## matvec_row [(code)](scripts/matvec_row_n_64.py)
 `n=64`. **Algorithm.** `y[i] = Σ_j A[i][j] · x[j]`, outer loop over `i`.
 A is read row-major (contiguous); `x` is re-read n times.
 
@@ -398,7 +398,7 @@ all of `x` sits in the hot region so its cost is amortized.
 
 ---
 
-## matvec_col
+## matvec_col [(code)](scripts/matvec_col_n_64.py)
 `n=64`. **Algorithm.** Outer loop over `j`: for each column of A, fold
 `A[i][j] · x[j]` into `y[i]`. A is read column-major (strided by n).
 
@@ -420,7 +420,7 @@ again, the sum is fixed.
 
 ---
 
-## matvec_blocked
+## matvec_blocked [(code)](scripts/matvec_blocked_n_64_b_4.py)
 `n=64, B=4`. **Algorithm.** Tile matvec into B×B sub-matrix blocks; for
 each tile, DMA-load the current B-slice of `x` into short-lived
 `x_tile` vars (`+ 0.0` idiom — forces real `L2Load/L2Store` events),
@@ -457,7 +457,7 @@ address and be read exactly once.
 
 ---
 
-## fft_iterative
+## fft_iterative [(code)](scripts/fft_iterative_n_256.py)
 `N=256`. **Algorithm.** In-place iterative radix-2 Cooley–Tukey:
 bit-reverse permutation followed by `log₂N = 8` stages of N/2 butterflies
 each. Real twiddle stand-in (the ByteDMD cost depends only on the
@@ -481,7 +481,7 @@ anticipate once the working set fits entirely at low addresses.
 
 ---
 
-## fft_recursive
+## fft_recursive [(code)](scripts/fft_recursive_n_256.py)
 `N=256`. **Algorithm.** Out-of-place recursive radix-2 Cooley–Tukey:
 split into even/odd halves, recurse, then combine with twiddles.
 
@@ -507,7 +507,7 @@ log₂N is large.
 
 ---
 
-## stencil_naive
+## stencil_naive [(code)](scripts/stencil_naive_32x32.py)
 `32×32, one sweep`. **Algorithm.** 5-point Jacobi row-major sweep:
 `B[i][j] = 0.2 · (A[i][j] + A[i±1][j] + A[i][j±1])` for interior cells.
 
@@ -528,7 +528,7 @@ pattern-independent.
 
 ---
 
-## stencil_recursive
+## stencil_recursive [(code)](scripts/stencil_recursive_32x32_leaf_8.py)
 `32×32, one sweep, leaf=8`. **Algorithm.** Quad-tree split of the 2D
 domain, naive sweep at leaf tiles of size 8×8. (Trapezoidal
 cache-oblivious stencil is not implemented — that form requires a time
@@ -552,7 +552,7 @@ effects only.
 
 ---
 
-## spatial_conv
+## spatial_conv [(code)](scripts/spatial_conv_32x32_k_5.py)
 `32×32, K=5`. **Algorithm.** Single-channel 2D convolution:
 `O[i][j] = Σ_{ki,kj} A[i+ki][j+kj] · W[ki][kj]`. Output is 28×28.
 
@@ -573,7 +573,7 @@ K² times.
 
 ---
 
-## regular_conv
+## regular_conv [(code)](scripts/regular_conv_16x16_k_3_cin_4_cout_4.py)
 `16×16, K=3, Cin=4, Cout=4`. **Algorithm.** Full multi-channel CNN
 layer: `O[i][j][co] = Σ_{ki,kj,ci} A[i+ki][j+kj][ci] · W[ki][kj][ci][co]`.
 
@@ -595,7 +595,7 @@ position.
 
 ---
 
-## fft_conv
+## fft_conv [(code)](scripts/fft_conv_n_256.py)
 `N=256`. **Algorithm.** 1D circular convolution via FFT:
 `IFFT(FFT(x) · FFT(y))`. Two forward FFTs, an N-element pointwise
 multiply, and one inverse FFT.
@@ -620,7 +620,7 @@ longer negligibly small.
 
 ---
 
-## quicksort
+## quicksort [(code)](scripts/quicksort_n_64.py)
 `N=64`. **Algorithm.** In-place recursive quicksort, data-oblivious
 partition stand-in (`_Tracked` has no `__lt__`). At each level, scan
 all sz-1 non-pivot elements, reading each with the pivot (2 reads,
@@ -646,7 +646,7 @@ the pivot at depth 1 after its first read inside the inner loop.
 
 ---
 
-## heapsort
+## heapsort [(code)](scripts/heapsort_n_64.py)
 `N=64`. **Algorithm.** Two phases on an implicit binary max-heap:
 **build** (sift-down from `n/2-1` down to 0 to establish the heap
 property) and **extract** (swap root with last, sift-down over
@@ -674,7 +674,7 @@ backbone of a pointer-less heap. `manual` (4,779) lands between
 
 ---
 
-## mergesort
+## mergesort [(code)](scripts/mergesort_n_64.py)
 `N=64`. **Algorithm.** Recursive mergesort. Merge is implemented as a
 data-oblivious stand-in (2 reads per output cell) since `_Tracked`
 doesn't implement `__lt__` — the access traffic matches a real
@@ -699,7 +699,7 @@ pointer high, and fixed placement pays full cost on every access.
 
 ---
 
-## lcs_dp
+## lcs_dp [(code)](scripts/lcs_dp_32x32.py)
 `m=n=32`. **Algorithm.** Longest-common-subsequence dynamic programming
 on an (m+1)×(n+1) table, row-major fill. Branch-free sum replaces the
 max/equality recurrence; access pattern matches canonical LCS:
@@ -725,7 +725,7 @@ upper envelope.
 
 ---
 
-## lu_no_pivot
+## lu_no_pivot [(code)](scripts/lu_no_pivot_n_32.py)
 `n=32`. **Algorithm.** Doolittle-style Gaussian elimination without
 pivoting. For each k: read pivot `A[k][k]`, scale subdiagonal
 column `A[k+1:,k]`, then rank-1 update the trailing submatrix
@@ -751,7 +751,7 @@ contribution is the trailing submatrix rank-1 loop.
 
 ---
 
-## blocked_lu
+## blocked_lu [(code)](scripts/blocked_lu_n_32_nb_8.py)
 `n=32, NB=8`. **Algorithm.** Block LU with four-step pattern per
 diagonal block: (a) factor the NB×NB block via naive LU; (b)
 triangular-solve the trailing column panel; (c) triangular-solve the
@@ -777,7 +777,7 @@ recoup it at n=32; the crossover would happen at larger n.
 
 ---
 
-## recursive_lu
+## recursive_lu [(code)](scripts/recursive_lu_n_32.py)
 `n=32`. **Algorithm.** Cache-oblivious divide-and-conquer: split A
 into 2×2 quadrants, factor A11 recursively, triangular-solve A12/A21,
 Schur-complement A22, recurse on A22. Equivalent FLOP count to the
@@ -801,7 +801,7 @@ heuristics spread them differently.
 
 ---
 
-## lu_partial_pivot
+## lu_partial_pivot [(code)](scripts/lu_partial_pivot_n_32.py)
 `n=32`. **Algorithm.** Same elimination as `lu_no_pivot` but each
 step first scans column k for the max-magnitude pivot and swaps that
 row into position. Data-oblivious stand-in: pretend the pivot is
@@ -825,7 +825,7 @@ real but modest, since the dominant cost remains the rank-1 update.
 
 ---
 
-## cholesky
+## cholesky [(code)](scripts/cholesky_n_32.py)
 `n=32`. **Algorithm.** Right-looking Cholesky for an SPD matrix:
 factor `A = L·Lᵀ` in place, reading only the lower triangle. For
 each k: stand-in-sqrt on `A[k][k]`, scale `A[k+1:, k]`, rank-1
@@ -849,7 +849,7 @@ textbook "locality isolate" benchmark.
 
 ---
 
-## householder_qr
+## householder_qr [(code)](scripts/householder_qr_32x32.py)
 `32×32`. **Algorithm.** Classical Householder QR: for each column k,
 compute a reflector from `A[k:m, k]`, apply it to each trailing
 column `A[k:m, k+1:n]` (dot-product then rank-1 update). Access
@@ -873,7 +873,7 @@ read-read-write" pattern.
 
 ---
 
-## blocked_qr
+## blocked_qr [(code)](scripts/blocked_qr_32x32_nb_8.py)
 `32×32, NB=8`. **Algorithm.** WY-form block Householder (simplified):
 factor an NB-column panel with classical Householder, then apply the
 accumulated block reflector to the trailing columns in one
@@ -898,7 +898,7 @@ pay off in the fixed-placement model at this size.
 
 ---
 
-## tsqr
+## tsqr [(code)](scripts/tsqr_64x16_br_8.py)
 `64×16, block_rows=8`. **Algorithm.** Communication-avoiding TSQR:
 split the tall 64×16 matrix into 8 row-tiles of 8 rows; factor each
 tile independently with local Householder QR; merge the resulting R
@@ -923,7 +923,7 @@ the tall-skinny shape makes each local QR dominate less.
 
 ![](traces/tsqr_64x16_br_8_reuse_distance.png)
 
-## transpose_naive
+## transpose_naive [(code)](scripts/transpose_naive_n_32.py)
 `n=32`. **Algorithm.** `B[i][j] = A[j][i]` read column-major. The cache-thrashing baseline — every A-read jumps by `n` bytes.
 
 **Manual placement.** A on arg stack, B on scratch; the per-cell arg-read cost dominates.
@@ -940,7 +940,7 @@ the tall-skinny shape makes each local QR dominate less.
 
 ---
 
-## transpose_blocked
+## transpose_blocked [(code)](scripts/transpose_blocked_n_32.py)
 `n=32, T=√n`. **Algorithm.** Blocked iteration over A — same reads as naive in block-major order.
 
 **Manual** matches naive layout; the heuristics reward the locality-friendly order only where LRU recency and density ranking can catch it.
@@ -957,7 +957,7 @@ the tall-skinny shape makes each local QR dominate less.
 
 ---
 
-## transpose_recursive
+## transpose_recursive [(code)](scripts/transpose_recursive_n_32.py)
 `n=32`. **Algorithm.** Cache-oblivious recursive transpose — split into 4 quadrants until `sz=1`.
 
 **Manual** again matches the same fixed A/B addresses; heuristic difference comes from the quadrant traversal order.
@@ -974,7 +974,7 @@ the tall-skinny shape makes each local QR dominate less.
 
 ---
 
-## stencil_time_naive
+## stencil_time_naive [(code)](scripts/stencil_time_naive_16x16_t_4.py)
 `n=16, T=4`. **Algorithm.** 4 full Jacobi sweeps, each reading the current grid and writing a fresh next-timestep buffer — naive communication-avoiding baseline.
 
 **Manual.** Input A preloaded to scratch `cur`, ping-pong with `nxt`. Every cell is re-touched T times from bulk scratch.
@@ -991,7 +991,7 @@ the tall-skinny shape makes each local QR dominate less.
 
 ---
 
-## stencil_time_diamond
+## stencil_time_diamond [(code)](scripts/stencil_time_diamond_16x16_t_4.py)
 `n=16, T=4, block=4`. **Algorithm.** Diamond tiling: per (bi,bj) block, load a halo-expanded region into a hot scratchpad and run all T steps locally before flushing.
 
 **Manual.** Reads are concentrated in the per-block buffer (low scratch addrs) for T steps, at the cost of O(block+2T)² redundant halo loads per block. On this small `n=16` grid the redundancy dominates — diamond is *more* expensive than naive, a known regime.
@@ -1008,7 +1008,7 @@ the tall-skinny shape makes each local QR dominate less.
 
 ---
 
-## floyd_warshall_naive
+## floyd_warshall_naive [(code)](scripts/floyd_warshall_naive_v_16.py)
 `V=16`. **Algorithm.** Standard 3-nested loop APSP: `D[i][j] = min(D[i][j], D[i][k] + D[k][j])` with branch-free stand-ins.
 
 **Manual.** Input graph preloaded to `D` on scratch; each (k,i,j) does 3 D-reads + 1 D-write — same access shape as naive matmul but with in-place update into D.
@@ -1025,7 +1025,7 @@ the tall-skinny shape makes each local QR dominate less.
 
 ---
 
-## floyd_warshall_recursive
+## floyd_warshall_recursive [(code)](scripts/floyd_warshall_recursive_v_16.py)
 `V=16`. **Algorithm.** Kleene's cache-oblivious APSP: 8 recursive quadrant calls per level.
 
 **Manual.** Same D buffer but quadrant-ordered traversal brings neighbouring reads closer in time — LRU heuristics pick up the win immediately.
@@ -1042,7 +1042,7 @@ the tall-skinny shape makes each local QR dominate less.
 
 ---
 
-## layernorm_unfused
+## layernorm_unfused [(code)](scripts/layernorm_unfused_n_256.py)
 `N=256`. **Algorithm.** Three-pass LayerNorm: mean → variance → normalize. Each pass re-reads x from bulk.
 
 **Manual.** x on arg stack; s/v/mean/inv_std scalars on scratch addrs 1-4 for hot accumulation. Output y on scratch.
@@ -1059,7 +1059,7 @@ the tall-skinny shape makes each local QR dominate less.
 
 ---
 
-## layernorm_fused
+## layernorm_fused [(code)](scripts/layernorm_fused_n_256.py)
 `N=256`. **Algorithm.** Welford's online mean+var in one pass, plus a second pass to normalize. The running accumulators stay in hot registers across all N updates.
 
 **Manual.** Fewer address-space traversals — mu and m2 are read and written O(N) times but stay at depth 1-2 throughout.
@@ -1076,7 +1076,7 @@ the tall-skinny shape makes each local QR dominate less.
 
 ---
 
-## matrix_powers_naive
+## matrix_powers_naive [(code)](scripts/matrix_powers_naive_n_16_s_4.py)
 `n=16, s=4`. **Algorithm.** Run matvec s times — `x₁=Ax₀, x₂=Ax₁, …`. A is re-read in full every step.
 
 **Manual.** A on arg stack so re-reads are priced identically each time; the naive cost is dominated by the fixed arg-stack positions of A.
@@ -1093,7 +1093,7 @@ the tall-skinny shape makes each local QR dominate less.
 
 ---
 
-## matrix_powers_ca
+## matrix_powers_ca [(code)](scripts/matrix_powers_ca_n_16_s_4.py)
 `n=16, s=4, block=4`. **Algorithm.** Communication-avoiding s-step: process A in row-blocks; for each block compute all step outputs locally before moving on.
 
 **Manual.** Under the two-stack model A already lives on the arg stack with fixed per-position cost, so the CA benefit cannot amortize. Cost matches naive — heuristic differences come from the re-order of the events.
@@ -1110,7 +1110,7 @@ the tall-skinny shape makes each local QR dominate less.
 
 ---
 
-## cholesky_left_looking
+## cholesky_left_looking [(code)](scripts/cholesky_left_looking_n_32.py)
 `n=32`. **Algorithm.** Complement of the default right-looking Cholesky: for column k pull data from all previously-factored columns 0..k-1 (far-flung reads), then finalize column k locally (concentrated writes).
 
 **Manual.** Under `⌈√d⌉` pricing with free writes, left-looking's read-heavy profile produces the same manual total as right-looking — the cost asymmetry lives entirely in the heuristic-scheduled columns.
@@ -1127,7 +1127,7 @@ the tall-skinny shape makes each local QR dominate less.
 
 ---
 
-## spmv_csr_banded
+## spmv_csr_banded [(code)](scripts/spmv_csr_banded_n_32_bw_3.py)
 `n=32, bandwidth=3`. **Algorithm.** Sparse matvec with CSR indices clustered near the diagonal. col_ind is a compile-time array (no memory cost), x-reads are data-dependent but spatially local.
 
 **Manual.** vals and x on arg stack; accumulator and y on scratch.
@@ -1144,7 +1144,7 @@ the tall-skinny shape makes each local QR dominate less.
 
 ---
 
-## spmv_csr_random
+## spmv_csr_random [(code)](scripts/spmv_csr_random_n_32_nnz_7.py)
 `n=32, nnz/row=7`. **Algorithm.** Same CSR machinery as banded but col_ind is a random Erdős-Rényi pattern. x-reads scatter all over the vector, which LRU heuristics penalize while density ranking can still pin hot nodes.
 
 **Manual.** Identical layout to banded; the cost difference comes from which arg-stack positions of x get read how often.
@@ -1161,7 +1161,7 @@ the tall-skinny shape makes each local QR dominate less.
 
 ---
 
-## bitonic_sort
+## bitonic_sort [(code)](scripts/bitonic_sort_n_64.py)
 `N=64`. **Algorithm.** Data-oblivious sorting network: `log²N` compare-swap passes in butterfly order (identical in flavor to the iterative FFT).
 
 **Manual.** Input preloaded to scratch; every pass does N/2 pair compare-swaps against varying-stride partners, exercising the full scratch range uniformly.
