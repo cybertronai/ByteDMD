@@ -93,7 +93,7 @@ DAGs are identical, so `bytedmd_live` / `bytedmd_classic` match — only
 ## Run
 
     ./run_grid.py          # tabulate: writes grid.csv, grid.md
-    ./generate_traces.py   # visualize: writes traces/<slug>.png per algorithm
+    ./generate_traces.py   # visualize: writes traces/<slug>.svg per algorithm
 
 ## Notes
 
@@ -148,7 +148,7 @@ addresses touched the same number of times) — only the LRU-recency
 heuristics distinguish them, and even there the differences are tiny
 because the two variants are symmetric.
 
-![](traces/naive_matmul_n_16.png)
+![](traces/naive_matmul_n_16.svg)
 
 ---
 
@@ -162,7 +162,7 @@ loop. Same arithmetic as naive but in block-major order for locality.
 load C tile into sC; for each bk: load A/B tiles into sA/sB; MAC into sC
 (accumulator read once per (ii,jj) outside kk-loop); flush sC back.
 
-![](traces/tiled_matmul_n_16.png)
+![](traces/tiled_matmul_n_16.svg)
 
 ---
 
@@ -196,7 +196,7 @@ Manual uses the same physical schedule as this explicit version, so
 it has the same cost (86,030) — all three "explicit" / "manual" /
 "SpaceDMD-of-explicit" converge onto the TPU bound.
 
-![](traces/tiled_matmul_explicit_n_16_t_4.png)
+![](traces/tiled_matmul_explicit_n_16_t_4.svg)
 
 ---
 
@@ -212,7 +212,7 @@ naturally generates a Hamiltonian walk over C-tiles; only the
 strassen_trace's cache semantic), so 7 of 8 consecutive base calls reload
 C while 1 skips the pre-fetch.
 
-![](traces/rmm_n_16.png)
+![](traces/rmm_n_16.svg)
 
 ---
 
@@ -233,7 +233,7 @@ full `⌈√addr⌉` on the stack-high region. Manual cost 282,382 is **2.01×
 higher than `fused_strassen`** (140,526) — the entire ZAFS win is the
 avoidance of these materialized intermediates.
 
-![](traces/naive_strassen_n_16.png)
+![](traces/naive_strassen_n_16.svg)
 
 ---
 
@@ -250,7 +250,7 @@ addrs 1..3T²) plus A, B, C in main memory. No allocation of the 7 M
 matrices — the ZAFS win shows up entirely here in manual (140,526 vs
 353,901 for the naïve trace-based upper envelope).
 
-![](traces/fused_strassen_n_16.png)
+![](traces/fused_strassen_n_16.svg)
 
 ---
 
@@ -264,7 +264,7 @@ at addrs 1..5; bulk Q, K, V (N·d each); the N² score/probability matrix
 S (reused as P in-place); output O. The bulk S matrix dominates the
 cost — every access pays `⌈√(addr ≈ N²)⌉`.
 
-![](traces/naive_attn_n_32_d_2.png)
+![](traces/naive_attn_n_32_d_2.svg)
 
 ---
 
@@ -281,7 +281,7 @@ scalars `m_block, l_block, m_new, α, β, inv_l, tmp` also hot. Only Q,
 K, V, O live in main memory — the saved N² footprint drops manual from
 naive's 242k to 137k.
 
-![](traces/flash_attn_n_32_d_2_bk_8.png)
+![](traces/flash_attn_n_32_d_2_bk_8.svg)
 
 ---
 
@@ -294,7 +294,7 @@ A is read row-major (contiguous); `x` is re-read n times.
 is read once per output row; A and `x` are hit every k-iteration, but
 all of `x` sits in the hot region so its cost is amortized.
 
-![](traces/matvec_row_n_64.png)
+![](traces/matvec_row_n_64.svg)
 
 ---
 
@@ -308,7 +308,7 @@ the whole bulk region in stride-n jumps, which `bytedmd_live` rewards
 (177k vs row's 229k) but manual barely distinguishes (212k vs 238k) —
 again, the sum is fixed.
 
-![](traces/matvec_col_n_64.png)
+![](traces/matvec_col_n_64.svg)
 
 ---
 
@@ -337,7 +337,7 @@ real, and entirely accounted for by the scratchpad. A-reads sum to
 ~184k either way because every A cell must occupy its own grid
 address and be read exactly once.
 
-![](traces/matvec_blocked_n_64_b_4.png)
+![](traces/matvec_blocked_n_64_b_4.svg)
 
 ---
 
@@ -353,7 +353,7 @@ data region. Manual cost (25,528) is well *below* `bytedmd_live`
 (44,212) — a cheap-placement win that recency heuristics can't
 anticipate once the working set fits entirely at low addresses.
 
-![](traces/fft_iterative_n_256.png)
+![](traces/fft_iterative_n_256.svg)
 
 ---
 
@@ -371,7 +371,7 @@ than iterative does. At N=256 the gap widens dramatically — manual
 match the aggressive recency-based compaction of live-only LRU when
 log₂N is large.
 
-![](traces/fft_recursive_n_256.png)
+![](traces/fft_recursive_n_256.svg)
 
 ---
 
@@ -384,7 +384,7 @@ is touched 5× (once as center, four times as neighbor across its
 dependent B outputs), giving 5(n-2)² reads. Fixed-placement cost is
 pattern-independent.
 
-![](traces/stencil_naive_32x32.png)
+![](traces/stencil_naive_32x32.svg)
 
 ---
 
@@ -400,7 +400,7 @@ exactly 5× — the cost sum `Σ⌈√addr⌉` is invariant to access order.
 `bytedmd_live` distinguishes them (37,737 vs 44,468) via recency
 effects only.
 
-![](traces/stencil_recursive_32x32_leaf_8.png)
+![](traces/stencil_recursive_32x32_leaf_8.svg)
 
 ---
 
@@ -413,7 +413,7 @@ effects only.
 bulk). Each output cell reads `s` once then touches image and kernel
 K² times.
 
-![](traces/spatial_conv_32x32_k_5.png)
+![](traces/spatial_conv_32x32_k_5.svg)
 
 ---
 
@@ -427,7 +427,7 @@ Kernel fits in the hot region so all 144 weights are cheap; image
 sweeps the mid-range bulk for each of the Cin channels per spatial
 position.
 
-![](traces/regular_conv_16x16_k_3_cin_4_cout_4.png)
+![](traces/regular_conv_16x16_k_3_cin_4_cout_4.svg)
 
 ---
 
@@ -444,7 +444,7 @@ in-place FFT layout still wins over any trace-only LRU estimate,
 though the margin narrows at N=256 because the 3N hot region is no
 longer negligibly small.
 
-![](traces/fft_conv_n_256.png)
+![](traces/fft_conv_n_256.svg)
 
 ---
 
@@ -462,7 +462,7 @@ address of each recursion window. `manual` (3,974) slightly exceeds
 `⌈√(base+sz-1)⌉` under fixed placement, while LRU bumping would keep
 the pivot at depth 1 after its first read inside the inner loop.
 
-![](traces/quicksort_n_64.png)
+![](traces/quicksort_n_64.svg)
 
 ---
 
@@ -482,7 +482,7 @@ backbone of a pointer-less heap. `manual` (4,779) lands between
 `bytedmd_live` (4,548) and `bytedmd_classic` (7,164), and well under
 `mergesort`'s 8,416 — in-place + no temps buys it a lot.
 
-![](traces/heapsort_n_64.png)
+![](traces/heapsort_n_64.svg)
 
 ---
 
@@ -499,7 +499,7 @@ base. Temps stack up during recursion (peak ~2N). Manual (8,416) ends
 up *above* `bytedmd_classic` (4,344) — live temps drive the allocator
 pointer high, and fixed placement pays full cost on every access.
 
-![](traces/mergesort_n_64.png)
+![](traces/mergesort_n_64.svg)
 
 ---
 
@@ -517,7 +517,7 @@ reads 3 neighbors that span 2 rows of the table, so each touch pays
 heuristics — a clean case where fixed-placement is a *pessimistic*
 upper envelope.
 
-![](traces/lcs_dp_32x32.png)
+![](traces/lcs_dp_32x32.svg)
 
 ---
 
@@ -535,7 +535,7 @@ and every MAC reads three A cells — one fixed (pivot-column), one
 shared per-row, and one shared per-column — so the dominant
 contribution is the trailing submatrix rank-1 loop.
 
-![](traces/lu_no_pivot_n_32.png)
+![](traces/lu_no_pivot_n_32.svg)
 
 ---
 
@@ -553,7 +553,7 @@ total manual cost (821,347) actually **exceeds** `lu_no_pivot`'s
 706,548. The scratchpad pays its overhead without enough reuse to
 recoup it at n=32; the crossover would happen at larger n.
 
-![](traces/blocked_lu_n_32_nb_8.png)
+![](traces/blocked_lu_n_32_nb_8.svg)
 
 ---
 
@@ -569,7 +569,7 @@ with `lu_no_pivot` — in the fixed-placement Manhattan model, the
 touched-cell set and multiplicities are identical; only the LRU-based
 heuristics spread them differently.
 
-![](traces/recursive_lu_n_32.png)
+![](traces/recursive_lu_n_32.svg)
 
 ---
 
@@ -585,7 +585,7 @@ adds 2(n-k) reads per step (another n² touches). Manual cost
 (748,712) is ~6% above `lu_no_pivot` — the pivoting overhead is
 real but modest, since the dominant cost remains the rank-1 update.
 
-![](traces/lu_partial_pivot_n_32.png)
+![](traces/lu_partial_pivot_n_32.svg)
 
 ---
 
@@ -601,7 +601,7 @@ runs only over `i ≥ j`, the total touch count is **half** of LU's
 triangular-only access pattern is exactly why Cholesky is the
 textbook "locality isolate" benchmark.
 
-![](traces/cholesky_n_32.png)
+![](traces/cholesky_n_32.svg)
 
 ---
 
@@ -617,7 +617,7 @@ column (once for dot-product, once for rank-1 update), so each
 column-pair sees ~4(m-k) reads — the characteristic "panel
 read-read-write" pattern.
 
-![](traces/householder_qr_32x32.png)
+![](traces/householder_qr_32x32.svg)
 
 ---
 
@@ -634,7 +634,7 @@ Householder (1,101,368) — my implementation still reads V and the
 input columns directly from A, so the WY tight inner loop doesn't
 pay off in the fixed-placement model at this size.
 
-![](traces/blocked_qr_32x32_nb_8.png)
+![](traces/blocked_qr_32x32_nb_8.svg)
 
 ---
 
@@ -653,4 +653,4 @@ level. Manual cost 684,862 is well below the square
 (1024 vs 1024 — same footprint but different aspect ratio) because
 the tall-skinny shape makes each local QR dominate less.
 
-![](traces/tsqr_64x16_br_8.png)
+![](traces/tsqr_64x16_br_8.svg)

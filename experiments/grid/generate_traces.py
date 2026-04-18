@@ -40,11 +40,14 @@ def plot_trace(log: list[tuple[str, int]],
                arg_peak: int,
                title: str,
                out_path: str) -> None:
-    """Two-stack visualization. Scratch-stack reads (blue), scratch writes
-    (orange), and output writes (red) plot at their real scratch addresses.
-    Output-epilogue reads (purple) show the final pass that reads every
-    output cell into the return buffer. Arg-stack reads (green) plot
-    shifted DOWN by negating their address so they sit below y=0."""
+    """Two-stack visualization rendered as pure vector SVG. Every marker is
+    drawn as an antialiased SVG primitive (rasterized=False), so plots
+    stay crisp at any zoom. Scratch-stack reads (blue), scratch writes
+    (orange), and output writes (red) plot at their real scratch
+    addresses. Output-epilogue reads (purple) show the final pass that
+    reads every output cell into the return buffer. Arg-stack reads
+    (green) plot shifted DOWN by negating their address so they sit
+    below y=0."""
     n = len(log)
     arg_pts_t, arg_pts_y = [], []
     scr_pts_t, scr_pts_y = [], []
@@ -61,33 +64,35 @@ def plot_trace(log: list[tuple[str, int]],
             scr_pts_y.append(addr)
 
     fig, ax = plt.subplots(figsize=(11, 3.8))
+    # rasterized=False keeps all markers as antialiased vector primitives
+    # in the SVG output.
     if scr_pts_t:
         ax.scatter(scr_pts_t, scr_pts_y,
-                   s=0.6, c="tab:blue", alpha=0.45,
-                   rasterized=True, linewidths=0,
+                   s=0.8, c="tab:blue", alpha=0.55,
+                   rasterized=False, linewidths=0,
                    label="scratch read")
     if arg_pts_t:
         ax.scatter(arg_pts_t, arg_pts_y,
-                   s=0.6, c="tab:green", alpha=0.45,
-                   rasterized=True, linewidths=0,
+                   s=0.8, c="tab:green", alpha=0.55,
+                   rasterized=False, linewidths=0,
                    label="arg read (shifted -addr)")
     if out_pts_t:
         ax.scatter(out_pts_t, out_pts_y,
                    s=3.0, c="#8B008B", alpha=0.9,
-                   rasterized=True, linewidths=0,
+                   rasterized=False, linewidths=0,
                    zorder=5,
                    label="output read (epilogue)")
     if writes:
         wt, wa = zip(*writes)
         ax.scatter(wt, wa,
-                   s=0.8, c="tab:orange", alpha=0.55,
-                   rasterized=True, linewidths=0,
+                   s=1.2, c="tab:orange", alpha=0.65,
+                   rasterized=False, linewidths=0,
                    label="scratch write")
     if output_writes:
         wt, wa = zip(*output_writes)
         ax.scatter(wt, wa,
-                   s=0.8, c="tab:red", alpha=0.7,
-                   rasterized=True, linewidths=0,
+                   s=1.2, c="tab:red", alpha=0.75,
+                   rasterized=False, linewidths=0,
                    label="output write")
     if arg_pts_t:
         ax.axhline(0, color="gray", linestyle="--",
@@ -99,7 +104,7 @@ def plot_trace(log: list[tuple[str, int]],
     if n > 0 or writes or output_writes:
         ax.legend(loc="upper left", markerscale=8, fontsize=8, framealpha=0.85)
     fig.tight_layout()
-    fig.savefig(out_path, dpi=120, bbox_inches="tight")
+    fig.savefig(out_path, bbox_inches="tight")
     plt.close(fig)
 
 
@@ -118,7 +123,7 @@ def main() -> None:
         finally:
             man.set_allocator(None)
 
-        out_path = os.path.join(traces_dir, f"{slug}.png")
+        out_path = os.path.join(traces_dir, f"{slug}.svg")
         title = f"{name}  —  cost = {logged.cost:,}"
         plot_trace(logged.log, logged.writes, logged.output_writes,
                    logged.peak, logged.arg_peak, title, out_path)
