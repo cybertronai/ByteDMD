@@ -15,17 +15,23 @@ import math
 class Allocator:
     """Bump-pointer allocator with push/pop stack discipline.
 
-    touch(addr) charges ceil(sqrt(addr)) — modelling one memory access
-    at that address in the continuous-Manhattan cache. When logging=True,
-    also records the address sequence into .log for trace visualization.
+    touch(addr) charges ceil(sqrt(addr)) — modelling one read at that
+    address in the continuous-Manhattan cache. When logging=True, also
+    records the address sequence into .log (reads).
+
+    write(addr) is FREE under the ByteDMD convention (no cost added)
+    but when logging=True is recorded into .writes as (time, addr) pairs,
+    where time = len(self.log) at the moment of the write. Purely for
+    trace-visualization purposes.
     """
-    __slots__ = ("cost", "ptr", "peak", "log")
+    __slots__ = ("cost", "ptr", "peak", "log", "writes")
 
     def __init__(self, logging: bool = False) -> None:
         self.cost = 0
         self.ptr = 1
         self.peak = 1
         self.log = [] if logging else None
+        self.writes = [] if logging else None
 
     def alloc(self, size: int) -> int:
         addr = self.ptr
@@ -44,6 +50,10 @@ class Allocator:
         self.cost += math.isqrt(max(0, addr - 1)) + 1
         if self.log is not None:
             self.log.append(addr)
+
+    def write(self, addr: int) -> None:
+        if self.writes is not None:
+            self.writes.append((len(self.log), addr))
 
 
 # Module-level override for the allocator used inside manual_* functions.
@@ -77,11 +87,11 @@ def manual_naive_matmul(n: int) -> int:
     A = a.alloc(n * n); B = a.alloc(n * n); C = a.alloc(n * n)
     for i in range(n):
         for j in range(n):
-            a.touch(s)  # accumulator init read, once per (i,j)
+            a.touch(s)
             for k in range(n):
                 a.touch(A + i * n + k)
-                a.touch(B + j * n + k)   # row-major B (AB^T access)
-            # write C[i][j] = s (free)
+                a.touch(B + j * n + k)
+            a.write(C + i * n + j)
     return a.cost
 
 
@@ -97,30 +107,35 @@ def manual_tiled_matmul(n: int, T: int | None = None) -> int:
 
     for bi in range(0, n, T):
         for bj in range(0, n, T):
-            # Load C tile into sC
+            # Load C tile into sC (read C, write sC)
             for ii in range(min(T, n - bi)):
                 for jj in range(min(T, n - bj)):
                     a.touch(C + (bi + ii) * n + (bj + jj))
+                    a.write(sC + ii * T + jj)
             for bk in range(0, n, T):
-                # Load A tile
+                # Load A tile into sA
                 for ii in range(min(T, n - bi)):
                     for kk in range(min(T, n - bk)):
                         a.touch(A + (bi + ii) * n + (bk + kk))
-                # Load B tile
+                        a.write(sA + ii * T + kk)
+                # Load B tile into sB
                 for kk in range(min(T, n - bk)):
                     for jj in range(min(T, n - bj)):
                         a.touch(B + (bk + kk) * n + (bj + jj))
-                # MAC
+                        a.write(sB + kk * T + jj)
+                # MAC: accumulate into sC (sC write per (ii,jj))
                 for ii in range(min(T, n - bi)):
                     for jj in range(min(T, n - bj)):
                         a.touch(sC + ii * T + jj)
                         for kk in range(min(T, n - bk)):
                             a.touch(sA + ii * T + kk)
                             a.touch(sB + kk * T + jj)
-            # Flush sC -> C
+                        a.write(sC + ii * T + jj)
+            # Flush sC -> C (read sC, write C)
             for ii in range(min(T, n - bi)):
                 for jj in range(min(T, n - bj)):
                     a.touch(sC + ii * T + jj)
+                    a.write(C + (bi + ii) * n + (bj + jj))
     return a.cost
 
 
@@ -140,29 +155,33 @@ def manual_rmm(n: int, T: int = 4) -> int:
     def compute_tile(rA: int, cA: int, rB: int, cB: int, rC: int, cC: int) -> None:
         is_first = (last_C[0] != (rC, cC))
         last_C[0] = (rC, cC)
-        # Load A, B tiles
+        # Load A, B tiles (read main, write scratchpad)
         for ii in range(T):
             for jj in range(T):
                 a.touch(A + (rA + ii) * n + cA + jj)
+                a.write(sA + ii * T + jj)
         for ii in range(T):
             for jj in range(T):
                 a.touch(B + (rB + ii) * n + cB + jj)
+                a.write(sB + ii * T + jj)
         # Bulk read of fast_C (accumulator init)
         for i in range(T * T):
             a.touch(sC + i)
-        # MAC: fast_C[i][j] += sum_k fast_A[i][k] * fast_B[k][j]
+        # MAC
         for ii in range(T):
             for jj in range(T):
                 a.touch(sC + ii * T + jj)
                 for kk in range(T):
                     a.touch(sA + ii * T + kk)
                     a.touch(sB + kk * T + jj)
-        # Flush fast_C -> pC; if not first write, accumulate with existing pC
+                a.write(sC + ii * T + jj)
+        # Flush fast_C -> pC
         for ii in range(T):
             for jj in range(T):
                 a.touch(sC + ii * T + jj)
                 if not is_first:
                     a.touch(C + (rC + ii) * n + cC + jj)
+                a.write(C + (rC + ii) * n + cC + jj)
 
     def recurse(rA: int, cA: int, rB: int, cB: int, rC: int, cC: int, sz: int) -> None:
         if sz <= T:
@@ -198,21 +217,26 @@ def manual_strassen(n: int, T: int = 4) -> int:
         for ii in range(T):
             for jj in range(T):
                 a.touch(pA + ii * sAstr + jj)
+                a.write(sA + ii * T + jj)
         for ii in range(T):
             for jj in range(T):
                 a.touch(pB + ii * sBstr + jj)
+                a.write(sB + ii * T + jj)
         for ii in range(T):
             for jj in range(T):
                 a.touch(pC + ii * sCstr + jj)
+                a.write(sC + ii * T + jj)
         for ii in range(T):
             for jj in range(T):
                 a.touch(sC + ii * T + jj)
                 for kk in range(T):
                     a.touch(sA + ii * T + kk)
                     a.touch(sB + kk * T + jj)
+                a.write(sC + ii * T + jj)
         for ii in range(T):
             for jj in range(T):
                 a.touch(sC + ii * T + jj)
+                a.write(pC + ii * sCstr + jj)
 
     def recurse(pA_: int, sAstr: int, pB_: int, sBstr: int, pC_: int, sCstr: int, sz: int) -> None:
         if sz <= T:
@@ -278,27 +302,29 @@ def manual_fused_strassen(n: int, T: int = 4) -> int:
     A = a.alloc(n * n); B = a.alloc(n * n); C = a.alloc(n * n)
 
     def compute_fused_tile(ops_A, ops_B, ops_C, r, c, k_off):
-        # 1. Fused load A tile into fast_A (sum sign-weighted contributions)
+        # 1. Fused load A tile into fast_A
         for i in range(T):
             for j in range(T):
                 for _sgn, rb, cb in ops_A:
                     a.touch(A + (rb + r + i) * n + cb + k_off + j)
+                a.write(fast_A + i * T + j)
         # 2. Fused load B tile into fast_B
         for i in range(T):
             for j in range(T):
                 for _sgn, rb, cb in ops_B:
                     a.touch(B + (rb + k_off + i) * n + cb + c + j)
+                a.write(fast_B + i * T + j)
         # 3. Bulk read of fast_C (accumulator init)
         for i in range(T * T):
             a.touch(fast_C + i)
-        # 4. Tile MAC: fast_C[i][j] += sum_k fast_A[i][k] * fast_B[k][j]
-        #    fast_C read once per (i,j) outside k-loop; 2 reads per MAC.
+        # 4. Tile MAC
         for i in range(T):
             for j in range(T):
                 a.touch(fast_C + i * T + j)
                 for k in range(T):
                     a.touch(fast_A + i * T + k)
                     a.touch(fast_B + k * T + j)
+                a.write(fast_C + i * T + j)
         # 5. Fan-out fast_C -> multiple C targets with signs
         for _sgn, rb, cb, is_first in ops_C:
             for i in range(T):
@@ -306,6 +332,7 @@ def manual_fused_strassen(n: int, T: int = 4) -> int:
                     a.touch(fast_C + i * T + j)
                     if not is_first:
                         a.touch(C + (rb + r + i) * n + cb + c + j)
+                    a.write(C + (rb + r + i) * n + cb + c + j)
 
     h = n // 2
     q11, q12, q21, q22 = (0, 0), (0, h), (h, 0), (h, h)
@@ -348,29 +375,25 @@ def manual_naive_attention(N: int, d: int) -> int:
             for dd in range(1, d):
                 a.touch(Q + i * d + dd); a.touch(K + j * d + dd)
                 a.touch(s_acc); a.touch(tmp)
-            # scale: one mul
             a.touch(s_acc)
-            # write S[i][j] — free
+            a.write(S + i * N + j)  # write S[i][j]
 
     # Stage 2: row-wise softmax (in place on S, becomes P)
     for i in range(N):
-        # row_max
         a.touch(S + i * N + 0)
         for j in range(1, N):
             a.touch(S + i * N + j); a.touch(row_max)
-        # exp and sum
         for j in range(N):
             a.touch(S + i * N + j); a.touch(row_max)
-            # exp -> write S[i][j] (reuse S as P, free write)
+            a.write(S + i * N + j)  # exp -> P[i][j] (reuse S storage)
             if j == 0:
-                pass  # row_sum initialized from P[i][0]
+                pass
             else:
                 a.touch(row_sum); a.touch(S + i * N + j)
-        # inv_sum
         a.touch(row_sum)
-        # normalize
         for j in range(N):
             a.touch(S + i * N + j); a.touch(inv_sum)
+            a.write(S + i * N + j)  # normalized P[i][j]
 
     # Stage 3: O[i][dd] = sum_j P[i][j] * V[j][dd]
     P = S
@@ -380,8 +403,8 @@ def manual_naive_attention(N: int, d: int) -> int:
             for j in range(1, N):
                 a.touch(P + i * N + j); a.touch(V + j * d + dd)
                 a.touch(s_acc); a.touch(tmp)
-            # write O[i][dd] — free; but read s_acc once
             a.touch(s_acc)
+            a.write(O + i * d + dd)
     return a.cost
 
 
@@ -412,40 +435,42 @@ def manual_flash_attention(N: int, d: int, Bk: int) -> int:
                 for dd in range(1, d):
                     a.touch(Q + i * d + dd); a.touch(K + (k0 + j) * d + dd)
                     a.touch(s_block + j); a.touch(tmp)
-                a.touch(s_block + j)  # scale
-            # m_block = max(s_block)
-            a.touch(s_block + 0)
+                a.touch(s_block + j)
+                a.write(s_block + j)
             for j in range(1, bs):
                 a.touch(s_block + j); a.touch(m_block)
-            # p_block[j] = exp(s - m_block); l_block = sum(p)
             for j in range(bs):
                 a.touch(s_block + j); a.touch(m_block)
+                a.write(p_block + j)
                 if j > 0:
                     a.touch(p_block + j); a.touch(l_block)
-            # online merge
             if kb == 0:
                 a.touch(m_block); a.touch(l_block)
+                a.write(m_i); a.write(l_i)
                 for dd in range(d):
                     a.touch(p_block + 0); a.touch(V + k0 * d + dd)
                     for j in range(1, bs):
                         a.touch(p_block + j); a.touch(V + (k0 + j) * d + dd)
                         a.touch(o_acc + dd); a.touch(tmp)
+                    a.write(o_acc + dd)
             else:
-                a.touch(m_i); a.touch(m_block)          # m_new = max
-                a.touch(m_i); a.touch(m_new)            # alpha = exp(m_i - m_new)
-                a.touch(m_block); a.touch(m_new)        # beta  = exp(m_block - m_new)
+                a.touch(m_i); a.touch(m_block); a.write(m_new)
+                a.touch(m_i); a.touch(m_new); a.write(alpha)
+                a.touch(m_block); a.touch(m_new); a.write(beta)
                 a.touch(alpha); a.touch(l_i)
                 a.touch(beta); a.touch(l_block)
-                a.touch(tmp); a.touch(tmp)              # l_i = alpha*l_i + beta*l_block
+                a.touch(tmp); a.touch(tmp); a.write(l_i); a.write(m_i)
                 for dd in range(d):
-                    a.touch(alpha); a.touch(o_acc + dd)  # rescale o_acc
+                    a.touch(alpha); a.touch(o_acc + dd)
                     for j in range(bs):
                         a.touch(p_block + j); a.touch(V + (k0 + j) * d + dd)
                         a.touch(beta); a.touch(tmp); a.touch(o_acc + dd)
+                    a.write(o_acc + dd)
         # Final: O[i][dd] = o_acc[dd] / l_i
         a.touch(l_i)
         for dd in range(d):
             a.touch(o_acc + dd); a.touch(inv_l)
+            a.write(O + i * d + dd)
     return a.cost
 
 
@@ -460,7 +485,7 @@ def manual_transpose_naive(n: int) -> int:
     for i in range(n):
         for j in range(n):
             a.touch(A + j * n + i)
-            # write B[i][j] — free
+            a.write(B + i * n + j)
     return a.cost
 
 
@@ -476,6 +501,7 @@ def manual_transpose_blocked(n: int, T: int | None = None) -> int:
             for ii in range(min(T, n - bi)):
                 for jj in range(min(T, n - bj)):
                     a.touch(A + (bj + jj) * n + (bi + ii))
+                    a.write(B + (bi + ii) * n + (bj + jj))
     return a.cost
 
 
@@ -487,6 +513,7 @@ def manual_transpose_recursive(n: int) -> int:
     def rec(ar: int, ac: int, br: int, bc: int, sz: int) -> None:
         if sz == 1:
             a.touch(A + ar * n + ac)
+            a.write(B + br * n + bc)
             return
         h = sz // 2
         rec(ar,     ac,     br,     bc,     h)
@@ -511,10 +538,13 @@ def manual_matvec_row(n: int) -> int:
     A = a.alloc(n * n)
     for i in range(n):
         a.touch(A + i * n + 0); a.touch(x + 0)
+        a.write(s)
         for j in range(1, n):
             a.touch(A + i * n + j); a.touch(x + j)
             a.touch(s); a.touch(tmp)
-        a.touch(s)  # write y[i]
+            a.write(s)
+        a.touch(s)
+        a.write(y + i)
     return a.cost
 
 
@@ -535,13 +565,13 @@ def manual_matvec_blocked(n: int, B: int = 4) -> int:
     tmp = a.alloc(1)
     x_main = a.alloc(n)
     A = a.alloc(n * n)
+    y = a.alloc(n)
 
     for i_out in range(0, n, B):
         for j_out in range(0, n, B):
-            # DMA-load x slice from x_main → x_tile (writes free; read x_main)
             for j in range(B):
                 a.touch(x_main + j_out + j)
-            # B×B MAC: A from its real spatial address, x from hot tile
+                a.write(x_tile + j)
             for i in range(B):
                 for j in range(B):
                     a.touch(A + (i_out + i) * n + (j_out + j))
@@ -549,9 +579,10 @@ def manual_matvec_blocked(n: int, B: int = 4) -> int:
                     if j_out != 0 or j != 0:
                         a.touch(s[i])
                     a.touch(tmp)
-        # Flush accumulators to y (reads of s, writes of y are free)
+                    a.write(s[i])
         for i in range(B):
             a.touch(s[i])
+            a.write(y + i_out + i)
     return a.cost
 
 
@@ -567,9 +598,10 @@ def manual_matvec_col(n: int) -> int:
         for i in range(n):
             a.touch(A + i * n + j)
             if j == 0:
-                pass  # y[i] initialized (free)
+                a.write(y + i)  # init
             else:
                 a.touch(y + i); a.touch(tmp)
+                a.write(y + i)
     return a.cost
 
 
@@ -581,7 +613,7 @@ def manual_fft_iterative(N: int) -> int:
     """In-place radix-2 Cooley-Tukey on an N-slot array at low addresses."""
     a = _alloc()
     x = a.alloc(N)
-    # Bit-reverse permutation — ~N/2 real swaps, 2 reads each
+    # Bit-reverse permutation — swaps
     j = 0
     for i in range(1, N):
         bit = N >> 1
@@ -591,14 +623,16 @@ def manual_fft_iterative(N: int) -> int:
         j ^= bit
         if i < j:
             a.touch(x + i); a.touch(x + j)
-    # Butterflies: log2(N) stages × N/2 butterflies × 2 reads
-    # (t = twiddle * x[k+j+m], then u = x[k+j] is reused; writes are free)
+            a.write(x + i); a.write(x + j)
+    # Butterflies: each writes 2 cells of x
     m = 1
     while m < N:
         for k in range(0, N, m * 2):
             for jj in range(m):
-                a.touch(x + k + jj + m)  # t = w * x[k+j+m]
-                a.touch(x + k + jj)      # u = x[k+j]
+                a.touch(x + k + jj + m)
+                a.touch(x + k + jj)
+                a.write(x + k + jj)
+                a.write(x + k + jj + m)
         m *= 2
     return a.cost
 
@@ -616,16 +650,18 @@ def manual_fft_recursive(N: int) -> int:
         ckpt = a.push()
         even = a.alloc(sz // 2)
         odd  = a.alloc(sz // 2)
-        # Split: read x[2i] and x[2i+1] → write even[i], odd[i]
         for i in range(sz // 2):
             a.touch(base + 2 * i)
             a.touch(base + 2 * i + 1)
+            a.write(even + i)
+            a.write(odd + i)
         rec(even, sz // 2)
         rec(odd,  sz // 2)
-        # Combine: t = w * odd[k]; base[k] = even[k] + t; base[k+sz/2] = even[k] - t
         for k in range(sz // 2):
             a.touch(odd + k)
             a.touch(even + k)
+            a.write(base + k)
+            a.write(base + k + sz // 2)
         a.pop(ckpt)
 
     rec(x, N)
@@ -648,6 +684,7 @@ def manual_stencil_naive(n: int) -> int:
             a.touch(A + (i + 1) * n + j)
             a.touch(A + i * n + j - 1)
             a.touch(A + i * n + j + 1)
+            a.write(B + i * n + j)
     return a.cost
 
 
@@ -668,6 +705,7 @@ def manual_stencil_recursive(n: int, leaf: int = 8) -> int:
                         a.touch(A + (i + 1) * n + j)
                         a.touch(A + i * n + j - 1)
                         a.touch(A + i * n + j + 1)
+                        a.write(B + i * n + j)
             return
         h = sz // 2
         rec(r0,     c0,     h)
@@ -693,6 +731,7 @@ def manual_spatial_convolution(H: int, W: int, K: int) -> int:
     img = a.alloc(H * W)
     out_h = H - K + 1
     out_w = W - K + 1
+    O = a.alloc(out_h * out_w)
     for i in range(out_h):
         for j in range(out_w):
             a.touch(s)
@@ -700,6 +739,7 @@ def manual_spatial_convolution(H: int, W: int, K: int) -> int:
                 for kj in range(K):
                     a.touch(img + (i + ki) * W + (j + kj))
                     a.touch(Wk + ki * K + kj)
+            a.write(O + i * out_w + j)
     return a.cost
 
 
@@ -710,7 +750,6 @@ def manual_fft_conv(N: int) -> int:
     X = a.alloc(N); Y = a.alloc(N); Z = a.alloc(N)
 
     def fft_in_place(base: int) -> None:
-        # Bit-reverse
         j = 0
         for i in range(1, N):
             bit = N >> 1
@@ -720,22 +759,24 @@ def manual_fft_conv(N: int) -> int:
             j ^= bit
             if i < j:
                 a.touch(base + i); a.touch(base + j)
-        # Butterflies
+                a.write(base + i); a.write(base + j)
         m = 1
         while m < N:
             for k in range(0, N, m * 2):
                 for jj in range(m):
                     a.touch(base + k + jj + m)
                     a.touch(base + k + jj)
+                    a.write(base + k + jj)
+                    a.write(base + k + jj + m)
             m *= 2
 
     fft_in_place(X)
     fft_in_place(Y)
-    # Pointwise multiply: Z[k] = X[k] * Y[k]
     for k in range(N):
         a.touch(X + k)
         a.touch(Y + k)
-    fft_in_place(Z)  # inverse FFT — same access pattern
+        a.write(Z + k)
+    fft_in_place(Z)
     return a.cost
 
 
@@ -750,6 +791,7 @@ def manual_regular_convolution(H: int, W: int, K: int, Cin: int, Cout: int) -> i
     img = a.alloc(H * W * Cin)
     out_h = H - K + 1
     out_w = W - K + 1
+    O = a.alloc(out_h * out_w * Cout)
     for i in range(out_h):
         for j in range(out_w):
             for co in range(Cout):
@@ -759,6 +801,7 @@ def manual_regular_convolution(H: int, W: int, K: int, Cin: int, Cout: int) -> i
                         for ci in range(Cin):
                             a.touch(img + ((i + ki) * W + (j + kj)) * Cin + ci)
                             a.touch(Wk + ((ki * K + kj) * Cin + ci) * Cout + co)
+                a.write(O + (i * out_w + j) * Cout + co)
     return a.cost
 
 
@@ -780,6 +823,7 @@ def manual_quicksort(N: int) -> int:
         for i in range(sz - 1):
             a.touch(base + i)
             a.touch(pivot_addr)
+            a.write(base + i)  # swap-write during partition
         mid = sz // 2
         rec(base, mid)
         rec(base + mid, sz - mid)
@@ -803,8 +847,11 @@ def manual_heapsort(N: int) -> int:
             if child + 1 < heap_size:
                 a.touch(arr + child)
                 a.touch(arr + child + 1)
+                a.write(arr + child)
             a.touch(arr + j)
             a.touch(arr + child)
+            a.write(arr + j)
+            a.write(arr + child)
             j = child
 
     for i in range(N // 2 - 1, -1, -1):
@@ -812,6 +859,8 @@ def manual_heapsort(N: int) -> int:
     for k in range(N - 1, 0, -1):
         a.touch(arr + k)
         a.touch(arr + 0)
+        a.write(arr + k)
+        a.write(arr + 0)
         sift_down(0, k)
     return a.cost
 
@@ -832,14 +881,14 @@ def manual_mergesort(N: int) -> int:
         half = sz // 2
         rec(base, half)
         rec(base + half, sz - half)
-        # Merge: allocate temp, read both frontiers into temp
         temp = a.alloc(sz)
         for k in range(sz):
             a.touch(base + (k if k < half else half - 1))
             a.touch(base + half + (k - half if k >= half else 0))
-        # Copy temp back to base
+            a.write(temp + k)
         for k in range(sz):
             a.touch(temp + k)
+            a.write(base + k)
         a.pop(ckpt)
 
     rec(arr, N)
@@ -855,22 +904,22 @@ def manual_mergesort(N: int) -> int:
 # ============================================================================
 
 def manual_lu_no_pivot(n: int) -> int:
-    """In-place no-pivot LU. A at addrs 1..n²; all traffic stays inside A.
-    Per step k: read pivot, (n-k-1) column scales, (n-k-1)² rank-1 MACs
-    (3 reads each: A[i][j], A[i][k], A[k][j])."""
+    """In-place no-pivot LU. A at addrs 1..n²; all traffic stays inside A."""
     a = _alloc()
     A = a.alloc(n * n)
     for k in range(n):
         pivot_addr = A + k * n + k
-        a.touch(pivot_addr)                       # read pivot
+        a.touch(pivot_addr)
         for i in range(k + 1, n):
-            a.touch(A + i * n + k)                # A[i][k]
-            a.touch(pivot_addr)                   # /pivot
+            a.touch(A + i * n + k)
+            a.touch(pivot_addr)
+            a.write(A + i * n + k)   # A[i][k] /= pivot
         for i in range(k + 1, n):
             for j in range(k + 1, n):
-                a.touch(A + i * n + j)            # A[i][j]
-                a.touch(A + i * n + k)            # A[i][k]
-                a.touch(A + k * n + j)            # A[k][j]
+                a.touch(A + i * n + j)
+                a.touch(A + i * n + k)
+                a.touch(A + k * n + j)
+                a.write(A + i * n + j)   # rank-1 update
     return a.cost
 
 
@@ -884,53 +933,56 @@ def manual_blocked_lu(n: int, NB: int = 8) -> int:
     A = a.alloc(n * n)
 
     def panel_lu(base_r: int, base_c: int, sz: int, scratch: int) -> None:
-        # Copy A[base_r:+sz, base_c:+sz] into scratch, factor, copy back
         for ii in range(sz):
             for jj in range(sz):
                 a.touch(A + (base_r + ii) * n + base_c + jj)
+                a.write(scratch + ii * sz + jj)
         for k in range(sz):
             pivot_addr = scratch + k * sz + k
             a.touch(pivot_addr)
             for i in range(k + 1, sz):
                 a.touch(scratch + i * sz + k)
                 a.touch(pivot_addr)
+                a.write(scratch + i * sz + k)
             for i in range(k + 1, sz):
                 for j in range(k + 1, sz):
                     a.touch(scratch + i * sz + j)
                     a.touch(scratch + i * sz + k)
                     a.touch(scratch + k * sz + j)
+                    a.write(scratch + i * sz + j)
         for ii in range(sz):
             for jj in range(sz):
-                a.touch(scratch + ii * sz + jj)   # flush back to A
+                a.touch(scratch + ii * sz + jj)
+                a.write(A + (base_r + ii) * n + base_c + jj)
 
     for kb in range(0, n, NB):
         ke = min(kb + NB, n)
         sz = ke - kb
-        # (a) factor diagonal block via scratchpad
         panel_lu(kb, kb, sz, S_diag)
-        # (b) update trailing panel rows — triangular solve (L11 used)
         for i in range(ke, n):
             for k in range(kb, ke):
                 a.touch(A + i * n + k)
                 a.touch(A + k * n + k)
+                a.write(A + i * n + k)
                 for j in range(k + 1, ke):
                     a.touch(A + i * n + j)
                     a.touch(A + i * n + k)
                     a.touch(A + k * n + j)
-        # (c) update trailing row strip — triangular solve (U11 used)
+                    a.write(A + i * n + j)
         for k in range(kb, ke):
             for j in range(ke, n):
                 for i in range(k + 1, ke):
                     a.touch(A + i * n + j)
                     a.touch(A + i * n + k)
                     a.touch(A + k * n + j)
-        # (d) GEMM trailing update — rank-NB into scratch then back
+                    a.write(A + i * n + j)
         for i in range(ke, n):
             for j in range(ke, n):
                 for k in range(kb, ke):
                     a.touch(A + i * n + j)
                     a.touch(A + i * n + k)
                     a.touch(A + k * n + j)
+                    a.write(A + i * n + j)
     return a.cost
 
 
@@ -944,32 +996,31 @@ def manual_recursive_lu(n: int) -> int:
         if sz == 1:
             return
         h = sz // 2
-        # (1) Factor top-left h×h via nested recursion
         rec(r0, c0, h)
-        # (2) Solve off-diag column A[r0+h:r0+sz, c0:c0+h] with U11
         for i in range(r0 + h, r0 + sz):
             for k in range(c0, c0 + h):
                 a.touch(A + i * n + k)
                 a.touch(A + k * n + k)
+                a.write(A + i * n + k)
                 for j in range(k + 1, c0 + h):
                     a.touch(A + i * n + j)
                     a.touch(A + i * n + k)
                     a.touch(A + k * n + j)
-        # (3) Solve off-diag row A[r0:r0+h, c0+h:c0+sz] with L11
+                    a.write(A + i * n + j)
         for k in range(r0, r0 + h):
             for j in range(c0 + h, c0 + sz):
                 for i in range(k + 1, r0 + h):
                     a.touch(A + i * n + j)
                     a.touch(A + i * n + k)
                     a.touch(A + k * n + j)
-        # (4) Schur complement A22 -= A21 · A12
+                    a.write(A + i * n + j)
         for i in range(r0 + h, r0 + sz):
             for j in range(c0 + h, c0 + sz):
                 for k in range(c0, c0 + h):
                     a.touch(A + i * n + j)
                     a.touch(A + i * n + k)
                     a.touch(A + k * n + j)
-        # (5) Recurse on A22
+                    a.write(A + i * n + j)
         rec(r0 + h, c0 + h, sz - h)
 
     rec(0, 0, n)
@@ -982,25 +1033,26 @@ def manual_lu_partial_pivot(n: int) -> int:
     a = _alloc()
     A = a.alloc(n * n)
     for k in range(n):
-        # (a) column scan
         for i in range(k, n):
             a.touch(A + i * n + k)
             a.touch(A + k * n + k)
-        # (b) oblivious row swap with row p = k+1 (or k if k+1 >= n)
         p = k + 1 if k + 1 < n else k
         for j in range(k, n):
             a.touch(A + k * n + j)
             a.touch(A + p * n + j)
-        # (c) elimination
+            a.write(A + k * n + j)
+            a.write(A + p * n + j)
         pivot_addr = A + k * n + k
         a.touch(pivot_addr)
         for i in range(k + 1, n):
             a.touch(A + i * n + k); a.touch(pivot_addr)
+            a.write(A + i * n + k)
         for i in range(k + 1, n):
             for j in range(k + 1, n):
                 a.touch(A + i * n + j)
                 a.touch(A + i * n + k)
                 a.touch(A + k * n + j)
+                a.write(A + i * n + j)
     return a.cost
 
 
@@ -1015,15 +1067,18 @@ def manual_cholesky(n: int) -> int:
     A = a.alloc(n * n)
     for k in range(n):
         pivot_addr = A + k * n + k
-        a.touch(pivot_addr)   # sqrt(A[k][k]) stand-in
+        a.touch(pivot_addr)
+        a.write(pivot_addr)   # A[k][k] = sqrt(A[k][k])
         for i in range(k + 1, n):
             a.touch(A + i * n + k)
             a.touch(pivot_addr)
+            a.write(A + i * n + k)
         for j in range(k + 1, n):
-            for i in range(j, n):   # lower triangle (i >= j)
+            for i in range(j, n):
                 a.touch(A + i * n + j)
                 a.touch(A + i * n + k)
                 a.touch(A + j * n + k)
+                a.write(A + i * n + j)
     return a.cost
 
 
@@ -1032,61 +1087,63 @@ def manual_cholesky(n: int) -> int:
 # ============================================================================
 
 def manual_householder_qr(m: int, n: int) -> int:
-    """Classical Householder QR in place. For each column k: scan
-    subdiagonal (m-k reads), then reflect each trailing column (2 reads
-    per dot-product entry + 2 reads per update entry)."""
+    """Classical Householder QR in place."""
     a = _alloc()
     A = a.alloc(m * n)
     for k in range(min(m, n)):
-        # (a) compute reflector norm
         a.touch(A + k * n + k)
         for i in range(k + 1, m):
             a.touch(A + i * n + k)
-        # (b) apply reflector to each trailing column
+        a.write(A + k * n + k)  # reflector stored in subdiagonal of A
+        for i in range(k + 1, m):
+            a.write(A + i * n + k)
         for j in range(k + 1, n):
-            # dot product: sum_i A[i][k] * A[i][j]
             a.touch(A + k * n + k); a.touch(A + k * n + j)
             for i in range(k + 1, m):
                 a.touch(A + i * n + k); a.touch(A + i * n + j)
-            # rank-1 update: A[i][j] -= t * A[i][k]
             a.touch(A + k * n + j); a.touch(A + k * n + k)
+            a.write(A + k * n + j)
             for i in range(k + 1, m):
                 a.touch(A + i * n + j); a.touch(A + i * n + k)
+                a.write(A + i * n + j)
     return a.cost
 
 
 def manual_blocked_qr(m: int, n: int, NB: int = 8) -> int:
-    """Blocked QR (WY form, simplified). Panel factored via classical
-    Householder; trailing columns updated in one rank-NB sweep per
-    column. W-vector of length NB stored in hot region."""
+    """Blocked QR (WY form, simplified)."""
     a = _alloc()
-    w = a.alloc(NB)   # temp NB-vector for rank-NB update
+    w = a.alloc(NB)
     A = a.alloc(m * n)
     for kb in range(0, min(m, n), NB):
         ke = min(kb + NB, min(m, n))
-        # (a) panel factor
         for k in range(kb, ke):
             a.touch(A + k * n + k)
             for i in range(k + 1, m):
                 a.touch(A + i * n + k)
+            a.write(A + k * n + k)
+            for i in range(k + 1, m):
+                a.write(A + i * n + k)
             for j in range(k + 1, ke):
                 a.touch(A + k * n + k); a.touch(A + k * n + j)
                 for i in range(k + 1, m):
                     a.touch(A + i * n + k); a.touch(A + i * n + j)
                 a.touch(A + k * n + j); a.touch(A + k * n + k)
+                a.write(A + k * n + j)
                 for i in range(k + 1, m):
                     a.touch(A + i * n + j); a.touch(A + i * n + k)
-        # (b) block apply to trailing columns
+                    a.write(A + i * n + j)
         for j in range(ke, n):
             for t_idx, k in enumerate(range(kb, ke)):
                 a.touch(A + k * n + k); a.touch(A + k * n + j)
                 for i in range(k + 1, m):
                     a.touch(A + i * n + k); a.touch(A + i * n + j)
-                # write w[t_idx] — free
+                a.write(w + t_idx)
             for t_idx, k in enumerate(range(kb, ke)):
                 a.touch(A + k * n + j); a.touch(A + k * n + k); a.touch(w + t_idx)
+                a.write(A + k * n + j)
                 for i in range(k + 1, m):
                     a.touch(A + i * n + j); a.touch(A + i * n + k); a.touch(w + t_idx)
+                    a.write(A + i * n + j)
     return a.cost
 
 
@@ -1103,14 +1160,18 @@ def manual_tsqr(m: int, n: int, block_rows: int = 8) -> int:
             a.touch(A + kk * n + k)
             for i in range(kk + 1, row1):
                 a.touch(A + i * n + k)
+            a.write(A + kk * n + k)
+            for i in range(kk + 1, row1):
+                a.write(A + i * n + k)
             for j in range(k + 1, n):
                 a.touch(A + kk * n + k); a.touch(A + kk * n + j)
                 for i in range(kk + 1, row1):
                     a.touch(A + i * n + k); a.touch(A + i * n + j)
                 a.touch(A + kk * n + j); a.touch(A + kk * n + k)
+                a.write(A + kk * n + j)
                 for i in range(kk + 1, row1):
                     a.touch(A + i * n + j); a.touch(A + i * n + k)
-    # Phase 2: tree reduction
+                    a.write(A + i * n + j)
     num_tiles = (m + block_rows - 1) // block_rows
     stride = 1
     while stride < num_tiles:
@@ -1129,8 +1190,10 @@ def manual_tsqr(m: int, n: int, block_rows: int = 8) -> int:
                     for i in range(right_row + k, right_end):
                         a.touch(A + i * n + k); a.touch(A + i * n + j)
                     a.touch(A + (left_row + k) * n + j); a.touch(A + (left_row + k) * n + k)
+                    a.write(A + (left_row + k) * n + j)
                     for i in range(right_row + k, right_end):
                         a.touch(A + i * n + j); a.touch(A + i * n + k)
+                        a.write(A + i * n + j)
         stride *= 2
     return a.cost
 
@@ -1154,4 +1217,5 @@ def manual_lcs_dp(m: int, n: int) -> int:
             a.touch(D + i * stride + (j - 1))
             a.touch(x + i - 1)
             a.touch(y + j - 1)
+            a.write(D + i * stride + j)
     return a.cost
