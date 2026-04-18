@@ -20,11 +20,16 @@ class Allocator:
     records the address sequence into .log (reads).
 
     write(addr) is FREE under the ByteDMD convention (no cost added)
-    but when logging=True is recorded into .writes as (time, addr) pairs,
-    where time = len(self.log) at the moment of the write. Purely for
-    trace-visualization purposes.
+    but when logging=True is recorded into one of two lists:
+      .output_writes : writes whose addr falls inside [out_start, out_end)
+                       (as declared by set_output_range). Plotted shifted
+                       above peak in trace visualizations.
+      .writes        : everything else (scratch / temp writes). Plotted
+                       at real address.
+    Both store (time, addr) pairs, time = len(self.log).
     """
-    __slots__ = ("cost", "ptr", "peak", "log", "writes")
+    __slots__ = ("cost", "ptr", "peak", "log", "writes",
+                 "output_writes", "out_start", "out_end")
 
     def __init__(self, logging: bool = False) -> None:
         self.cost = 0
@@ -32,6 +37,9 @@ class Allocator:
         self.peak = 1
         self.log = [] if logging else None
         self.writes = [] if logging else None
+        self.output_writes = [] if logging else None
+        self.out_start = None
+        self.out_end = None
 
     def alloc(self, size: int) -> int:
         addr = self.ptr
@@ -46,14 +54,27 @@ class Allocator:
     def pop(self, p: int) -> None:
         self.ptr = p
 
+    def set_output_range(self, start: int, end: int) -> None:
+        """Mark [start, end) as the algorithm's output region. Writes to
+        addresses in this range get classified as output_writes (shifted
+        above peak in the plot); writes outside are treated as scratch."""
+        self.out_start = start
+        self.out_end = end
+
     def touch(self, addr: int) -> None:
         self.cost += math.isqrt(max(0, addr - 1)) + 1
         if self.log is not None:
             self.log.append(addr)
 
     def write(self, addr: int) -> None:
-        if self.writes is not None:
-            self.writes.append((len(self.log), addr))
+        if self.writes is None:
+            return
+        t = len(self.log)
+        if (self.out_start is not None
+                and self.out_start <= addr < self.out_end):
+            self.output_writes.append((t, addr))
+        else:
+            self.writes.append((t, addr))
 
 
 # Module-level override for the allocator used inside manual_* functions.
@@ -85,6 +106,7 @@ def manual_naive_matmul(n: int) -> int:
     a = _alloc()
     s = a.alloc(1)
     A = a.alloc(n * n); B = a.alloc(n * n); C = a.alloc(n * n)
+    a.set_output_range(C, C + n * n)
     for i in range(n):
         for j in range(n):
             a.touch(s)
@@ -104,6 +126,7 @@ def manual_tiled_matmul(n: int, T: int | None = None) -> int:
     a = _alloc()
     sA = a.alloc(T * T); sB = a.alloc(T * T); sC = a.alloc(T * T)
     A = a.alloc(n * n); B = a.alloc(n * n); C = a.alloc(n * n)
+    a.set_output_range(C, C + n * n)
 
     for bi in range(0, n, T):
         for bj in range(0, n, T):
@@ -147,6 +170,7 @@ def manual_rmm(n: int, T: int = 4) -> int:
     a = _alloc()
     sA = a.alloc(T * T); sB = a.alloc(T * T); sC = a.alloc(T * T)
     A = a.alloc(n * n); B = a.alloc(n * n); C = a.alloc(n * n)
+    a.set_output_range(C, C + n * n)
     # is_first is checked against the PREVIOUS compute_tile's C coordinate
     # only — if the C tile loaded in fast_C still matches, skip the pC
     # pre-load. Matches strassen_trace's Scratchpad.sync cache semantic.
@@ -207,6 +231,7 @@ def manual_strassen(n: int, T: int = 4) -> int:
     a = _alloc()
     sA = a.alloc(T * T); sB = a.alloc(T * T); sC = a.alloc(T * T)
     A = a.alloc(n * n); B = a.alloc(n * n); C = a.alloc(n * n)
+    a.set_output_range(C, C + n * n)
 
     def add_mats(p1: int, s1: int, p2: int, s2: int, h: int) -> None:
         for i in range(h):
@@ -273,17 +298,23 @@ def manual_strassen(n: int, T: int = 4) -> int:
         add_mats(A12, sAstr, A22, sAstr, h); add_mats(B21, sBstr, B22, sBstr, h)
         recurse(SA, h, SB, h, M[6], h, h)
 
-        # Reads to assemble C quadrants (4 submatrix adds/subs each)
+        # Reads to assemble C quadrants (4 submatrix adds/subs each),
+        # followed by writes into the corresponding C quadrant of pC_.
         def read_M(*indices: int) -> None:
             for i in range(h):
                 for j in range(h):
                     for idx in indices:
                         a.touch(M[idx] + i * h + j)
 
-        read_M(0, 3, 4, 6)
-        read_M(2, 4)
-        read_M(1, 3)
-        read_M(0, 1, 2, 5)
+        def write_quadrant(qr: int, qc: int) -> None:
+            for i in range(h):
+                for j in range(h):
+                    a.write(pC_ + (qr + i) * sCstr + (qc + j))
+
+        read_M(0, 3, 4, 6); write_quadrant(0, 0)
+        read_M(2, 4);        write_quadrant(0, h)
+        read_M(1, 3);        write_quadrant(h, 0)
+        read_M(0, 1, 2, 5);  write_quadrant(h, h)
 
         a.pop(ckpt)
 
@@ -300,6 +331,7 @@ def manual_fused_strassen(n: int, T: int = 4) -> int:
     a = _alloc()
     fast_A = a.alloc(T * T); fast_B = a.alloc(T * T); fast_C = a.alloc(T * T)
     A = a.alloc(n * n); B = a.alloc(n * n); C = a.alloc(n * n)
+    a.set_output_range(C, C + n * n)
 
     def compute_fused_tile(ops_A, ops_B, ops_C, r, c, k_off):
         # 1. Fused load A tile into fast_A
@@ -367,6 +399,7 @@ def manual_naive_attention(N: int, d: int) -> int:
     Q = a.alloc(N * d); K = a.alloc(N * d); V = a.alloc(N * d)
     S = a.alloc(N * N)
     O = a.alloc(N * d)
+    a.set_output_range(O, O + N * d)
 
     # Stage 1: S[i][j] = Q[i] . K[j] (scale folded in)
     for i in range(N):
@@ -422,6 +455,7 @@ def manual_flash_attention(N: int, d: int, Bk: int) -> int:
     # Bulk data
     Q = a.alloc(N * d); K = a.alloc(N * d); V = a.alloc(N * d)
     O = a.alloc(N * d)
+    a.set_output_range(O, O + N * d)
 
     num_blocks = (N + Bk - 1) // Bk
 
@@ -482,6 +516,7 @@ def manual_transpose_naive(n: int) -> int:
     """Read A column-major (B[i][j] = A[j][i]) — one read per cell."""
     a = _alloc()
     A = a.alloc(n * n); B = a.alloc(n * n)
+    a.set_output_range(B, B + n * n)
     for i in range(n):
         for j in range(n):
             a.touch(A + j * n + i)
@@ -496,6 +531,7 @@ def manual_transpose_blocked(n: int, T: int | None = None) -> int:
         T = max(1, int(round(n ** 0.5)))
     a = _alloc()
     A = a.alloc(n * n); B = a.alloc(n * n)
+    a.set_output_range(B, B + n * n)
     for bi in range(0, n, T):
         for bj in range(0, n, T):
             for ii in range(min(T, n - bi)):
@@ -509,6 +545,7 @@ def manual_transpose_recursive(n: int) -> int:
     """Cache-oblivious transpose: recursively split into 4 quadrants."""
     a = _alloc()
     A = a.alloc(n * n); B = a.alloc(n * n)
+    a.set_output_range(B, B + n * n)
 
     def rec(ar: int, ac: int, br: int, bc: int, sz: int) -> None:
         if sz == 1:
@@ -536,6 +573,7 @@ def manual_matvec_row(n: int) -> int:
     s = a.alloc(1); tmp = a.alloc(1)
     y = a.alloc(n); x = a.alloc(n)
     A = a.alloc(n * n)
+    a.set_output_range(y, y + n)
     for i in range(n):
         a.touch(A + i * n + 0); a.touch(x + 0)
         a.write(s)
@@ -566,6 +604,7 @@ def manual_matvec_blocked(n: int, B: int = 4) -> int:
     x_main = a.alloc(n)
     A = a.alloc(n * n)
     y = a.alloc(n)
+    a.set_output_range(y, y + n)
 
     for i_out in range(0, n, B):
         for j_out in range(0, n, B):
@@ -593,6 +632,7 @@ def manual_matvec_col(n: int) -> int:
     tmp = a.alloc(1)
     y = a.alloc(n); x = a.alloc(n)
     A = a.alloc(n * n)
+    a.set_output_range(y, y + n)
     for j in range(n):
         a.touch(x + j)
         for i in range(n):
@@ -613,6 +653,7 @@ def manual_fft_iterative(N: int) -> int:
     """In-place radix-2 Cooley-Tukey on an N-slot array at low addresses."""
     a = _alloc()
     x = a.alloc(N)
+    a.set_output_range(x, x + N)
     # Bit-reverse permutation — swaps
     j = 0
     for i in range(1, N):
@@ -643,6 +684,7 @@ def manual_fft_recursive(N: int) -> int:
     pointer up during recursion."""
     a = _alloc()
     x = a.alloc(N)
+    a.set_output_range(x, x + N)
 
     def rec(base: int, sz: int) -> None:
         if sz == 1:
@@ -677,6 +719,7 @@ def manual_stencil_naive(n: int) -> int:
     interior cell; writes to B are free."""
     a = _alloc()
     A = a.alloc(n * n); B = a.alloc(n * n)
+    a.set_output_range(B, B + n * n)
     for i in range(1, n - 1):
         for j in range(1, n - 1):
             a.touch(A + i * n + j)
@@ -694,6 +737,7 @@ def manual_stencil_recursive(n: int, leaf: int = 8) -> int:
     only access ORDER differs (visible to bytedmd_classic/bytedmd_live)."""
     a = _alloc()
     A = a.alloc(n * n); B = a.alloc(n * n)
+    a.set_output_range(B, B + n * n)
 
     def rec(r0: int, c0: int, sz: int) -> None:
         if sz <= leaf:
@@ -732,6 +776,7 @@ def manual_spatial_convolution(H: int, W: int, K: int) -> int:
     out_h = H - K + 1
     out_w = W - K + 1
     O = a.alloc(out_h * out_w)
+    a.set_output_range(O, O + out_h * out_w)
     for i in range(out_h):
         for j in range(out_w):
             a.touch(s)
@@ -748,6 +793,7 @@ def manual_fft_conv(N: int) -> int:
     FFT. Arrays X, Y, Z allocated at the lowest addresses."""
     a = _alloc()
     X = a.alloc(N); Y = a.alloc(N); Z = a.alloc(N)
+    a.set_output_range(Z, Z + N)
 
     def fft_in_place(base: int) -> None:
         j = 0
@@ -792,6 +838,7 @@ def manual_regular_convolution(H: int, W: int, K: int, Cin: int, Cout: int) -> i
     out_h = H - K + 1
     out_w = W - K + 1
     O = a.alloc(out_h * out_w * Cout)
+    a.set_output_range(O, O + out_h * out_w * Cout)
     for i in range(out_h):
         for j in range(out_w):
             for co in range(Cout):
@@ -815,6 +862,7 @@ def manual_quicksort(N: int) -> int:
     scan sz-1 elements against the pivot (2 reads each); recurse on halves."""
     a = _alloc()
     arr = a.alloc(N)
+    a.set_output_range(arr, arr + N)
 
     def rec(base: int, sz: int) -> None:
         if sz <= 1:
@@ -840,6 +888,7 @@ def manual_heapsort(N: int) -> int:
     at tree-linked addresses."""
     a = _alloc()
     arr = a.alloc(N)
+    a.set_output_range(arr, arr + N)
 
     def sift_down(j: int, heap_size: int) -> None:
         while 2 * j + 1 < heap_size:
@@ -871,6 +920,7 @@ def manual_mergesort(N: int) -> int:
     does 2*sz reads (both frontiers) and sz reads (copy-back temp → base)."""
     a = _alloc()
     arr = a.alloc(N)
+    a.set_output_range(arr, arr + N)
 
     def rec(base: int, sz: int) -> None:
         if sz <= 1:
@@ -907,6 +957,7 @@ def manual_lu_no_pivot(n: int) -> int:
     """In-place no-pivot LU. A at addrs 1..n²; all traffic stays inside A."""
     a = _alloc()
     A = a.alloc(n * n)
+    a.set_output_range(A, A + n * n)
     for k in range(n):
         pivot_addr = A + k * n + k
         a.touch(pivot_addr)
@@ -931,6 +982,7 @@ def manual_blocked_lu(n: int, NB: int = 8) -> int:
     S_panel = a.alloc(NB * NB)    # below-diagonal panel scratch
     S_row = a.alloc(NB * NB)      # row strip scratch
     A = a.alloc(n * n)
+    a.set_output_range(A, A + n * n)
 
     def panel_lu(base_r: int, base_c: int, sz: int, scratch: int) -> None:
         for ii in range(sz):
@@ -991,6 +1043,7 @@ def manual_recursive_lu(n: int) -> int:
     in-place — no temp allocation, only address arithmetic."""
     a = _alloc()
     A = a.alloc(n * n)
+    a.set_output_range(A, A + n * n)
 
     def rec(r0: int, c0: int, sz: int) -> None:
         if sz == 1:
@@ -1032,6 +1085,7 @@ def manual_lu_partial_pivot(n: int) -> int:
     and a row-swap pass touching row k and row p=(k+1) across n-k columns."""
     a = _alloc()
     A = a.alloc(n * n)
+    a.set_output_range(A, A + n * n)
     for k in range(n):
         for i in range(k, n):
             a.touch(A + i * n + k)
@@ -1065,6 +1119,7 @@ def manual_cholesky(n: int) -> int:
     only, so ~half the touches of full LU. A at addrs 1..n²."""
     a = _alloc()
     A = a.alloc(n * n)
+    a.set_output_range(A, A + n * n)
     for k in range(n):
         pivot_addr = A + k * n + k
         a.touch(pivot_addr)
@@ -1090,6 +1145,7 @@ def manual_householder_qr(m: int, n: int) -> int:
     """Classical Householder QR in place."""
     a = _alloc()
     A = a.alloc(m * n)
+    a.set_output_range(A, A + m * n)
     for k in range(min(m, n)):
         a.touch(A + k * n + k)
         for i in range(k + 1, m):
@@ -1114,6 +1170,7 @@ def manual_blocked_qr(m: int, n: int, NB: int = 8) -> int:
     a = _alloc()
     w = a.alloc(NB)
     A = a.alloc(m * n)
+    a.set_output_range(A, A + m * n)
     for kb in range(0, min(m, n), NB):
         ke = min(kb + NB, min(m, n))
         for k in range(kb, ke):
@@ -1152,6 +1209,7 @@ def manual_tsqr(m: int, n: int, block_rows: int = 8) -> int:
     tree-reduction over stacked R factors."""
     a = _alloc()
     A = a.alloc(m * n)
+    a.set_output_range(A, A + m * n)
     # Phase 1: local QR per row-tile
     for row0 in range(0, m, block_rows):
         row1 = min(row0 + block_rows, m)
@@ -1209,6 +1267,7 @@ def manual_lcs_dp(m: int, n: int) -> int:
     # Strings at low addrs (repeatedly touched), DP table at higher addrs
     x = a.alloc(m); y = a.alloc(n)
     D = a.alloc((m + 1) * (n + 1))
+    a.set_output_range(D, D + (m + 1) * (n + 1))
     stride = n + 1
     for i in range(1, m + 1):
         for j in range(1, n + 1):
