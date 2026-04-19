@@ -55,6 +55,7 @@ from manual_dsl_examples import (
     manual_householder_qr_dsl,
     manual_blocked_lu_dsl,
     manual_floyd_warshall_recursive_dsl,
+    manual_cholesky_left_looking_dsl,
 )
 
 
@@ -303,6 +304,11 @@ def test_dsl_matches_blocked_lu() -> None:
 def test_dsl_matches_floyd_warshall_recursive() -> None:
     _within_tolerance(manual_floyd_warshall_recursive_dsl(32),
                       man.manual_floyd_warshall_recursive(32))
+
+
+def test_dsl_matches_cholesky_left_looking() -> None:
+    _within_tolerance(manual_cholesky_left_looking_dsl(32),
+                      man.manual_cholesky_left_looking(32))
 
 
 def test_dsl_matches_fused_strassen() -> None:

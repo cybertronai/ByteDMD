@@ -1019,6 +1019,38 @@ def manual_blocked_lu_dsl(n: int, NB: int = 8) -> int:
     return sch.finalize()
 
 
+def manual_cholesky_left_looking_dsl(n: int) -> int:
+    sch = Sched()
+    A = sch.lazy_matrix(n * n)
+    tmp = sch.scalar()
+    c_A = sch.scalar()
+    c_C = sch.buffer(n)
+    sch.lazy_output_buffer(A)
+
+    for k in range(n):
+        if k > 0:
+            # Cache row k's past values (L[k][0..k-1]) into c_C.
+            for j in range(k):
+                sch.assign(A[k * n + j], c_C[j])
+            # Pull from past columns to compute L[i][k] for i>=k.
+            for i in range(k, n):
+                sch.assign(A[i * n + k], c_A)
+                for j in range(k):
+                    sch.read(A[i * n + j])
+                    sch.read(c_C[j])
+                    sch.read(c_A)
+                    sch.read(tmp)
+                    sch.write(c_A)
+                sch.assign(c_A, A[i * n + k])
+        # Diagonal sqrt.
+        sch.read(A[k * n + k]); sch.write(A[k * n + k])
+        sch.assign(A[k * n + k], c_A)
+        # Divide column k.
+        for i in range(k + 1, n):
+            sch.read(A[i * n + k]); sch.read(c_A); sch.write(A[i * n + k])
+    return sch.finalize()
+
+
 def manual_floyd_warshall_recursive_dsl(V: int) -> int:
     SZ = 2
 
