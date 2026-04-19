@@ -14,11 +14,7 @@ from bytedmd import bytedmd
 def myfunc(a, b, c, d, e):
     return a*b + c*d + e
 
-# function result
 assert myfunc(1, 2, 3, 4, 5) == 19
-
-# ByteDMD cost — two-stack model: a, b, c, d, e sit at argument
-# depths 1..5; intermediates live on the geometric (scratch) stack.
 assert bytedmd(myfunc, (1, 2, 3, 4, 5)) == 14
 ```
 
