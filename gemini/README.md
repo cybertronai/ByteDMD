@@ -109,6 +109,7 @@ Research notes on **ByteDMD** (Byte-level Data Movement Distance): a concrete me
 | [mattson-trap.md](mattson-trap.md) | Three algorithms (Karatsuba, BPTT, out-of-place FFT) where Mattson's LRU stack hallucinates bottlenecks that Live-Bytes correctly resolves |
 | [debug-spacedmd-scratchpad.md](debug-spacedmd-scratchpad.md) | Why SpaceDMD diverges from manual: implicit vs explicit scratchpad in traced code, fix via materialized DMA copies |
 | [beyond-mattson-prior-work.md](beyond-mattson-prior-work.md) | Prior work on liveness-aware cache models: Belady OPT, Ideal Cache, Dead-Block Pollution, Live Distance, HMM connection |
+| [optspacedmd.md](optspacedmd.md) | MWIS auto-scratchpad heuristic that overcomes SpaceDMD's monolithic-lifespan limitation via segmented interval scheduling |
 
 ## April 18, 2026
 
@@ -121,3 +122,22 @@ Research notes on **ByteDMD** (Byte-level Data Movement Distance): a concrete me
 | [efficient-matvec.md](efficient-matvec.md) | Why SpaceDMD beats manual matvec: streaming registers vs static bulk array placement |
 | [manual-vs-traced-mismatch.md](manual-vs-traced-mismatch.md) | Manual schedule beats automated bounds by executing an optimized algorithm, not just better layout |
 | [left-looking-lu.md](left-looking-lu.md) | Left-looking blocked LU/Cholesky scheduling with L1 vector scratchpads to minimize geometric stack cost |
+| [bill-dally-commute-math.md](bill-dally-commute-math.md) | Re-deriving Dally's "an add is worth 10 µm of movement" heuristic and its assumptions on 45 nm silicon |
+| [tiled-matmul-optimization.md](tiled-matmul-optimization.md) | Line-by-line audit confirming manual_tiled_matmul's sub-space_dmd score is legitimate, not an accounting cheat |
+| [tarjan-bytedmd-lower-bound.md](tarjan-bytedmd-lower-bound.md) | Sleator–Tarjan-style proof: manual ≥ 2/(3√3) ≈ 0.3849 × bytedmd_live for any placement under sqrt(addr) |
+| [polyhedral-search-for-matmul.md](polyhedral-search-for-matmul.md) | Semiring matmul under ByteDMD reframed as pure hardware scheduling + register allocation over the polyhedral iteration space |
+| [suggested-algorithms-bitonic-sort.md](suggested-algorithms-bitonic-sort.md) | 15 new benchmark algorithm families to stress CA, locality, and liveness mechanisms across the heuristic grid |
+| [optimize-tiling-to-death.md](optimize-tiling-to-death.md) | Two micro-optimizations hitting the AM-GM floor for tiled_matmul: frequency-first allocation + first-MAC bypass (68,270 → 67,758) |
+| [optimize-tsqr.md](optimize-tsqr.md) | L1 tile funnel + asymmetric Phase-2 caching + frequency-remapped A layout for tall-skinny QR |
+| [optimize-blocked-lu.md](optimize-blocked-lu.md) | Lazy arg evaluation + three tight scratchpads (c_A/c_C/c_B) multiplexed across four blocked-LU stages |
+| [optimize-fft-conv.md](optimize-fft-conv.md) | 16×16 2D L1 blocking + shared X/Y workspace + fused bit-reversal + fused pointwise Z for FFT convolution |
+| [optimize-floyd-warshall-recursive.md](optimize-floyd-warshall-recursive.md) | L1 cache_T/cache_D scratchpads + dirty-tracked writeback + frequency-based block layout for Kleene APSP |
+| [optimize-mergesort.md](optimize-mergesort.md) | In-place oblivious merge + L1 scratchpad + scalar-register hoisting for recursive mergesort |
+| [optimize-stencil-time-diamond.md](optimize-stencil-time-diamond.md) | Lazy global mapping + in-place rolling buffer + L1 scalar pipelining for diamond-tiled time stencils |
+
+## April 19, 2026
+
+| Report | Summary |
+|--------|---------|
+| [bytedmd-upper-bound.md](bytedmd-upper-bound.md) | Companion upper bound to the Tarjan lower bound: OPT manual ≤ 4.0 × bytedmd_live via competitive DMA-managed scratchpad analysis |
+| [illustrative-matmul-tiled.md](illustrative-matmul-tiled.md) | Self-contained walkthrough + Python demo showing why manual scratchpad placement is mathematically optimal on a 2D spatial grid |
