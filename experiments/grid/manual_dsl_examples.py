@@ -1161,37 +1161,81 @@ def manual_floyd_warshall_recursive_dsl(V: int) -> int:
 # ---------------------------------------------------------------------------
 
 def manual_fft_conv_dsl(N: int) -> int:
+    """DSL port of the 2D-blocked fft_conv (gemini/optimize-fft-conv.md):
+    16x16 L1 cache tiling, shared X/Y workspace, fused bit-reversal,
+    fused pointwise Z."""
     sch = Sched()
-    X_in = sch.arg_buffer(N); Y_in = sch.arg_buffer(N)
+    B = 16
+    cache_A = sch.buffer(B)
     tmp = sch.scalar()
-    X = sch.buffer(N); Y = sch.buffer(N); Z = sch.output_buffer(N)
-    for i in range(N):
-        sch.assign(X_in[i], X[i])
-        sch.assign(Y_in[i], Y[i])
+    X_in = sch.arg_buffer(N)
+    Y_in = sch.arg_buffer(N)
+    X = sch.buffer(N)
+    Y = sch.buffer(N)
 
-    def fft_in_place(base):
-        j = 0
-        for i in range(1, N):
-            bit = N >> 1
-            while j & bit:
-                j ^= bit
-                bit >>= 1
+    rev = [0] * N
+    j = 0
+    for i in range(1, N):
+        bit = N >> 1
+        while j & bit:
             j ^= bit
-            if i < j:
-                sch.swap(base[i], base[j], tmp)
-        m = 1
-        while m < N:
-            for k in range(0, N, m * 2):
-                for jj in range(m):
-                    sch.butterfly(base[k + jj], base[k + jj + m], tmp)
-            m *= 2
+            bit >>= 1
+        j ^= bit
+        rev[i] = j
 
-    fft_in_place(X)
-    fft_in_place(Y)
-    for k in range(N):
-        # Z[k] = X[k] * Y[k] — single binary op, 2 reads + free write.
-        sch.mul(X[k], Y[k], Z[k])
-    fft_in_place(Z)
+    def fft_in_place(base, in_arg=None, fuse_z=False, write_base=None):
+        if write_base is None:
+            write_base = base
+
+        # Stages 1..4: block size B, contiguous.
+        for r in range(B):
+            offset = r * B
+            for c in range(B):
+                idx = offset + c
+                if in_arg is not None:
+                    # 1 read (arg), free write.
+                    sch.assign(in_arg[rev[idx]], cache_A[c])
+                elif fuse_z:
+                    # 2 reads (Y + X at bit-reversed position), free write.
+                    sch.read(Y[rev[idx]])
+                    sch.read(X[rev[idx]])
+                    sch.write(cache_A[c])
+                else:
+                    sch.assign(base[idx], cache_A[c])
+            m = 1
+            while m < B:
+                for k in range(0, B, m * 2):
+                    for jj in range(m):
+                        c1 = cache_A[k + jj]
+                        c2 = cache_A[k + jj + m]
+                        # tmp = c2; c2 = c1 - tmp; c1 = c1 + tmp.
+                        sch.assign(c2, tmp)
+                        sch.sub(c1, tmp, c2)
+                        sch.add(c1, tmp, c1)
+                m *= 2
+            for c in range(B):
+                sch.assign(cache_A[c], base[offset + c])
+
+        # Stages 5..8: block size B, strided by B.
+        for c in range(B):
+            for r in range(B):
+                sch.assign(base[r * B + c], cache_A[r])
+            m = 1
+            while m < B:
+                for k in range(0, B, m * 2):
+                    for jj in range(m):
+                        sch.butterfly(cache_A[k + jj],
+                                      cache_A[k + jj + m], tmp)
+                m *= 2
+            for r in range(B):
+                sch.assign(cache_A[r], write_base[r * B + c])
+
+    fft_in_place(X, in_arg=X_in, write_base=Y)
+    fft_in_place(X, in_arg=Y_in)
+    # Mark X as the Z output region.
+    sch._a.set_output_range(X[0].addr, X[0].addr + N)
+    sch._output_cells = X
+    fft_in_place(X, fuse_z=True)
     return sch.finalize()
 
 

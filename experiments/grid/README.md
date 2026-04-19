@@ -76,7 +76,7 @@ DAGs are identical, so `bytedmd_live` / `bytedmd_classic` match — only
 | [stencil_recursive(32x32,leaf=8)](#stencil_recursive)                 |    54,599 |       58,764 |      78,968 |         101,657 |
 | [spatial_conv(32x32,K=5)](#spatial_conv)                              |   344,389 |      402,858 |     595,987 |         681,253 |
 | [regular_conv(16x16,K=3,Cin=4,Cout=4)](#regular_conv)                 |   724,678 |      778,473 |     648,300 |       1,290,500 |
-| [fft_conv(N=256)](#fft_conv)                                          |   110,194 |      148,641 |     273,318 |         233,158 |
+| [fft_conv(N=256)](#fft_conv)                                          |   110,194 |      148,641 |      91,922 |         233,158 |
 | [quicksort(N=64)](#quicksort)                                         |     2,470 |        2,852 |       4,718 |           4,292 |
 | [heapsort(N=64)](#heapsort)                                           |     3,597 |        4,696 |       5,523 |           7,889 |
 | [mergesort(N=64)](#mergesort)                                         |     2,474 |        3,148 |       3,386 |           4,411 |
@@ -711,13 +711,19 @@ position.
 `IFFT(FFT(x) · FFT(y))`. Two forward FFTs, an N-element pointwise
 multiply, and one inverse FFT.
 
-**Manual placement.** Three N-slot arrays `X, Y, Z` at addrs 1..3N in
-the hot region; each FFT runs in-place on its own array. Total cost is
-≈ 3× the iterative FFT cost plus the pointwise multiply. Manual
-(138,238) is slightly below `bytedmd_live` (148,320) — the tight
-in-place FFT layout still wins over any trace-only LRU estimate,
-though the margin narrows at N=256 because the 3N hot region is no
-longer negligibly small.
+**Manual placement.** Four stacked optimizations
+([gemini/optimize-fft-conv.md](../../gemini/optimize-fft-conv.md)):
+(1) **2D L1 cache blocking** — factor the 256-point FFT into 16×16 row
+and column passes so every butterfly runs inside a 16-cell
+`cache_A` at addrs 1..16. (2) **Shared workspace** — only two
+N-sized buffers instead of three; X is reused across FFT(X),
+FFT(Y), and IFFT(Z). (3) **Fused bit-reversal** — arg-stack inputs
+map directly into their bit-reversed coordinates on first touch
+(no explicit permutation pass). (4) **Fused pointwise Z** — the
+IFFT's cache-load step reads `X_fft[rev_idx] * Y_fft[rev_idx]`
+on-the-fly, skipping a materialized Z array. Together these drop
+manual **273,318 → 91,922** (−66 %), cheaper than every heuristic
+including `space_dmd` (110,194) and `bytedmd_live` (148,641).
 
 ![](traces/fft_conv_n_256.png)
 
@@ -729,7 +735,7 @@ longer negligibly small.
 
 ![](traces/fft_conv_n_256_reuse_distance.png)
 
-**Working-set size over a τ = 256-event window** (max = 256).
+**Working-set size over a τ = 100-event window** (max = 100).
 
 ![](traces/fft_conv_n_256_wss.png)
 

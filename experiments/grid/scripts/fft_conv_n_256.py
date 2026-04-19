@@ -547,50 +547,86 @@ def fft_conv(x_in, y_in):
 # ===========================================================================
 
 def manual_fft_conv(N: int) -> int:
-    """Convolution via FFT. Butterflies correctly priced (5 reads per
-    butterfly via one hot tmp); bit-reversal swap is priced as three
-    moves through tmp."""
+    """Convolution via FFT optimized for the geometric stack model
+    (gemini/optimize-fft-conv.md). Four stacked optimizations:
+      (1) 2D L1 cache blocking — 256-pt FFT factored into 16x16 passes
+          so all butterflies run inside a 16-cell cache at addrs 1..16.
+      (2) Shared geometric workspace — X and Y multiplexed across
+          FFT(X), FFT(Y), and IFFT(Z).
+      (3) Fused load/store bit-reversal — arg inputs map directly
+          into bit-reversed coordinates on first touch.
+      (4) Fused pointwise Z — the IFFT's cache-load step reads
+          X[rev_idx]*Y[rev_idx] on-the-fly without materializing Z."""
     a = _alloc()
+    B = 16
+
+    cache_A = a.alloc(B)
     tmp = a.alloc(1)
-    X_in = a.alloc_arg(N); Y_in = a.alloc_arg(N)
-    X = a.alloc(N); Y = a.alloc(N); Z = a.alloc(N)
-    a.set_output_range(Z, Z + N)
-    for i in range(N):
-        a.touch_arg(X_in + i); a.write(X + i)
-        a.touch_arg(Y_in + i); a.write(Y + i)
 
-    def fft_in_place(base: int) -> None:
-        j = 0
-        for i in range(1, N):
-            bit = N >> 1
-            while j & bit:
-                j ^= bit
-                bit >>= 1
+    X_in = a.alloc_arg(N)
+    Y_in = a.alloc_arg(N)
+
+    X = a.alloc(N)
+    Y = a.alloc(N)
+
+    rev = [0] * N
+    j = 0
+    for i in range(1, N):
+        bit = N >> 1
+        while j & bit:
             j ^= bit
-            if i < j:
-                a.touch(base + i); a.write(tmp)
-                a.touch(base + j); a.write(base + i)
-                a.touch(tmp); a.write(base + j)
-        m = 1
-        while m < N:
-            for k in range(0, N, m * 2):
-                for jj in range(m):
-                    a.touch(base + k + jj); a.touch(base + k + jj + m)
-                    a.write(tmp)
-                    a.touch(base + k + jj); a.touch(base + k + jj + m)
-                    a.write(base + k + jj)
-                    a.touch(tmp); a.write(base + k + jj + m)
-            m *= 2
+            bit >>= 1
+        j ^= bit
+        rev[i] = j
 
-    fft_in_place(X)
-    fft_in_place(Y)
-    # Pointwise multiply Z[k] = X[k] * Y[k]: 2 reads, write tmp, read tmp,
-    # write Z[k] — but the last read-tmp-write-Z is the multiply's result
-    # being assigned; equivalently treat as single binary op: 2 reads,
-    # free write of Z.
-    for k in range(N):
-        a.touch(X + k); a.touch(Y + k); a.write(Z + k)
-    fft_in_place(Z)
+    def fft_in_place(base, in_arg=-1, fuse_z=False, write_base=-1):
+        if write_base == -1:
+            write_base = base
+        for r in range(B):
+            offset = r * B
+            for c in range(B):
+                idx = offset + c
+                if in_arg != -1:
+                    a.touch_arg(in_arg + rev[idx])
+                elif fuse_z:
+                    rev_idx = rev[idx]
+                    a.touch(Y + rev_idx)
+                    a.touch(X + rev_idx)
+                else:
+                    a.touch(base + idx)
+                a.write(cache_A + c)
+            m = 1
+            while m < B:
+                for k in range(0, B, m * 2):
+                    for jj in range(m):
+                        idx1 = cache_A + k + jj
+                        idx2 = cache_A + k + jj + m
+                        a.touch(idx2); a.write(tmp)
+                        a.touch(idx1); a.touch(tmp); a.write(idx2)
+                        a.touch(idx1); a.touch(tmp); a.write(idx1)
+                m *= 2
+            for c in range(B):
+                a.touch(cache_A + c); a.write(base + offset + c)
+        for c in range(B):
+            for r in range(B):
+                a.touch(base + r * B + c); a.write(cache_A + r)
+            m = 1
+            while m < B:
+                for k in range(0, B, m * 2):
+                    for jj in range(m):
+                        idx1 = cache_A + k + jj
+                        idx2 = cache_A + k + jj + m
+                        a.touch(idx2); a.write(tmp)
+                        a.touch(idx1); a.touch(tmp); a.write(idx2)
+                        a.touch(idx1); a.touch(tmp); a.write(idx1)
+                m *= 2
+            for r in range(B):
+                a.touch(cache_A + r); a.write(write_base + r * B + c)
+
+    fft_in_place(X, in_arg=X_in, write_base=Y)
+    fft_in_place(X, in_arg=Y_in)
+    a.set_output_range(X, X + N)
+    fft_in_place(X, fuse_z=True)
     a.read_output()
     return a.cost
 # ===========================================================================
