@@ -59,7 +59,7 @@ DAGs are identical, so `bytedmd_live` / `bytedmd_classic` match — only
 
 | algorithm                                                            | space_dmd | bytedmd_live | manual      | bytedmd_classic |
 |-----------------------------------------------------------------------|----------:|-------------:|------------:|----------------:|
-| [naive_matmul(n=16)](#naive_matmul)                                   |    79,044 |      109,217 |     130,824 |         181,258 |
+| [naive_matmul(n=16)](#naive_matmul)                                   |    79,044 |      109,217 |     102,026 |         181,258 |
 | [tiled_matmul(n=16)](#tiled_matmul)                                   |    93,369 |       78,708 |      82,520 |         143,812 |
 | [tiled_matmul_explicit(n=16,T=4)](#tiled_matmul_explicit)             |    73,927 |       99,006 |      82,520 |         201,547 |
 | [rmm(n=16)](#rmm)                                                     |   107,058 |       83,196 |      93,291 |         151,375 |
@@ -67,12 +67,12 @@ DAGs are identical, so `bytedmd_live` / `bytedmd_classic` match — only
 | [fused_strassen(n=16)](#fused_strassen)                               |   135,273 |      175,157 |     121,612 |         343,737 |
 | [naive_attn(N=32,d=2)](#naive_attn)                                   |   127,674 |      144,851 |     215,538 |         281,164 |
 | [flash_attn(N=32,d=2,Bk=8)](#flash_attn)                              |    75,992 |       98,273 |     127,782 |         167,393 |
-| [matvec_row(n=64)](#matvec_row)                                       |   217,053 |      229,527 |     455,587 |         266,353 |
+| [matvec_row(n=64)](#matvec_row)                                       |   217,053 |      229,527 |     218,552 |         266,353 |
 | [matvec_col(n=64)](#matvec_col)                                       |   197,719 |      229,716 |     209,312 |         270,193 |
 | [matvec_blocked(n=64,B=4)](#matvec_blocked)                           |   208,307 |      215,668 |     275,535 |         256,422 |
 | [fft_iterative(N=256)](#fft_iterative)                                |    35,400 |       47,088 |      31,240 |          71,317 |
 | [fft_recursive(N=256)](#fft_recursive)                                |    28,170 |       33,110 |      28,560 |          62,417 |
-| [stencil_naive(32x32)](#stencil_naive)                                |    61,258 |       65,937 |     121,628 |         109,401 |
+| [stencil_naive(32x32)](#stencil_naive)                                |    61,258 |       65,937 |      78,968 |         109,401 |
 | [stencil_recursive(32x32,leaf=8)](#stencil_recursive)                 |    54,599 |       58,764 |     121,628 |         101,657 |
 | [spatial_conv(32x32,K=5)](#spatial_conv)                              |   344,389 |      402,858 |     537,944 |         681,253 |
 | [regular_conv(16x16,K=3,Cin=4,Cout=4)](#regular_conv)                 |   724,678 |      778,473 |     975,610 |       1,290,500 |
@@ -93,9 +93,9 @@ DAGs are identical, so `bytedmd_live` / `bytedmd_classic` match — only
 | [transpose_blocked(n=32)](#transpose_blocked)                         |    43,296 |       43,873 |      44,704 |          62,341 |
 | [transpose_recursive(n=32)](#transpose_recursive)                     |    41,434 |       42,513 |      44,704 |          61,688 |
 | [stencil_time_naive(16x16,T=4)](#stencil_time_naive)                  |    42,332 |       55,466 |      67,258 |          88,017 |
-| [stencil_time_diamond(16x16,T=4)](#stencil_time_diamond)              |   178,875 |      230,387 |     562,290 |         414,232 |
-| [floyd_warshall_naive(V=16)](#floyd_warshall_naive)                   |    82,119 |      104,528 |     142,800 |         168,288 |
-| [floyd_warshall_recursive(V=16)](#floyd_warshall_recursive)           |    48,445 |       47,495 |     142,288 |          95,871 |
+| [stencil_time_diamond(16x16,T=4)](#stencil_time_diamond)              |   178,875 |      230,387 |     136,095 |         414,232 |
+| [floyd_warshall_naive(V=16)](#floyd_warshall_naive)                   |    82,119 |      104,528 |      76,339 |         168,288 |
+| [floyd_warshall_recursive(V=16)](#floyd_warshall_recursive)           |    48,445 |       47,495 |      57,920 |          95,871 |
 | [layernorm_unfused(N=256)](#layernorm_unfused)                        |    16,823 |       19,022 |      14,571 |          30,891 |
 | [layernorm_fused(N=256)](#layernorm_fused)                            |    13,485 |       15,172 |      15,329 |          24,400 |
 | [matrix_powers_naive(n=16,s=4)](#matrix_powers_naive)                 |    17,249 |       24,085 |      27,198 |          37,513 |
@@ -1273,7 +1273,20 @@ Lazy arg reads at k=0 replace the V² preload. Drops manual from
 ## floyd_warshall_recursive [(code)](scripts/floyd_warshall_recursive_v_16.py)
 `V=16`. **Algorithm.** Kleene's cache-oblivious APSP: 8 recursive quadrant calls per level.
 
-**Manual.** Same D buffer but quadrant-ordered traversal brings neighbouring reads closer in time — LRU heuristics pick up the win immediately.
+**Manual.** Three stacked optimizations (`gemini/optimize-floyd-warshall-recursive.md`):
+
+1. **L1 scratchpads at stack bottom** — `cache_T` (target block) and
+   `cache_D` (diagonal block), each 2×2, pinned at addresses 1..8.
+   The O(V³) inner loops run entirely inside those 8 cells.
+2. **Dirty-tracking** — the target block is only flushed back to `D`
+   when a new block is loaded *and* the previous one was written to.
+3. **Frequency-ordered layout** — a dry run counts cache misses per
+   leaf block; `D` is then physically laid out with the highest-miss
+   blocks at the lowest addresses via a `D_addr(r, c)` remap.
+
+Drops manual from 142,288 to **57,920** (−59%), now only 22% above
+`bytedmd_live` (47,495) vs the old 3.00× — one of the biggest
+single-algorithm wins in the grid.
 
 ![](traces/floyd_warshall_recursive_v_16.png)
 

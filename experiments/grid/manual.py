@@ -1934,34 +1934,127 @@ def manual_floyd_warshall_naive(V: int) -> int:
 
 
 def manual_floyd_warshall_recursive(V: int) -> int:
-    """Kleene's cache-oblivious APSP: 8 recursive quadrant calls. Reads
-    stay inside the current submatrix when sz is small, giving a
-    rmm-like cache profile."""
+    """Kleene's cache-oblivious APSP optimized for the geometric stack
+    model (gemini/optimize-floyd-warshall-recursive.md). Three tricks:
+
+      (1) L1 scratchpads at the bottom of the stack — `cache_T` (target
+          block) and `cache_D` (diagonal block), each 2×2, pinned at
+          addresses 1..8. The O(V³) inner loops run entirely inside
+          these 8 slots.
+      (2) Dirty-tracking — the target block is only flushed back to D
+          when a new block is loaded *and* the previous one was actually
+          written to (dirty_T).
+      (3) Frequency-based block layout — a dry run of the recursion
+          counts how many times each (r0, c0) leaf block gets cache-
+          missed; D is then physically laid out with the highest-miss
+          blocks at the lowest addresses via D_addr(r, c).
+    """
     a = _alloc()
     M = a.alloc_arg(V * V)
+
+    SZ = 2
+    cache_T = a.alloc(SZ * SZ)
+    cache_D = a.alloc(SZ * SZ)
     D = a.alloc(V * V)
     a.set_output_range(D, D + V * V)
-    for i in range(V * V):
-        a.touch_arg(M + i); a.write(D + i)
 
-    def leaf(r0: int, c0: int, sz: int) -> None:
-        for k in range(r0, r0 + sz):
-            for i in range(r0, r0 + sz):
-                for j in range(c0, c0 + sz):
-                    a.touch(D + i * V + j)
-                    a.touch(D + i * V + k)
-                    a.touch(D + k * V + j)
-                    a.write(D + i * V + j)
+    # --- (3a) Dry-run to compute miss counts per block. ---
+    miss_counts = {}
+    sim_tag_T = [None]
+    sim_tag_D = [None]
 
-    def rec(r0: int, c0: int, sz: int) -> None:
-        if sz <= 2:
-            leaf(r0, c0, sz); return
+    def _sim_rec(r0, c0, sz):
+        if sz <= SZ:
+            if sim_tag_T[0] != (r0, c0):
+                miss_counts[(r0, c0)] = miss_counts.get((r0, c0), 0) + 1
+                sim_tag_T[0] = (r0, c0)
+            if r0 != c0 and sim_tag_D[0] != r0:
+                miss_counts[(r0, r0)] = miss_counts.get((r0, r0), 0) + 1
+                sim_tag_D[0] = r0
+            return
         h = sz // 2
         for dr, dc in [(0, 0), (0, h), (h, 0), (h, h),
                        (h, h), (h, 0), (0, h), (0, 0)]:
-            rec(r0 + dr, c0 + dc, h)
+            _sim_rec(r0 + dr, c0 + dc, h)
 
-    rec(0, 0, V)
+    _sim_rec(0, 0, V)
+
+    for i in range(0, V, SZ):
+        for j in range(0, V, SZ):
+            miss_counts.setdefault((i, j), 0)
+
+    sorted_blocks = sorted(miss_counts.keys(), key=lambda x: -miss_counts[x])
+    block_mapping = {cell: i for i, cell in enumerate(sorted_blocks)}
+
+    def D_addr(r, c):
+        b_idx = block_mapping[((r // SZ) * SZ, (c // SZ) * SZ)]
+        return b_idx * (SZ * SZ) + (r % SZ) * SZ + (c % SZ)
+
+    # --- Initialization: arg → D via frequency-ordered D_addr. ---
+    for i in range(V):
+        for j in range(V):
+            a.touch_arg(M + i * V + j); a.write(D + D_addr(i, j))
+
+    tag_T = [None]
+    tag_D = [None]
+    dirty_T = [False]
+
+    def load_T(r0, c0):
+        if tag_T[0] == (r0, c0):
+            return
+        if tag_T[0] is not None and dirty_T[0]:
+            for i in range(SZ):
+                for j in range(SZ):
+                    a.touch(cache_T + i * SZ + j)
+                    a.write(D + D_addr(tag_T[0][0] + i, tag_T[0][1] + j))
+        tag_T[0] = (r0, c0)
+        dirty_T[0] = False
+        for i in range(SZ):
+            for j in range(SZ):
+                a.touch(D + D_addr(r0 + i, c0 + j))
+                a.write(cache_T + i * SZ + j)
+
+    def load_D(r0):
+        if tag_D[0] == r0:
+            return
+        tag_D[0] = r0
+        for i in range(SZ):
+            for j in range(SZ):
+                a.touch(D + D_addr(r0 + i, r0 + j))
+                a.write(cache_D + i * SZ + j)
+
+    def do_block(r0, c0):
+        load_T(r0, c0)
+        if r0 != c0:
+            load_D(r0)
+        for k in range(SZ):
+            for i in range(SZ):
+                for j in range(SZ):
+                    a.touch(cache_T + i * SZ + j)
+                    if r0 == c0:
+                        a.touch(cache_T + i * SZ + k)
+                    else:
+                        a.touch(cache_D + i * SZ + k)
+                    a.touch(cache_T + k * SZ + j)
+                    a.write(cache_T + i * SZ + j)
+        dirty_T[0] = True
+
+    def rec_main(r0, c0, sz):
+        if sz <= SZ:
+            do_block(r0, c0); return
+        h = sz // 2
+        for dr, dc in [(0, 0), (0, h), (h, 0), (h, h),
+                       (h, h), (h, 0), (0, h), (0, 0)]:
+            rec_main(r0 + dr, c0 + dc, h)
+
+    rec_main(0, 0, V)
+
+    if tag_T[0] is not None and dirty_T[0]:
+        for i in range(SZ):
+            for j in range(SZ):
+                a.touch(cache_T + i * SZ + j)
+                a.write(D + D_addr(tag_T[0][0] + i, tag_T[0][1] + j))
+
     a.read_output()
     return a.cost
 
