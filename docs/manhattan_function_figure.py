@@ -63,11 +63,15 @@ ARG_PTS = np.array(list(upper_half_spiral(N_PTS)))
 # ==================================================
 # RENDERING
 # ==================================================
+RING_COLORS = ['#d62728', '#ff7f0e', '#2ca02c', '#1f77b4']  # rings 1..4
+MAX_RING = len(RING_COLORS)
+
+
 def render_frame(d: int = 8,
                  arg_d: int = 6,
-                 n_short_scratch: int = 15,
-                 n_short_arg: int = 15,
-                 table_size: int = 13) -> plt.Figure:
+                 n_short_scratch: int = 16,
+                 n_short_arg: int = 16,
+                 table_size: int = 16) -> plt.Figure:
     """Render the two-arena diamond.
 
     Args:
@@ -83,10 +87,13 @@ def render_frame(d: int = 8,
                    arrow_color: str, label_neg: bool):
         short = pts[:n_short]
         dists = np.array([abs(x) + abs(y) for x, y in short])
-        max_d = int(dists.max()) or 1
-        cmap = plt.cm.plasma
-        colors = [cmap(v / max_d) for v in dists]
-        ax1.scatter(short[:, 0], short[:, 1], c=colors, s=40, zorder=2)
+        colors = [RING_COLORS[min(int(v), MAX_RING) - 1] for v in dists]
+        # Low-opacity halo under each cell — same ring colour, larger.
+        ax1.scatter(short[:, 0], short[:, 1], c=colors, s=400,
+                    alpha=0.20, zorder=1.5, linewidths=0)
+        # Opaque cell dot.
+        ax1.scatter(short[:, 0], short[:, 1], c=colors, s=55,
+                    zorder=2, edgecolors='black', linewidths=0.4)
 
         # Label first 15 points; put the number on the outside
         for i in range(min(15, n_short)):
@@ -108,33 +115,34 @@ def render_frame(d: int = 8,
             )
 
     # --- Hypothetical memory-access wires (H-tree infrastructure) ---
-    # One central VERTICAL SPINE along x=0, spanning the full height
-    # of the two arenas. At each row the cells occupy, a HORIZONTAL
-    # BRANCH extends exactly from the leftmost to the rightmost cell
-    # on that row — so the branch width matches the number of
-    # addresses in that row of the diamond. Every memory access
-    # traverses some segment of the spine + some segment of one
-    # branch.
-    arg_y_max = int(ARG_PTS[:n_short_arg, 1].max())
-    scr_y_min = int(SCRATCH_PTS[:n_short_scratch, 1].min())
+    # Spine and branches colour-coded by Manhattan-distance ring:
+    # each spine segment of length 1 from y=k-1 to y=k picks up ring-k
+    # colour, and each horizontal branch at row y=±k uses the same.
+    # Branch width matches the populated cell extent in that row.
+    LW = 3.0
 
-    # Central vertical spine.
-    ax1.plot([0, 0], [scr_y_min, arg_y_max],
-             color='dimgray', lw=2.5, zorder=0, solid_capstyle='round')
+    def _branch_extent(pts, n_short, row_y):
+        xs = [x for x, y in pts[:n_short] if y == row_y]
+        return (min(xs), max(xs)) if xs else None
 
-    def _draw_branches(pts, n_short, row_range):
-        for row_y in row_range:
-            xs = [x for x, y in pts[:n_short] if y == row_y]
-            if not xs:
-                continue
-            # Span exactly the populated cells; asymmetric if the row is.
-            left, right = min(xs), max(xs)
-            ax1.plot([left, right], [row_y, row_y],
-                     color='dimgray', lw=2.5, zorder=0,
-                     solid_capstyle='round')
-
-    _draw_branches(ARG_PTS, n_short_arg, range(1, arg_y_max + 1))
-    _draw_branches(SCRATCH_PTS, n_short_scratch, range(-1, scr_y_min - 1, -1))
+    for k in range(1, MAX_RING + 1):
+        color = RING_COLORS[k - 1]
+        # Spine segment, arg side  (y = k-1 -> y = k)
+        ax1.plot([0, 0], [k - 1, k], color=color, lw=LW, zorder=0.5,
+                 solid_capstyle='round')
+        # Spine segment, scratch side (y = -(k-1) -> y = -k)
+        ax1.plot([0, 0], [-(k - 1), -k], color=color, lw=LW, zorder=0.5,
+                 solid_capstyle='round')
+        # Horizontal branch on arg row y = k
+        ext = _branch_extent(ARG_PTS, n_short_arg, k)
+        if ext is not None:
+            ax1.plot([ext[0], ext[1]], [k, k], color=color, lw=LW,
+                     zorder=0.5, solid_capstyle='round')
+        # Horizontal branch on scratch row y = -k
+        ext = _branch_extent(SCRATCH_PTS, n_short_scratch, -k)
+        if ext is not None:
+            ax1.plot([ext[0], ext[1]], [-k, -k], color=color, lw=LW,
+                     zorder=0.5, solid_capstyle='round')
 
     # Arg arena (above) — label numbers prefixed with minus sign.
     draw_arena(ARG_PTS, n_short_arg, arg_d,
