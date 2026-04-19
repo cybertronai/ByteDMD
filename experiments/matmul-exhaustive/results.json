@@ -1,0 +1,4527 @@
+[
+  {
+    "name": "naive:bbbb",
+    "family": "naive",
+    "modes": [
+      "batched",
+      "batched",
+      "batched",
+      "batched"
+    ],
+    "cells": [
+      [
+        "P0",
+        4
+      ],
+      [
+        "P1",
+        4
+      ],
+      [
+        "C0",
+        1
+      ],
+      [
+        "C1",
+        1
+      ],
+      [
+        "C2",
+        1
+      ],
+      [
+        "C3",
+        1
+      ]
+    ],
+    "scratch_reads": [
+      4,
+      4,
+      1,
+      1,
+      1,
+      1
+    ],
+    "arg_reads": [
+      2,
+      2,
+      2,
+      2,
+      2,
+      2,
+      2,
+      2
+    ],
+    "cost": 60
+  },
+  {
+    "name": "naive:bbbd",
+    "family": "naive",
+    "modes": [
+      "batched",
+      "batched",
+      "batched",
+      "direct"
+    ],
+    "cells": [
+      [
+        "P0",
+        4
+      ],
+      [
+        "P1",
+        3
+      ],
+      [
+        "C0",
+        1
+      ],
+      [
+        "C1",
+        1
+      ],
+      [
+        "C2",
+        1
+      ],
+      [
+        "C3",
+        2
+      ]
+    ],
+    "scratch_reads": [
+      4,
+      3,
+      1,
+      1,
+      1,
+      2
+    ],
+    "arg_reads": [
+      2,
+      2,
+      2,
+      2,
+      2,
+      2,
+      2,
+      2
+    ],
+    "cost": 60
+  },
+  {
+    "name": "naive:bbdb",
+    "family": "naive",
+    "modes": [
+      "batched",
+      "batched",
+      "direct",
+      "batched"
+    ],
+    "cells": [
+      [
+        "P0",
+        4
+      ],
+      [
+        "P1",
+        3
+      ],
+      [
+        "C0",
+        1
+      ],
+      [
+        "C1",
+        1
+      ],
+      [
+        "C2",
+        2
+      ],
+      [
+        "C3",
+        1
+      ]
+    ],
+    "scratch_reads": [
+      4,
+      3,
+      1,
+      1,
+      2,
+      1
+    ],
+    "arg_reads": [
+      2,
+      2,
+      2,
+      2,
+      2,
+      2,
+      2,
+      2
+    ],
+    "cost": 60
+  },
+  {
+    "name": "naive:bbdd",
+    "family": "naive",
+    "modes": [
+      "batched",
+      "batched",
+      "direct",
+      "direct"
+    ],
+    "cells": [
+      [
+        "P0",
+        4
+      ],
+      [
+        "P1",
+        2
+      ],
+      [
+        "C0",
+        1
+      ],
+      [
+        "C1",
+        1
+      ],
+      [
+        "C2",
+        2
+      ],
+      [
+        "C3",
+        2
+      ]
+    ],
+    "scratch_reads": [
+      4,
+      2,
+      1,
+      1,
+      2,
+      2
+    ],
+    "arg_reads": [
+      2,
+      2,
+      2,
+      2,
+      2,
+      2,
+      2,
+      2
+    ],
+    "cost": 60
+  },
+  {
+    "name": "naive:bdbb",
+    "family": "naive",
+    "modes": [
+      "batched",
+      "direct",
+      "batched",
+      "batched"
+    ],
+    "cells": [
+      [
+        "P0",
+        4
+      ],
+      [
+        "P1",
+        3
+      ],
+      [
+        "C0",
+        1
+      ],
+      [
+        "C1",
+        2
+      ],
+      [
+        "C2",
+        1
+      ],
+      [
+        "C3",
+        1
+      ]
+    ],
+    "scratch_reads": [
+      4,
+      3,
+      1,
+      2,
+      1,
+      1
+    ],
+    "arg_reads": [
+      2,
+      2,
+      2,
+      2,
+      2,
+      2,
+      2,
+      2
+    ],
+    "cost": 60
+  },
+  {
+    "name": "naive:bdbd",
+    "family": "naive",
+    "modes": [
+      "batched",
+      "direct",
+      "batched",
+      "direct"
+    ],
+    "cells": [
+      [
+        "P0",
+        4
+      ],
+      [
+        "P1",
+        2
+      ],
+      [
+        "C0",
+        1
+      ],
+      [
+        "C1",
+        2
+      ],
+      [
+        "C2",
+        1
+      ],
+      [
+        "C3",
+        2
+      ]
+    ],
+    "scratch_reads": [
+      4,
+      2,
+      1,
+      2,
+      1,
+      2
+    ],
+    "arg_reads": [
+      2,
+      2,
+      2,
+      2,
+      2,
+      2,
+      2,
+      2
+    ],
+    "cost": 60
+  },
+  {
+    "name": "naive:bddb",
+    "family": "naive",
+    "modes": [
+      "batched",
+      "direct",
+      "direct",
+      "batched"
+    ],
+    "cells": [
+      [
+        "P0",
+        4
+      ],
+      [
+        "P1",
+        2
+      ],
+      [
+        "C0",
+        1
+      ],
+      [
+        "C1",
+        2
+      ],
+      [
+        "C2",
+        2
+      ],
+      [
+        "C3",
+        1
+      ]
+    ],
+    "scratch_reads": [
+      4,
+      2,
+      1,
+      2,
+      2,
+      1
+    ],
+    "arg_reads": [
+      2,
+      2,
+      2,
+      2,
+      2,
+      2,
+      2,
+      2
+    ],
+    "cost": 60
+  },
+  {
+    "name": "naive:bddd",
+    "family": "naive",
+    "modes": [
+      "batched",
+      "direct",
+      "direct",
+      "direct"
+    ],
+    "cells": [
+      [
+        "P0",
+        4
+      ],
+      [
+        "P1",
+        1
+      ],
+      [
+        "C0",
+        1
+      ],
+      [
+        "C1",
+        2
+      ],
+      [
+        "C2",
+        2
+      ],
+      [
+        "C3",
+        2
+      ]
+    ],
+    "scratch_reads": [
+      4,
+      1,
+      1,
+      2,
+      2,
+      2
+    ],
+    "arg_reads": [
+      2,
+      2,
+      2,
+      2,
+      2,
+      2,
+      2,
+      2
+    ],
+    "cost": 60
+  },
+  {
+    "name": "naive:dbbb",
+    "family": "naive",
+    "modes": [
+      "direct",
+      "batched",
+      "batched",
+      "batched"
+    ],
+    "cells": [
+      [
+        "P0",
+        4
+      ],
+      [
+        "P1",
+        3
+      ],
+      [
+        "C0",
+        2
+      ],
+      [
+        "C1",
+        1
+      ],
+      [
+        "C2",
+        1
+      ],
+      [
+        "C3",
+        1
+      ]
+    ],
+    "scratch_reads": [
+      4,
+      3,
+      2,
+      1,
+      1,
+      1
+    ],
+    "arg_reads": [
+      2,
+      2,
+      2,
+      2,
+      2,
+      2,
+      2,
+      2
+    ],
+    "cost": 60
+  },
+  {
+    "name": "naive:dbbd",
+    "family": "naive",
+    "modes": [
+      "direct",
+      "batched",
+      "batched",
+      "direct"
+    ],
+    "cells": [
+      [
+        "P0",
+        4
+      ],
+      [
+        "P1",
+        2
+      ],
+      [
+        "C0",
+        2
+      ],
+      [
+        "C1",
+        1
+      ],
+      [
+        "C2",
+        1
+      ],
+      [
+        "C3",
+        2
+      ]
+    ],
+    "scratch_reads": [
+      4,
+      2,
+      2,
+      1,
+      1,
+      2
+    ],
+    "arg_reads": [
+      2,
+      2,
+      2,
+      2,
+      2,
+      2,
+      2,
+      2
+    ],
+    "cost": 60
+  },
+  {
+    "name": "naive:dbdb",
+    "family": "naive",
+    "modes": [
+      "direct",
+      "batched",
+      "direct",
+      "batched"
+    ],
+    "cells": [
+      [
+        "P0",
+        4
+      ],
+      [
+        "P1",
+        2
+      ],
+      [
+        "C0",
+        2
+      ],
+      [
+        "C1",
+        1
+      ],
+      [
+        "C2",
+        2
+      ],
+      [
+        "C3",
+        1
+      ]
+    ],
+    "scratch_reads": [
+      4,
+      2,
+      2,
+      1,
+      2,
+      1
+    ],
+    "arg_reads": [
+      2,
+      2,
+      2,
+      2,
+      2,
+      2,
+      2,
+      2
+    ],
+    "cost": 60
+  },
+  {
+    "name": "naive:dbdd",
+    "family": "naive",
+    "modes": [
+      "direct",
+      "batched",
+      "direct",
+      "direct"
+    ],
+    "cells": [
+      [
+        "P0",
+        4
+      ],
+      [
+        "P1",
+        1
+      ],
+      [
+        "C0",
+        2
+      ],
+      [
+        "C1",
+        1
+      ],
+      [
+        "C2",
+        2
+      ],
+      [
+        "C3",
+        2
+      ]
+    ],
+    "scratch_reads": [
+      4,
+      1,
+      2,
+      1,
+      2,
+      2
+    ],
+    "arg_reads": [
+      2,
+      2,
+      2,
+      2,
+      2,
+      2,
+      2,
+      2
+    ],
+    "cost": 60
+  },
+  {
+    "name": "naive:ddbb",
+    "family": "naive",
+    "modes": [
+      "direct",
+      "direct",
+      "batched",
+      "batched"
+    ],
+    "cells": [
+      [
+        "P0",
+        4
+      ],
+      [
+        "P1",
+        2
+      ],
+      [
+        "C0",
+        2
+      ],
+      [
+        "C1",
+        2
+      ],
+      [
+        "C2",
+        1
+      ],
+      [
+        "C3",
+        1
+      ]
+    ],
+    "scratch_reads": [
+      4,
+      2,
+      2,
+      2,
+      1,
+      1
+    ],
+    "arg_reads": [
+      2,
+      2,
+      2,
+      2,
+      2,
+      2,
+      2,
+      2
+    ],
+    "cost": 60
+  },
+  {
+    "name": "naive:ddbd",
+    "family": "naive",
+    "modes": [
+      "direct",
+      "direct",
+      "batched",
+      "direct"
+    ],
+    "cells": [
+      [
+        "P0",
+        4
+      ],
+      [
+        "P1",
+        1
+      ],
+      [
+        "C0",
+        2
+      ],
+      [
+        "C1",
+        2
+      ],
+      [
+        "C2",
+        1
+      ],
+      [
+        "C3",
+        2
+      ]
+    ],
+    "scratch_reads": [
+      4,
+      1,
+      2,
+      2,
+      1,
+      2
+    ],
+    "arg_reads": [
+      2,
+      2,
+      2,
+      2,
+      2,
+      2,
+      2,
+      2
+    ],
+    "cost": 60
+  },
+  {
+    "name": "naive:dddb",
+    "family": "naive",
+    "modes": [
+      "direct",
+      "direct",
+      "direct",
+      "batched"
+    ],
+    "cells": [
+      [
+        "P0",
+        4
+      ],
+      [
+        "P1",
+        1
+      ],
+      [
+        "C0",
+        2
+      ],
+      [
+        "C1",
+        2
+      ],
+      [
+        "C2",
+        2
+      ],
+      [
+        "C3",
+        1
+      ]
+    ],
+    "scratch_reads": [
+      4,
+      1,
+      2,
+      2,
+      2,
+      1
+    ],
+    "arg_reads": [
+      2,
+      2,
+      2,
+      2,
+      2,
+      2,
+      2,
+      2
+    ],
+    "cost": 60
+  },
+  {
+    "name": "naive:dddd",
+    "family": "naive",
+    "modes": [
+      "direct",
+      "direct",
+      "direct",
+      "direct"
+    ],
+    "cells": [
+      [
+        "P0",
+        4
+      ],
+      [
+        "C0",
+        2
+      ],
+      [
+        "C1",
+        2
+      ],
+      [
+        "C2",
+        2
+      ],
+      [
+        "C3",
+        2
+      ]
+    ],
+    "scratch_reads": [
+      4,
+      2,
+      2,
+      2,
+      2
+    ],
+    "arg_reads": [
+      2,
+      2,
+      2,
+      2,
+      2,
+      2,
+      2,
+      2
+    ],
+    "cost": 60
+  },
+  {
+    "name": "naive:bbbi",
+    "family": "naive",
+    "modes": [
+      "batched",
+      "batched",
+      "batched",
+      "indirect"
+    ],
+    "cells": [
+      [
+        "P0",
+        5
+      ],
+      [
+        "P1",
+        3
+      ],
+      [
+        "C0",
+        1
+      ],
+      [
+        "C1",
+        1
+      ],
+      [
+        "C2",
+        1
+      ],
+      [
+        "C3",
+        2
+      ]
+    ],
+    "scratch_reads": [
+      5,
+      3,
+      1,
+      1,
+      1,
+      2
+    ],
+    "arg_reads": [
+      2,
+      2,
+      2,
+      2,
+      2,
+      2,
+      2,
+      2
+    ],
+    "cost": 61
+  },
+  {
+    "name": "naive:bbdi",
+    "family": "naive",
+    "modes": [
+      "batched",
+      "batched",
+      "direct",
+      "indirect"
+    ],
+    "cells": [
+      [
+        "P0",
+        5
+      ],
+      [
+        "P1",
+        2
+      ],
+      [
+        "C0",
+        1
+      ],
+      [
+        "C1",
+        1
+      ],
+      [
+        "C2",
+        2
+      ],
+      [
+        "C3",
+        2
+      ]
+    ],
+    "scratch_reads": [
+      5,
+      2,
+      1,
+      1,
+      2,
+      2
+    ],
+    "arg_reads": [
+      2,
+      2,
+      2,
+      2,
+      2,
+      2,
+      2,
+      2
+    ],
+    "cost": 61
+  },
+  {
+    "name": "naive:bbib",
+    "family": "naive",
+    "modes": [
+      "batched",
+      "batched",
+      "indirect",
+      "batched"
+    ],
+    "cells": [
+      [
+        "P0",
+        5
+      ],
+      [
+        "P1",
+        3
+      ],
+      [
+        "C0",
+        1
+      ],
+      [
+        "C1",
+        1
+      ],
+      [
+        "C2",
+        2
+      ],
+      [
+        "C3",
+        1
+      ]
+    ],
+    "scratch_reads": [
+      5,
+      3,
+      1,
+      1,
+      2,
+      1
+    ],
+    "arg_reads": [
+      2,
+      2,
+      2,
+      2,
+      2,
+      2,
+      2,
+      2
+    ],
+    "cost": 61
+  },
+  {
+    "name": "naive:bbid",
+    "family": "naive",
+    "modes": [
+      "batched",
+      "batched",
+      "indirect",
+      "direct"
+    ],
+    "cells": [
+      [
+        "P0",
+        5
+      ],
+      [
+        "P1",
+        2
+      ],
+      [
+        "C0",
+        1
+      ],
+      [
+        "C1",
+        1
+      ],
+      [
+        "C2",
+        2
+      ],
+      [
+        "C3",
+        2
+      ]
+    ],
+    "scratch_reads": [
+      5,
+      2,
+      1,
+      1,
+      2,
+      2
+    ],
+    "arg_reads": [
+      2,
+      2,
+      2,
+      2,
+      2,
+      2,
+      2,
+      2
+    ],
+    "cost": 61
+  },
+  {
+    "name": "naive:bdbi",
+    "family": "naive",
+    "modes": [
+      "batched",
+      "direct",
+      "batched",
+      "indirect"
+    ],
+    "cells": [
+      [
+        "P0",
+        5
+      ],
+      [
+        "P1",
+        2
+      ],
+      [
+        "C0",
+        1
+      ],
+      [
+        "C1",
+        2
+      ],
+      [
+        "C2",
+        1
+      ],
+      [
+        "C3",
+        2
+      ]
+    ],
+    "scratch_reads": [
+      5,
+      2,
+      1,
+      2,
+      1,
+      2
+    ],
+    "arg_reads": [
+      2,
+      2,
+      2,
+      2,
+      2,
+      2,
+      2,
+      2
+    ],
+    "cost": 61
+  },
+  {
+    "name": "naive:bddi",
+    "family": "naive",
+    "modes": [
+      "batched",
+      "direct",
+      "direct",
+      "indirect"
+    ],
+    "cells": [
+      [
+        "P0",
+        5
+      ],
+      [
+        "P1",
+        1
+      ],
+      [
+        "C0",
+        1
+      ],
+      [
+        "C1",
+        2
+      ],
+      [
+        "C2",
+        2
+      ],
+      [
+        "C3",
+        2
+      ]
+    ],
+    "scratch_reads": [
+      5,
+      1,
+      1,
+      2,
+      2,
+      2
+    ],
+    "arg_reads": [
+      2,
+      2,
+      2,
+      2,
+      2,
+      2,
+      2,
+      2
+    ],
+    "cost": 61
+  },
+  {
+    "name": "naive:bdib",
+    "family": "naive",
+    "modes": [
+      "batched",
+      "direct",
+      "indirect",
+      "batched"
+    ],
+    "cells": [
+      [
+        "P0",
+        5
+      ],
+      [
+        "P1",
+        2
+      ],
+      [
+        "C0",
+        1
+      ],
+      [
+        "C1",
+        2
+      ],
+      [
+        "C2",
+        2
+      ],
+      [
+        "C3",
+        1
+      ]
+    ],
+    "scratch_reads": [
+      5,
+      2,
+      1,
+      2,
+      2,
+      1
+    ],
+    "arg_reads": [
+      2,
+      2,
+      2,
+      2,
+      2,
+      2,
+      2,
+      2
+    ],
+    "cost": 61
+  },
+  {
+    "name": "naive:bdid",
+    "family": "naive",
+    "modes": [
+      "batched",
+      "direct",
+      "indirect",
+      "direct"
+    ],
+    "cells": [
+      [
+        "P0",
+        5
+      ],
+      [
+        "P1",
+        1
+      ],
+      [
+        "C0",
+        1
+      ],
+      [
+        "C1",
+        2
+      ],
+      [
+        "C2",
+        2
+      ],
+      [
+        "C3",
+        2
+      ]
+    ],
+    "scratch_reads": [
+      5,
+      1,
+      1,
+      2,
+      2,
+      2
+    ],
+    "arg_reads": [
+      2,
+      2,
+      2,
+      2,
+      2,
+      2,
+      2,
+      2
+    ],
+    "cost": 61
+  },
+  {
+    "name": "naive:bibb",
+    "family": "naive",
+    "modes": [
+      "batched",
+      "indirect",
+      "batched",
+      "batched"
+    ],
+    "cells": [
+      [
+        "P0",
+        5
+      ],
+      [
+        "P1",
+        3
+      ],
+      [
+        "C0",
+        1
+      ],
+      [
+        "C1",
+        2
+      ],
+      [
+        "C2",
+        1
+      ],
+      [
+        "C3",
+        1
+      ]
+    ],
+    "scratch_reads": [
+      5,
+      3,
+      1,
+      2,
+      1,
+      1
+    ],
+    "arg_reads": [
+      2,
+      2,
+      2,
+      2,
+      2,
+      2,
+      2,
+      2
+    ],
+    "cost": 61
+  },
+  {
+    "name": "naive:bibd",
+    "family": "naive",
+    "modes": [
+      "batched",
+      "indirect",
+      "batched",
+      "direct"
+    ],
+    "cells": [
+      [
+        "P0",
+        5
+      ],
+      [
+        "P1",
+        2
+      ],
+      [
+        "C0",
+        1
+      ],
+      [
+        "C1",
+        2
+      ],
+      [
+        "C2",
+        1
+      ],
+      [
+        "C3",
+        2
+      ]
+    ],
+    "scratch_reads": [
+      5,
+      2,
+      1,
+      2,
+      1,
+      2
+    ],
+    "arg_reads": [
+      2,
+      2,
+      2,
+      2,
+      2,
+      2,
+      2,
+      2
+    ],
+    "cost": 61
+  },
+  {
+    "name": "naive:bidb",
+    "family": "naive",
+    "modes": [
+      "batched",
+      "indirect",
+      "direct",
+      "batched"
+    ],
+    "cells": [
+      [
+        "P0",
+        5
+      ],
+      [
+        "P1",
+        2
+      ],
+      [
+        "C0",
+        1
+      ],
+      [
+        "C1",
+        2
+      ],
+      [
+        "C2",
+        2
+      ],
+      [
+        "C3",
+        1
+      ]
+    ],
+    "scratch_reads": [
+      5,
+      2,
+      1,
+      2,
+      2,
+      1
+    ],
+    "arg_reads": [
+      2,
+      2,
+      2,
+      2,
+      2,
+      2,
+      2,
+      2
+    ],
+    "cost": 61
+  },
+  {
+    "name": "naive:bidd",
+    "family": "naive",
+    "modes": [
+      "batched",
+      "indirect",
+      "direct",
+      "direct"
+    ],
+    "cells": [
+      [
+        "P0",
+        5
+      ],
+      [
+        "P1",
+        1
+      ],
+      [
+        "C0",
+        1
+      ],
+      [
+        "C1",
+        2
+      ],
+      [
+        "C2",
+        2
+      ],
+      [
+        "C3",
+        2
+      ]
+    ],
+    "scratch_reads": [
+      5,
+      1,
+      1,
+      2,
+      2,
+      2
+    ],
+    "arg_reads": [
+      2,
+      2,
+      2,
+      2,
+      2,
+      2,
+      2,
+      2
+    ],
+    "cost": 61
+  },
+  {
+    "name": "naive:dbbi",
+    "family": "naive",
+    "modes": [
+      "direct",
+      "batched",
+      "batched",
+      "indirect"
+    ],
+    "cells": [
+      [
+        "P0",
+        5
+      ],
+      [
+        "P1",
+        2
+      ],
+      [
+        "C0",
+        2
+      ],
+      [
+        "C1",
+        1
+      ],
+      [
+        "C2",
+        1
+      ],
+      [
+        "C3",
+        2
+      ]
+    ],
+    "scratch_reads": [
+      5,
+      2,
+      2,
+      1,
+      1,
+      2
+    ],
+    "arg_reads": [
+      2,
+      2,
+      2,
+      2,
+      2,
+      2,
+      2,
+      2
+    ],
+    "cost": 61
+  },
+  {
+    "name": "naive:dbdi",
+    "family": "naive",
+    "modes": [
+      "direct",
+      "batched",
+      "direct",
+      "indirect"
+    ],
+    "cells": [
+      [
+        "P0",
+        5
+      ],
+      [
+        "P1",
+        1
+      ],
+      [
+        "C0",
+        2
+      ],
+      [
+        "C1",
+        1
+      ],
+      [
+        "C2",
+        2
+      ],
+      [
+        "C3",
+        2
+      ]
+    ],
+    "scratch_reads": [
+      5,
+      1,
+      2,
+      1,
+      2,
+      2
+    ],
+    "arg_reads": [
+      2,
+      2,
+      2,
+      2,
+      2,
+      2,
+      2,
+      2
+    ],
+    "cost": 61
+  },
+  {
+    "name": "naive:dbib",
+    "family": "naive",
+    "modes": [
+      "direct",
+      "batched",
+      "indirect",
+      "batched"
+    ],
+    "cells": [
+      [
+        "P0",
+        5
+      ],
+      [
+        "P1",
+        2
+      ],
+      [
+        "C0",
+        2
+      ],
+      [
+        "C1",
+        1
+      ],
+      [
+        "C2",
+        2
+      ],
+      [
+        "C3",
+        1
+      ]
+    ],
+    "scratch_reads": [
+      5,
+      2,
+      2,
+      1,
+      2,
+      1
+    ],
+    "arg_reads": [
+      2,
+      2,
+      2,
+      2,
+      2,
+      2,
+      2,
+      2
+    ],
+    "cost": 61
+  },
+  {
+    "name": "naive:dbid",
+    "family": "naive",
+    "modes": [
+      "direct",
+      "batched",
+      "indirect",
+      "direct"
+    ],
+    "cells": [
+      [
+        "P0",
+        5
+      ],
+      [
+        "P1",
+        1
+      ],
+      [
+        "C0",
+        2
+      ],
+      [
+        "C1",
+        1
+      ],
+      [
+        "C2",
+        2
+      ],
+      [
+        "C3",
+        2
+      ]
+    ],
+    "scratch_reads": [
+      5,
+      1,
+      2,
+      1,
+      2,
+      2
+    ],
+    "arg_reads": [
+      2,
+      2,
+      2,
+      2,
+      2,
+      2,
+      2,
+      2
+    ],
+    "cost": 61
+  },
+  {
+    "name": "naive:ddbi",
+    "family": "naive",
+    "modes": [
+      "direct",
+      "direct",
+      "batched",
+      "indirect"
+    ],
+    "cells": [
+      [
+        "P0",
+        5
+      ],
+      [
+        "P1",
+        1
+      ],
+      [
+        "C0",
+        2
+      ],
+      [
+        "C1",
+        2
+      ],
+      [
+        "C2",
+        1
+      ],
+      [
+        "C3",
+        2
+      ]
+    ],
+    "scratch_reads": [
+      5,
+      1,
+      2,
+      2,
+      1,
+      2
+    ],
+    "arg_reads": [
+      2,
+      2,
+      2,
+      2,
+      2,
+      2,
+      2,
+      2
+    ],
+    "cost": 61
+  },
+  {
+    "name": "naive:dddi",
+    "family": "naive",
+    "modes": [
+      "direct",
+      "direct",
+      "direct",
+      "indirect"
+    ],
+    "cells": [
+      [
+        "P0",
+        5
+      ],
+      [
+        "C0",
+        2
+      ],
+      [
+        "C1",
+        2
+      ],
+      [
+        "C2",
+        2
+      ],
+      [
+        "C3",
+        2
+      ]
+    ],
+    "scratch_reads": [
+      5,
+      2,
+      2,
+      2,
+      2
+    ],
+    "arg_reads": [
+      2,
+      2,
+      2,
+      2,
+      2,
+      2,
+      2,
+      2
+    ],
+    "cost": 61
+  },
+  {
+    "name": "naive:ddib",
+    "family": "naive",
+    "modes": [
+      "direct",
+      "direct",
+      "indirect",
+      "batched"
+    ],
+    "cells": [
+      [
+        "P0",
+        5
+      ],
+      [
+        "P1",
+        1
+      ],
+      [
+        "C0",
+        2
+      ],
+      [
+        "C1",
+        2
+      ],
+      [
+        "C2",
+        2
+      ],
+      [
+        "C3",
+        1
+      ]
+    ],
+    "scratch_reads": [
+      5,
+      1,
+      2,
+      2,
+      2,
+      1
+    ],
+    "arg_reads": [
+      2,
+      2,
+      2,
+      2,
+      2,
+      2,
+      2,
+      2
+    ],
+    "cost": 61
+  },
+  {
+    "name": "naive:ddid",
+    "family": "naive",
+    "modes": [
+      "direct",
+      "direct",
+      "indirect",
+      "direct"
+    ],
+    "cells": [
+      [
+        "P0",
+        5
+      ],
+      [
+        "C0",
+        2
+      ],
+      [
+        "C1",
+        2
+      ],
+      [
+        "C2",
+        2
+      ],
+      [
+        "C3",
+        2
+      ]
+    ],
+    "scratch_reads": [
+      5,
+      2,
+      2,
+      2,
+      2
+    ],
+    "arg_reads": [
+      2,
+      2,
+      2,
+      2,
+      2,
+      2,
+      2,
+      2
+    ],
+    "cost": 61
+  },
+  {
+    "name": "naive:dibb",
+    "family": "naive",
+    "modes": [
+      "direct",
+      "indirect",
+      "batched",
+      "batched"
+    ],
+    "cells": [
+      [
+        "P0",
+        5
+      ],
+      [
+        "P1",
+        2
+      ],
+      [
+        "C0",
+        2
+      ],
+      [
+        "C1",
+        2
+      ],
+      [
+        "C2",
+        1
+      ],
+      [
+        "C3",
+        1
+      ]
+    ],
+    "scratch_reads": [
+      5,
+      2,
+      2,
+      2,
+      1,
+      1
+    ],
+    "arg_reads": [
+      2,
+      2,
+      2,
+      2,
+      2,
+      2,
+      2,
+      2
+    ],
+    "cost": 61
+  },
+  {
+    "name": "naive:dibd",
+    "family": "naive",
+    "modes": [
+      "direct",
+      "indirect",
+      "batched",
+      "direct"
+    ],
+    "cells": [
+      [
+        "P0",
+        5
+      ],
+      [
+        "P1",
+        1
+      ],
+      [
+        "C0",
+        2
+      ],
+      [
+        "C1",
+        2
+      ],
+      [
+        "C2",
+        1
+      ],
+      [
+        "C3",
+        2
+      ]
+    ],
+    "scratch_reads": [
+      5,
+      1,
+      2,
+      2,
+      1,
+      2
+    ],
+    "arg_reads": [
+      2,
+      2,
+      2,
+      2,
+      2,
+      2,
+      2,
+      2
+    ],
+    "cost": 61
+  },
+  {
+    "name": "naive:didb",
+    "family": "naive",
+    "modes": [
+      "direct",
+      "indirect",
+      "direct",
+      "batched"
+    ],
+    "cells": [
+      [
+        "P0",
+        5
+      ],
+      [
+        "P1",
+        1
+      ],
+      [
+        "C0",
+        2
+      ],
+      [
+        "C1",
+        2
+      ],
+      [
+        "C2",
+        2
+      ],
+      [
+        "C3",
+        1
+      ]
+    ],
+    "scratch_reads": [
+      5,
+      1,
+      2,
+      2,
+      2,
+      1
+    ],
+    "arg_reads": [
+      2,
+      2,
+      2,
+      2,
+      2,
+      2,
+      2,
+      2
+    ],
+    "cost": 61
+  },
+  {
+    "name": "naive:didd",
+    "family": "naive",
+    "modes": [
+      "direct",
+      "indirect",
+      "direct",
+      "direct"
+    ],
+    "cells": [
+      [
+        "P0",
+        5
+      ],
+      [
+        "C0",
+        2
+      ],
+      [
+        "C1",
+        2
+      ],
+      [
+        "C2",
+        2
+      ],
+      [
+        "C3",
+        2
+      ]
+    ],
+    "scratch_reads": [
+      5,
+      2,
+      2,
+      2,
+      2
+    ],
+    "arg_reads": [
+      2,
+      2,
+      2,
+      2,
+      2,
+      2,
+      2,
+      2
+    ],
+    "cost": 61
+  },
+  {
+    "name": "naive:ibbb",
+    "family": "naive",
+    "modes": [
+      "indirect",
+      "batched",
+      "batched",
+      "batched"
+    ],
+    "cells": [
+      [
+        "P0",
+        5
+      ],
+      [
+        "P1",
+        3
+      ],
+      [
+        "C0",
+        2
+      ],
+      [
+        "C1",
+        1
+      ],
+      [
+        "C2",
+        1
+      ],
+      [
+        "C3",
+        1
+      ]
+    ],
+    "scratch_reads": [
+      5,
+      3,
+      2,
+      1,
+      1,
+      1
+    ],
+    "arg_reads": [
+      2,
+      2,
+      2,
+      2,
+      2,
+      2,
+      2,
+      2
+    ],
+    "cost": 61
+  },
+  {
+    "name": "naive:ibbd",
+    "family": "naive",
+    "modes": [
+      "indirect",
+      "batched",
+      "batched",
+      "direct"
+    ],
+    "cells": [
+      [
+        "P0",
+        5
+      ],
+      [
+        "P1",
+        2
+      ],
+      [
+        "C0",
+        2
+      ],
+      [
+        "C1",
+        1
+      ],
+      [
+        "C2",
+        1
+      ],
+      [
+        "C3",
+        2
+      ]
+    ],
+    "scratch_reads": [
+      5,
+      2,
+      2,
+      1,
+      1,
+      2
+    ],
+    "arg_reads": [
+      2,
+      2,
+      2,
+      2,
+      2,
+      2,
+      2,
+      2
+    ],
+    "cost": 61
+  },
+  {
+    "name": "naive:ibdb",
+    "family": "naive",
+    "modes": [
+      "indirect",
+      "batched",
+      "direct",
+      "batched"
+    ],
+    "cells": [
+      [
+        "P0",
+        5
+      ],
+      [
+        "P1",
+        2
+      ],
+      [
+        "C0",
+        2
+      ],
+      [
+        "C1",
+        1
+      ],
+      [
+        "C2",
+        2
+      ],
+      [
+        "C3",
+        1
+      ]
+    ],
+    "scratch_reads": [
+      5,
+      2,
+      2,
+      1,
+      2,
+      1
+    ],
+    "arg_reads": [
+      2,
+      2,
+      2,
+      2,
+      2,
+      2,
+      2,
+      2
+    ],
+    "cost": 61
+  },
+  {
+    "name": "naive:ibdd",
+    "family": "naive",
+    "modes": [
+      "indirect",
+      "batched",
+      "direct",
+      "direct"
+    ],
+    "cells": [
+      [
+        "P0",
+        5
+      ],
+      [
+        "P1",
+        1
+      ],
+      [
+        "C0",
+        2
+      ],
+      [
+        "C1",
+        1
+      ],
+      [
+        "C2",
+        2
+      ],
+      [
+        "C3",
+        2
+      ]
+    ],
+    "scratch_reads": [
+      5,
+      1,
+      2,
+      1,
+      2,
+      2
+    ],
+    "arg_reads": [
+      2,
+      2,
+      2,
+      2,
+      2,
+      2,
+      2,
+      2
+    ],
+    "cost": 61
+  },
+  {
+    "name": "naive:idbb",
+    "family": "naive",
+    "modes": [
+      "indirect",
+      "direct",
+      "batched",
+      "batched"
+    ],
+    "cells": [
+      [
+        "P0",
+        5
+      ],
+      [
+        "P1",
+        2
+      ],
+      [
+        "C0",
+        2
+      ],
+      [
+        "C1",
+        2
+      ],
+      [
+        "C2",
+        1
+      ],
+      [
+        "C3",
+        1
+      ]
+    ],
+    "scratch_reads": [
+      5,
+      2,
+      2,
+      2,
+      1,
+      1
+    ],
+    "arg_reads": [
+      2,
+      2,
+      2,
+      2,
+      2,
+      2,
+      2,
+      2
+    ],
+    "cost": 61
+  },
+  {
+    "name": "naive:idbd",
+    "family": "naive",
+    "modes": [
+      "indirect",
+      "direct",
+      "batched",
+      "direct"
+    ],
+    "cells": [
+      [
+        "P0",
+        5
+      ],
+      [
+        "P1",
+        1
+      ],
+      [
+        "C0",
+        2
+      ],
+      [
+        "C1",
+        2
+      ],
+      [
+        "C2",
+        1
+      ],
+      [
+        "C3",
+        2
+      ]
+    ],
+    "scratch_reads": [
+      5,
+      1,
+      2,
+      2,
+      1,
+      2
+    ],
+    "arg_reads": [
+      2,
+      2,
+      2,
+      2,
+      2,
+      2,
+      2,
+      2
+    ],
+    "cost": 61
+  },
+  {
+    "name": "naive:iddb",
+    "family": "naive",
+    "modes": [
+      "indirect",
+      "direct",
+      "direct",
+      "batched"
+    ],
+    "cells": [
+      [
+        "P0",
+        5
+      ],
+      [
+        "P1",
+        1
+      ],
+      [
+        "C0",
+        2
+      ],
+      [
+        "C1",
+        2
+      ],
+      [
+        "C2",
+        2
+      ],
+      [
+        "C3",
+        1
+      ]
+    ],
+    "scratch_reads": [
+      5,
+      1,
+      2,
+      2,
+      2,
+      1
+    ],
+    "arg_reads": [
+      2,
+      2,
+      2,
+      2,
+      2,
+      2,
+      2,
+      2
+    ],
+    "cost": 61
+  },
+  {
+    "name": "naive:iddd",
+    "family": "naive",
+    "modes": [
+      "indirect",
+      "direct",
+      "direct",
+      "direct"
+    ],
+    "cells": [
+      [
+        "P0",
+        5
+      ],
+      [
+        "C0",
+        2
+      ],
+      [
+        "C1",
+        2
+      ],
+      [
+        "C2",
+        2
+      ],
+      [
+        "C3",
+        2
+      ]
+    ],
+    "scratch_reads": [
+      5,
+      2,
+      2,
+      2,
+      2
+    ],
+    "arg_reads": [
+      2,
+      2,
+      2,
+      2,
+      2,
+      2,
+      2,
+      2
+    ],
+    "cost": 61
+  },
+  {
+    "name": "naive:bbii",
+    "family": "naive",
+    "modes": [
+      "batched",
+      "batched",
+      "indirect",
+      "indirect"
+    ],
+    "cells": [
+      [
+        "P0",
+        6
+      ],
+      [
+        "P1",
+        2
+      ],
+      [
+        "C0",
+        1
+      ],
+      [
+        "C1",
+        1
+      ],
+      [
+        "C2",
+        2
+      ],
+      [
+        "C3",
+        2
+      ]
+    ],
+    "scratch_reads": [
+      6,
+      2,
+      1,
+      1,
+      2,
+      2
+    ],
+    "arg_reads": [
+      2,
+      2,
+      2,
+      2,
+      2,
+      2,
+      2,
+      2
+    ],
+    "cost": 62
+  },
+  {
+    "name": "naive:bdii",
+    "family": "naive",
+    "modes": [
+      "batched",
+      "direct",
+      "indirect",
+      "indirect"
+    ],
+    "cells": [
+      [
+        "P0",
+        6
+      ],
+      [
+        "P1",
+        1
+      ],
+      [
+        "C0",
+        1
+      ],
+      [
+        "C1",
+        2
+      ],
+      [
+        "C2",
+        2
+      ],
+      [
+        "C3",
+        2
+      ]
+    ],
+    "scratch_reads": [
+      6,
+      1,
+      1,
+      2,
+      2,
+      2
+    ],
+    "arg_reads": [
+      2,
+      2,
+      2,
+      2,
+      2,
+      2,
+      2,
+      2
+    ],
+    "cost": 62
+  },
+  {
+    "name": "naive:bibi",
+    "family": "naive",
+    "modes": [
+      "batched",
+      "indirect",
+      "batched",
+      "indirect"
+    ],
+    "cells": [
+      [
+        "P0",
+        6
+      ],
+      [
+        "P1",
+        2
+      ],
+      [
+        "C0",
+        1
+      ],
+      [
+        "C1",
+        2
+      ],
+      [
+        "C2",
+        1
+      ],
+      [
+        "C3",
+        2
+      ]
+    ],
+    "scratch_reads": [
+      6,
+      2,
+      1,
+      2,
+      1,
+      2
+    ],
+    "arg_reads": [
+      2,
+      2,
+      2,
+      2,
+      2,
+      2,
+      2,
+      2
+    ],
+    "cost": 62
+  },
+  {
+    "name": "naive:bidi",
+    "family": "naive",
+    "modes": [
+      "batched",
+      "indirect",
+      "direct",
+      "indirect"
+    ],
+    "cells": [
+      [
+        "P0",
+        6
+      ],
+      [
+        "P1",
+        1
+      ],
+      [
+        "C0",
+        1
+      ],
+      [
+        "C1",
+        2
+      ],
+      [
+        "C2",
+        2
+      ],
+      [
+        "C3",
+        2
+      ]
+    ],
+    "scratch_reads": [
+      6,
+      1,
+      1,
+      2,
+      2,
+      2
+    ],
+    "arg_reads": [
+      2,
+      2,
+      2,
+      2,
+      2,
+      2,
+      2,
+      2
+    ],
+    "cost": 62
+  },
+  {
+    "name": "naive:biib",
+    "family": "naive",
+    "modes": [
+      "batched",
+      "indirect",
+      "indirect",
+      "batched"
+    ],
+    "cells": [
+      [
+        "P0",
+        6
+      ],
+      [
+        "P1",
+        2
+      ],
+      [
+        "C0",
+        1
+      ],
+      [
+        "C1",
+        2
+      ],
+      [
+        "C2",
+        2
+      ],
+      [
+        "C3",
+        1
+      ]
+    ],
+    "scratch_reads": [
+      6,
+      2,
+      1,
+      2,
+      2,
+      1
+    ],
+    "arg_reads": [
+      2,
+      2,
+      2,
+      2,
+      2,
+      2,
+      2,
+      2
+    ],
+    "cost": 62
+  },
+  {
+    "name": "naive:biid",
+    "family": "naive",
+    "modes": [
+      "batched",
+      "indirect",
+      "indirect",
+      "direct"
+    ],
+    "cells": [
+      [
+        "P0",
+        6
+      ],
+      [
+        "P1",
+        1
+      ],
+      [
+        "C0",
+        1
+      ],
+      [
+        "C1",
+        2
+      ],
+      [
+        "C2",
+        2
+      ],
+      [
+        "C3",
+        2
+      ]
+    ],
+    "scratch_reads": [
+      6,
+      1,
+      1,
+      2,
+      2,
+      2
+    ],
+    "arg_reads": [
+      2,
+      2,
+      2,
+      2,
+      2,
+      2,
+      2,
+      2
+    ],
+    "cost": 62
+  },
+  {
+    "name": "naive:dbii",
+    "family": "naive",
+    "modes": [
+      "direct",
+      "batched",
+      "indirect",
+      "indirect"
+    ],
+    "cells": [
+      [
+        "P0",
+        6
+      ],
+      [
+        "P1",
+        1
+      ],
+      [
+        "C0",
+        2
+      ],
+      [
+        "C1",
+        1
+      ],
+      [
+        "C2",
+        2
+      ],
+      [
+        "C3",
+        2
+      ]
+    ],
+    "scratch_reads": [
+      6,
+      1,
+      2,
+      1,
+      2,
+      2
+    ],
+    "arg_reads": [
+      2,
+      2,
+      2,
+      2,
+      2,
+      2,
+      2,
+      2
+    ],
+    "cost": 62
+  },
+  {
+    "name": "naive:ddii",
+    "family": "naive",
+    "modes": [
+      "direct",
+      "direct",
+      "indirect",
+      "indirect"
+    ],
+    "cells": [
+      [
+        "P0",
+        6
+      ],
+      [
+        "C0",
+        2
+      ],
+      [
+        "C1",
+        2
+      ],
+      [
+        "C2",
+        2
+      ],
+      [
+        "C3",
+        2
+      ]
+    ],
+    "scratch_reads": [
+      6,
+      2,
+      2,
+      2,
+      2
+    ],
+    "arg_reads": [
+      2,
+      2,
+      2,
+      2,
+      2,
+      2,
+      2,
+      2
+    ],
+    "cost": 62
+  },
+  {
+    "name": "naive:dibi",
+    "family": "naive",
+    "modes": [
+      "direct",
+      "indirect",
+      "batched",
+      "indirect"
+    ],
+    "cells": [
+      [
+        "P0",
+        6
+      ],
+      [
+        "P1",
+        1
+      ],
+      [
+        "C0",
+        2
+      ],
+      [
+        "C1",
+        2
+      ],
+      [
+        "C2",
+        1
+      ],
+      [
+        "C3",
+        2
+      ]
+    ],
+    "scratch_reads": [
+      6,
+      1,
+      2,
+      2,
+      1,
+      2
+    ],
+    "arg_reads": [
+      2,
+      2,
+      2,
+      2,
+      2,
+      2,
+      2,
+      2
+    ],
+    "cost": 62
+  },
+  {
+    "name": "naive:didi",
+    "family": "naive",
+    "modes": [
+      "direct",
+      "indirect",
+      "direct",
+      "indirect"
+    ],
+    "cells": [
+      [
+        "P0",
+        6
+      ],
+      [
+        "C0",
+        2
+      ],
+      [
+        "C1",
+        2
+      ],
+      [
+        "C2",
+        2
+      ],
+      [
+        "C3",
+        2
+      ]
+    ],
+    "scratch_reads": [
+      6,
+      2,
+      2,
+      2,
+      2
+    ],
+    "arg_reads": [
+      2,
+      2,
+      2,
+      2,
+      2,
+      2,
+      2,
+      2
+    ],
+    "cost": 62
+  },
+  {
+    "name": "naive:diib",
+    "family": "naive",
+    "modes": [
+      "direct",
+      "indirect",
+      "indirect",
+      "batched"
+    ],
+    "cells": [
+      [
+        "P0",
+        6
+      ],
+      [
+        "P1",
+        1
+      ],
+      [
+        "C0",
+        2
+      ],
+      [
+        "C1",
+        2
+      ],
+      [
+        "C2",
+        2
+      ],
+      [
+        "C3",
+        1
+      ]
+    ],
+    "scratch_reads": [
+      6,
+      1,
+      2,
+      2,
+      2,
+      1
+    ],
+    "arg_reads": [
+      2,
+      2,
+      2,
+      2,
+      2,
+      2,
+      2,
+      2
+    ],
+    "cost": 62
+  },
+  {
+    "name": "naive:diid",
+    "family": "naive",
+    "modes": [
+      "direct",
+      "indirect",
+      "indirect",
+      "direct"
+    ],
+    "cells": [
+      [
+        "P0",
+        6
+      ],
+      [
+        "C0",
+        2
+      ],
+      [
+        "C1",
+        2
+      ],
+      [
+        "C2",
+        2
+      ],
+      [
+        "C3",
+        2
+      ]
+    ],
+    "scratch_reads": [
+      6,
+      2,
+      2,
+      2,
+      2
+    ],
+    "arg_reads": [
+      2,
+      2,
+      2,
+      2,
+      2,
+      2,
+      2,
+      2
+    ],
+    "cost": 62
+  },
+  {
+    "name": "naive:ibbi",
+    "family": "naive",
+    "modes": [
+      "indirect",
+      "batched",
+      "batched",
+      "indirect"
+    ],
+    "cells": [
+      [
+        "P0",
+        6
+      ],
+      [
+        "P1",
+        2
+      ],
+      [
+        "C0",
+        2
+      ],
+      [
+        "C1",
+        1
+      ],
+      [
+        "C2",
+        1
+      ],
+      [
+        "C3",
+        2
+      ]
+    ],
+    "scratch_reads": [
+      6,
+      2,
+      2,
+      1,
+      1,
+      2
+    ],
+    "arg_reads": [
+      2,
+      2,
+      2,
+      2,
+      2,
+      2,
+      2,
+      2
+    ],
+    "cost": 62
+  },
+  {
+    "name": "naive:ibdi",
+    "family": "naive",
+    "modes": [
+      "indirect",
+      "batched",
+      "direct",
+      "indirect"
+    ],
+    "cells": [
+      [
+        "P0",
+        6
+      ],
+      [
+        "P1",
+        1
+      ],
+      [
+        "C0",
+        2
+      ],
+      [
+        "C1",
+        1
+      ],
+      [
+        "C2",
+        2
+      ],
+      [
+        "C3",
+        2
+      ]
+    ],
+    "scratch_reads": [
+      6,
+      1,
+      2,
+      1,
+      2,
+      2
+    ],
+    "arg_reads": [
+      2,
+      2,
+      2,
+      2,
+      2,
+      2,
+      2,
+      2
+    ],
+    "cost": 62
+  },
+  {
+    "name": "naive:ibib",
+    "family": "naive",
+    "modes": [
+      "indirect",
+      "batched",
+      "indirect",
+      "batched"
+    ],
+    "cells": [
+      [
+        "P0",
+        6
+      ],
+      [
+        "P1",
+        2
+      ],
+      [
+        "C0",
+        2
+      ],
+      [
+        "C1",
+        1
+      ],
+      [
+        "C2",
+        2
+      ],
+      [
+        "C3",
+        1
+      ]
+    ],
+    "scratch_reads": [
+      6,
+      2,
+      2,
+      1,
+      2,
+      1
+    ],
+    "arg_reads": [
+      2,
+      2,
+      2,
+      2,
+      2,
+      2,
+      2,
+      2
+    ],
+    "cost": 62
+  },
+  {
+    "name": "naive:ibid",
+    "family": "naive",
+    "modes": [
+      "indirect",
+      "batched",
+      "indirect",
+      "direct"
+    ],
+    "cells": [
+      [
+        "P0",
+        6
+      ],
+      [
+        "P1",
+        1
+      ],
+      [
+        "C0",
+        2
+      ],
+      [
+        "C1",
+        1
+      ],
+      [
+        "C2",
+        2
+      ],
+      [
+        "C3",
+        2
+      ]
+    ],
+    "scratch_reads": [
+      6,
+      1,
+      2,
+      1,
+      2,
+      2
+    ],
+    "arg_reads": [
+      2,
+      2,
+      2,
+      2,
+      2,
+      2,
+      2,
+      2
+    ],
+    "cost": 62
+  },
+  {
+    "name": "naive:idbi",
+    "family": "naive",
+    "modes": [
+      "indirect",
+      "direct",
+      "batched",
+      "indirect"
+    ],
+    "cells": [
+      [
+        "P0",
+        6
+      ],
+      [
+        "P1",
+        1
+      ],
+      [
+        "C0",
+        2
+      ],
+      [
+        "C1",
+        2
+      ],
+      [
+        "C2",
+        1
+      ],
+      [
+        "C3",
+        2
+      ]
+    ],
+    "scratch_reads": [
+      6,
+      1,
+      2,
+      2,
+      1,
+      2
+    ],
+    "arg_reads": [
+      2,
+      2,
+      2,
+      2,
+      2,
+      2,
+      2,
+      2
+    ],
+    "cost": 62
+  },
+  {
+    "name": "naive:iddi",
+    "family": "naive",
+    "modes": [
+      "indirect",
+      "direct",
+      "direct",
+      "indirect"
+    ],
+    "cells": [
+      [
+        "P0",
+        6
+      ],
+      [
+        "C0",
+        2
+      ],
+      [
+        "C1",
+        2
+      ],
+      [
+        "C2",
+        2
+      ],
+      [
+        "C3",
+        2
+      ]
+    ],
+    "scratch_reads": [
+      6,
+      2,
+      2,
+      2,
+      2
+    ],
+    "arg_reads": [
+      2,
+      2,
+      2,
+      2,
+      2,
+      2,
+      2,
+      2
+    ],
+    "cost": 62
+  },
+  {
+    "name": "naive:idib",
+    "family": "naive",
+    "modes": [
+      "indirect",
+      "direct",
+      "indirect",
+      "batched"
+    ],
+    "cells": [
+      [
+        "P0",
+        6
+      ],
+      [
+        "P1",
+        1
+      ],
+      [
+        "C0",
+        2
+      ],
+      [
+        "C1",
+        2
+      ],
+      [
+        "C2",
+        2
+      ],
+      [
+        "C3",
+        1
+      ]
+    ],
+    "scratch_reads": [
+      6,
+      1,
+      2,
+      2,
+      2,
+      1
+    ],
+    "arg_reads": [
+      2,
+      2,
+      2,
+      2,
+      2,
+      2,
+      2,
+      2
+    ],
+    "cost": 62
+  },
+  {
+    "name": "naive:idid",
+    "family": "naive",
+    "modes": [
+      "indirect",
+      "direct",
+      "indirect",
+      "direct"
+    ],
+    "cells": [
+      [
+        "P0",
+        6
+      ],
+      [
+        "C0",
+        2
+      ],
+      [
+        "C1",
+        2
+      ],
+      [
+        "C2",
+        2
+      ],
+      [
+        "C3",
+        2
+      ]
+    ],
+    "scratch_reads": [
+      6,
+      2,
+      2,
+      2,
+      2
+    ],
+    "arg_reads": [
+      2,
+      2,
+      2,
+      2,
+      2,
+      2,
+      2,
+      2
+    ],
+    "cost": 62
+  },
+  {
+    "name": "naive:iibb",
+    "family": "naive",
+    "modes": [
+      "indirect",
+      "indirect",
+      "batched",
+      "batched"
+    ],
+    "cells": [
+      [
+        "P0",
+        6
+      ],
+      [
+        "P1",
+        2
+      ],
+      [
+        "C0",
+        2
+      ],
+      [
+        "C1",
+        2
+      ],
+      [
+        "C2",
+        1
+      ],
+      [
+        "C3",
+        1
+      ]
+    ],
+    "scratch_reads": [
+      6,
+      2,
+      2,
+      2,
+      1,
+      1
+    ],
+    "arg_reads": [
+      2,
+      2,
+      2,
+      2,
+      2,
+      2,
+      2,
+      2
+    ],
+    "cost": 62
+  },
+  {
+    "name": "naive:iibd",
+    "family": "naive",
+    "modes": [
+      "indirect",
+      "indirect",
+      "batched",
+      "direct"
+    ],
+    "cells": [
+      [
+        "P0",
+        6
+      ],
+      [
+        "P1",
+        1
+      ],
+      [
+        "C0",
+        2
+      ],
+      [
+        "C1",
+        2
+      ],
+      [
+        "C2",
+        1
+      ],
+      [
+        "C3",
+        2
+      ]
+    ],
+    "scratch_reads": [
+      6,
+      1,
+      2,
+      2,
+      1,
+      2
+    ],
+    "arg_reads": [
+      2,
+      2,
+      2,
+      2,
+      2,
+      2,
+      2,
+      2
+    ],
+    "cost": 62
+  },
+  {
+    "name": "naive:iidb",
+    "family": "naive",
+    "modes": [
+      "indirect",
+      "indirect",
+      "direct",
+      "batched"
+    ],
+    "cells": [
+      [
+        "P0",
+        6
+      ],
+      [
+        "P1",
+        1
+      ],
+      [
+        "C0",
+        2
+      ],
+      [
+        "C1",
+        2
+      ],
+      [
+        "C2",
+        2
+      ],
+      [
+        "C3",
+        1
+      ]
+    ],
+    "scratch_reads": [
+      6,
+      1,
+      2,
+      2,
+      2,
+      1
+    ],
+    "arg_reads": [
+      2,
+      2,
+      2,
+      2,
+      2,
+      2,
+      2,
+      2
+    ],
+    "cost": 62
+  },
+  {
+    "name": "naive:iidd",
+    "family": "naive",
+    "modes": [
+      "indirect",
+      "indirect",
+      "direct",
+      "direct"
+    ],
+    "cells": [
+      [
+        "P0",
+        6
+      ],
+      [
+        "C0",
+        2
+      ],
+      [
+        "C1",
+        2
+      ],
+      [
+        "C2",
+        2
+      ],
+      [
+        "C3",
+        2
+      ]
+    ],
+    "scratch_reads": [
+      6,
+      2,
+      2,
+      2,
+      2
+    ],
+    "arg_reads": [
+      2,
+      2,
+      2,
+      2,
+      2,
+      2,
+      2,
+      2
+    ],
+    "cost": 62
+  },
+  {
+    "name": "naive:biii",
+    "family": "naive",
+    "modes": [
+      "batched",
+      "indirect",
+      "indirect",
+      "indirect"
+    ],
+    "cells": [
+      [
+        "P0",
+        7
+      ],
+      [
+        "P1",
+        1
+      ],
+      [
+        "C0",
+        1
+      ],
+      [
+        "C1",
+        2
+      ],
+      [
+        "C2",
+        2
+      ],
+      [
+        "C3",
+        2
+      ]
+    ],
+    "scratch_reads": [
+      7,
+      1,
+      1,
+      2,
+      2,
+      2
+    ],
+    "arg_reads": [
+      2,
+      2,
+      2,
+      2,
+      2,
+      2,
+      2,
+      2
+    ],
+    "cost": 63
+  },
+  {
+    "name": "naive:diii",
+    "family": "naive",
+    "modes": [
+      "direct",
+      "indirect",
+      "indirect",
+      "indirect"
+    ],
+    "cells": [
+      [
+        "P0",
+        7
+      ],
+      [
+        "C0",
+        2
+      ],
+      [
+        "C1",
+        2
+      ],
+      [
+        "C2",
+        2
+      ],
+      [
+        "C3",
+        2
+      ]
+    ],
+    "scratch_reads": [
+      7,
+      2,
+      2,
+      2,
+      2
+    ],
+    "arg_reads": [
+      2,
+      2,
+      2,
+      2,
+      2,
+      2,
+      2,
+      2
+    ],
+    "cost": 63
+  },
+  {
+    "name": "naive:ibii",
+    "family": "naive",
+    "modes": [
+      "indirect",
+      "batched",
+      "indirect",
+      "indirect"
+    ],
+    "cells": [
+      [
+        "P0",
+        7
+      ],
+      [
+        "P1",
+        1
+      ],
+      [
+        "C0",
+        2
+      ],
+      [
+        "C1",
+        1
+      ],
+      [
+        "C2",
+        2
+      ],
+      [
+        "C3",
+        2
+      ]
+    ],
+    "scratch_reads": [
+      7,
+      1,
+      2,
+      1,
+      2,
+      2
+    ],
+    "arg_reads": [
+      2,
+      2,
+      2,
+      2,
+      2,
+      2,
+      2,
+      2
+    ],
+    "cost": 63
+  },
+  {
+    "name": "naive:idii",
+    "family": "naive",
+    "modes": [
+      "indirect",
+      "direct",
+      "indirect",
+      "indirect"
+    ],
+    "cells": [
+      [
+        "P0",
+        7
+      ],
+      [
+        "C0",
+        2
+      ],
+      [
+        "C1",
+        2
+      ],
+      [
+        "C2",
+        2
+      ],
+      [
+        "C3",
+        2
+      ]
+    ],
+    "scratch_reads": [
+      7,
+      2,
+      2,
+      2,
+      2
+    ],
+    "arg_reads": [
+      2,
+      2,
+      2,
+      2,
+      2,
+      2,
+      2,
+      2
+    ],
+    "cost": 63
+  },
+  {
+    "name": "naive:iibi",
+    "family": "naive",
+    "modes": [
+      "indirect",
+      "indirect",
+      "batched",
+      "indirect"
+    ],
+    "cells": [
+      [
+        "P0",
+        7
+      ],
+      [
+        "P1",
+        1
+      ],
+      [
+        "C0",
+        2
+      ],
+      [
+        "C1",
+        2
+      ],
+      [
+        "C2",
+        1
+      ],
+      [
+        "C3",
+        2
+      ]
+    ],
+    "scratch_reads": [
+      7,
+      1,
+      2,
+      2,
+      1,
+      2
+    ],
+    "arg_reads": [
+      2,
+      2,
+      2,
+      2,
+      2,
+      2,
+      2,
+      2
+    ],
+    "cost": 63
+  },
+  {
+    "name": "naive:iidi",
+    "family": "naive",
+    "modes": [
+      "indirect",
+      "indirect",
+      "direct",
+      "indirect"
+    ],
+    "cells": [
+      [
+        "P0",
+        7
+      ],
+      [
+        "C0",
+        2
+      ],
+      [
+        "C1",
+        2
+      ],
+      [
+        "C2",
+        2
+      ],
+      [
+        "C3",
+        2
+      ]
+    ],
+    "scratch_reads": [
+      7,
+      2,
+      2,
+      2,
+      2
+    ],
+    "arg_reads": [
+      2,
+      2,
+      2,
+      2,
+      2,
+      2,
+      2,
+      2
+    ],
+    "cost": 63
+  },
+  {
+    "name": "naive:iiib",
+    "family": "naive",
+    "modes": [
+      "indirect",
+      "indirect",
+      "indirect",
+      "batched"
+    ],
+    "cells": [
+      [
+        "P0",
+        7
+      ],
+      [
+        "P1",
+        1
+      ],
+      [
+        "C0",
+        2
+      ],
+      [
+        "C1",
+        2
+      ],
+      [
+        "C2",
+        2
+      ],
+      [
+        "C3",
+        1
+      ]
+    ],
+    "scratch_reads": [
+      7,
+      1,
+      2,
+      2,
+      2,
+      1
+    ],
+    "arg_reads": [
+      2,
+      2,
+      2,
+      2,
+      2,
+      2,
+      2,
+      2
+    ],
+    "cost": 63
+  },
+  {
+    "name": "naive:iiid",
+    "family": "naive",
+    "modes": [
+      "indirect",
+      "indirect",
+      "indirect",
+      "direct"
+    ],
+    "cells": [
+      [
+        "P0",
+        7
+      ],
+      [
+        "C0",
+        2
+      ],
+      [
+        "C1",
+        2
+      ],
+      [
+        "C2",
+        2
+      ],
+      [
+        "C3",
+        2
+      ]
+    ],
+    "scratch_reads": [
+      7,
+      2,
+      2,
+      2,
+      2
+    ],
+    "arg_reads": [
+      2,
+      2,
+      2,
+      2,
+      2,
+      2,
+      2,
+      2
+    ],
+    "cost": 63
+  },
+  {
+    "name": "batched_parallel:k_live=2",
+    "family": "batched_parallel",
+    "modes": [
+      "batched",
+      "batched",
+      "batched",
+      "batched"
+    ],
+    "cells": [
+      [
+        "P0",
+        2
+      ],
+      [
+        "P1",
+        2
+      ],
+      [
+        "P2",
+        2
+      ],
+      [
+        "P3",
+        2
+      ],
+      [
+        "C0",
+        1
+      ],
+      [
+        "C1",
+        1
+      ],
+      [
+        "C2",
+        1
+      ],
+      [
+        "C3",
+        1
+      ]
+    ],
+    "scratch_reads": [
+      2,
+      2,
+      2,
+      2,
+      1,
+      1,
+      1,
+      1
+    ],
+    "arg_reads": [
+      2,
+      2,
+      2,
+      2,
+      2,
+      2,
+      2,
+      2
+    ],
+    "cost": 64
+  },
+  {
+    "name": "naive:iiii",
+    "family": "naive",
+    "modes": [
+      "indirect",
+      "indirect",
+      "indirect",
+      "indirect"
+    ],
+    "cells": [
+      [
+        "P0",
+        8
+      ],
+      [
+        "C0",
+        2
+      ],
+      [
+        "C1",
+        2
+      ],
+      [
+        "C2",
+        2
+      ],
+      [
+        "C3",
+        2
+      ]
+    ],
+    "scratch_reads": [
+      8,
+      2,
+      2,
+      2,
+      2
+    ],
+    "arg_reads": [
+      2,
+      2,
+      2,
+      2,
+      2,
+      2,
+      2,
+      2
+    ],
+    "cost": 64
+  },
+  {
+    "name": "batched_parallel:k_live=4",
+    "family": "batched_parallel",
+    "modes": [
+      "batched",
+      "batched",
+      "batched",
+      "batched"
+    ],
+    "cells": [
+      [
+        "P0",
+        1
+      ],
+      [
+        "P1",
+        1
+      ],
+      [
+        "P2",
+        1
+      ],
+      [
+        "P3",
+        1
+      ],
+      [
+        "P4",
+        1
+      ],
+      [
+        "P5",
+        1
+      ],
+      [
+        "P6",
+        1
+      ],
+      [
+        "P7",
+        1
+      ],
+      [
+        "C0",
+        1
+      ],
+      [
+        "C1",
+        1
+      ],
+      [
+        "C2",
+        1
+      ],
+      [
+        "C3",
+        1
+      ]
+    ],
+    "scratch_reads": [
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1
+    ],
+    "arg_reads": [
+      2,
+      2,
+      2,
+      2,
+      2,
+      2,
+      2,
+      2
+    ],
+    "cost": 72
+  }
+]
