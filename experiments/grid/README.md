@@ -82,7 +82,7 @@ DAGs are identical, so `bytedmd_live` / `bytedmd_classic` match — only
 | [mergesort(N=64)](#mergesort)                                         |     2,474 |        3,148 |       9,160 |           4,411 |
 | [lcs_dp(32x32)](#lcs_dp)                                              |    23,497 |       29,980 |      80,940 |          44,575 |
 | [lu_no_pivot(n=32)](#lu_no_pivot)                                     |   482,123 |      407,042 |     751,252 |         705,126 |
-| [blocked_lu(n=32,NB=8)](#blocked_lu)                                  |   365,960 |      283,294 |     780,958 |         515,134 |
+| [blocked_lu(n=32,NB=8)](#blocked_lu)                                  |   365,960 |      283,294 |     236,290 |         515,134 |
 | [recursive_lu(n=32)](#recursive_lu)                                   |   398,310 |      304,365 |     750,560 |         546,679 |
 | [lu_partial_pivot(n=32)](#lu_partial_pivot)                           |   510,278 |      420,780 |     793,416 |         730,673 |
 | [cholesky(n=32)](#cholesky)                                           |   176,488 |      176,313 |     494,000 |         293,328 |
@@ -850,17 +850,20 @@ diagonal block: (a) factor the NB×NB block via naive LU; (b)
 triangular-solve the trailing column panel; (c) triangular-solve the
 trailing row strip; (d) GEMM-update the trailing submatrix.
 
-**Manual placement.** A single NB×NB scratchpad `sDiag` at addrs
-1..NB² holds the diagonal block during in-block factorization; A
-sits just above it. An earlier version allocated two additional
-panel scratchpads (`S_panel`, `S_row`) that were never read from —
-they only pushed A's base address further out and added ~90k to the
-cost for no benefit. Dropping them brings manual from 870,705 down
-to 780,958, putting blocked_lu back in the same ballpark as
-`lu_no_pivot` (751,252) and `recursive_lu` (750,560). Caching the
-Schur-complement column/row panels into fresh scratchpads was also
-tried but the A-base inflation from the extra scratchpad area
-costs more than the hot panel reads save at n=32, NB=8.
+**Manual placement.** Three tight scratchpads at the very bottom of
+the stack (addrs 1..73): a scalar `c_A`, a 1D row buffer `c_C[NB]`,
+and a 2D block buffer `c_B[NB×NB]`. `c_B` is multiplexed across all
+four stages (diagonal factor, panel update, row-strip update,
+trailing GEMM); `c_C` caches the currently-active A-row during the
+panel and GEMM inner loops so every `(i, j, k)` triple-loop body
+reads from addresses 1..73 only. The `n²` up-front preload is also
+skipped — each A cell is touched lazily from the arg stack on its
+first visit (when `kb == 0`) and from scratch `A` thereafter. These
+three changes together drop the manual cost **870,705 → 236,290**
+(–73 %), now below `space_dmd` (365,960) and `bytedmd_live`
+(283,294) both — the manual schedule wins because it can actively
+hoist hot operands that the static and dynamic heuristics can
+only approximate.
 
 ![](traces/blocked_lu_n_32_nb_8.png)
 

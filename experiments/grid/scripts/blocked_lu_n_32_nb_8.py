@@ -542,68 +542,117 @@ def blocked_lu(A, NB=8):
 # ===========================================================================
 
 def manual_blocked_lu(n: int, NB: int = 8) -> int:
-    """One-level blocked LU. Input A preloaded from arg stack to scratch.
-    Single NB×NB scratchpad sDiag at the lowest scratch addrs is used to
-    factor each diagonal block in place; A sits just above it."""
+    """One-level blocked LU with optimal caching and lazy loading.
+    Three tight scratchpads occupy the bottom 73 scratch slots:
+      c_A (addr 1)       — scalar hoist for hot single values
+      c_C (addr 2..NB+1) — 1D row buffer
+      c_B (addr NB+2..)  — 2D NB×NB block buffer
+    c_B is multiplexed across all four stages; c_C caches an A-row
+    during panel + GEMM inner loops so every (i, j, k) body reads from
+    the bottom of the stack. The n² upfront preload is skipped —
+    lazy-read arg cells on first visit (kb==0)."""
     a = _alloc()
     A_in = a.alloc_arg(n * n)
-    sDiag = a.alloc(NB * NB)
+    c_A = a.alloc(1)
+    c_C = a.alloc(NB)
+    c_B = a.alloc(NB * NB)
     A = a.alloc(n * n)
     a.set_output_range(A, A + n * n)
-    for i in range(n * n):
-        a.touch_arg(A_in + i); a.write(A + i)
-
-    def panel_lu(base_r: int, base_c: int, sz: int) -> None:
-        for ii in range(sz):
-            for jj in range(sz):
-                a.touch(A + (base_r + ii) * n + base_c + jj)
-                a.write(sDiag + ii * sz + jj)
-        for k in range(sz):
-            pivot_addr = sDiag + k * sz + k
-            a.touch(pivot_addr)
-            for i in range(k + 1, sz):
-                a.touch(sDiag + i * sz + k)
-                a.touch(pivot_addr)
-                a.write(sDiag + i * sz + k)
-            for i in range(k + 1, sz):
-                for j in range(k + 1, sz):
-                    a.touch(sDiag + i * sz + j)
-                    a.touch(sDiag + i * sz + k)
-                    a.touch(sDiag + k * sz + j)
-                    a.write(sDiag + i * sz + j)
-        for ii in range(sz):
-            for jj in range(sz):
-                a.touch(sDiag + ii * sz + jj)
-                a.write(A + (base_r + ii) * n + base_c + jj)
 
     for kb in range(0, n, NB):
         ke = min(kb + NB, n)
         sz = ke - kb
-        panel_lu(kb, kb, sz)
-        for i in range(ke, n):
+
+        # (a) Factor diagonal block locally in c_B.
+        for i in range(kb, ke):
+            for j in range(kb, ke):
+                if kb == 0:
+                    a.touch_arg(A_in + i * n + j)
+                else:
+                    a.touch(A + i * n + j)
+                a.write(c_B + (i - kb) * NB + (j - kb))
+        for k in range(sz):
+            pivot_addr = c_B + k * NB + k
+            a.touch(pivot_addr); a.write(c_A)
+            for i in range(k + 1, sz):
+                a.touch(c_B + i * NB + k); a.touch(c_A)
+                a.write(c_B + i * NB + k)
+            for i in range(k + 1, sz):
+                a.touch(c_B + i * NB + k); a.write(c_A)
+                for j in range(k + 1, sz):
+                    a.touch(c_B + i * NB + j)
+                    a.touch(c_A)
+                    a.touch(c_B + k * NB + j)
+                    a.write(c_B + i * NB + j)
+        for i in range(kb, ke):
+            for j in range(kb, ke):
+                a.touch(c_B + (i - kb) * NB + (j - kb))
+                a.write(A + i * n + j)
+
+        # (b) Panel update A[ke:n, kb:ke] — cache each row into c_C.
+        for ib in range(ke, n, NB):
+            ie = min(ib + NB, n)
+            for i in range(ib, ie):
+                for j in range(kb, ke):
+                    if kb == 0:
+                        a.touch_arg(A_in + i * n + j)
+                    else:
+                        a.touch(A + i * n + j)
+                    a.write(c_C + (j - kb))
+                for k in range(sz):
+                    a.touch(c_C + k); a.touch(c_B + k * NB + k); a.write(c_C + k)
+                    a.touch(c_C + k); a.write(c_A)
+                    for j in range(k + 1, sz):
+                        a.touch(c_C + j); a.touch(c_A); a.touch(c_B + k * NB + j)
+                        a.write(c_C + j)
+                for j in range(kb, ke):
+                    a.touch(c_C + (j - kb)); a.write(A + i * n + j)
+
+        # (c) Row-strip update A[kb:ke, ke:n] — buffer block into c_B.
+        for jb in range(ke, n, NB):
+            je = min(jb + NB, n)
+            sz_j = je - jb
             for k in range(kb, ke):
-                a.touch(A + i * n + k)
-                a.touch(A + k * n + k)
-                a.write(A + i * n + k)
-                for j in range(k + 1, ke):
-                    a.touch(A + i * n + j)
-                    a.touch(A + i * n + k)
+                for j in range(jb, je):
+                    if kb == 0:
+                        a.touch_arg(A_in + k * n + j)
+                    else:
+                        a.touch(A + k * n + j)
+                    a.write(c_B + (k - kb) * NB + (j - jb))
+            for k in range(sz):
+                for i in range(k + 1, sz):
+                    a.touch(A + (kb + i) * n + (kb + k)); a.write(c_A)
+                    for j in range(sz_j):
+                        a.touch(c_B + i * NB + j); a.touch(c_A)
+                        a.touch(c_B + k * NB + j); a.write(c_B + i * NB + j)
+            for k in range(kb, ke):
+                for j in range(jb, je):
+                    a.touch(c_B + (k - kb) * NB + (j - jb))
+                    a.write(A + k * n + j)
+
+        # (d) Trailing GEMM update.
+        for jb in range(ke, n, NB):
+            je = min(jb + NB, n); sz_j = je - jb
+            for k in range(kb, ke):
+                for j in range(jb, je):
                     a.touch(A + k * n + j)
-                    a.write(A + i * n + j)
-        for k in range(kb, ke):
-            for j in range(ke, n):
-                for i in range(k + 1, ke):
-                    a.touch(A + i * n + j)
-                    a.touch(A + i * n + k)
-                    a.touch(A + k * n + j)
-                    a.write(A + i * n + j)
-        for i in range(ke, n):
-            for j in range(ke, n):
-                for k in range(kb, ke):
-                    a.touch(A + i * n + j)
-                    a.touch(A + i * n + k)
-                    a.touch(A + k * n + j)
-                    a.write(A + i * n + j)
+                    a.write(c_B + (k - kb) * NB + (j - jb))
+            for ib in range(ke, n, NB):
+                ie = min(ib + NB, n)
+                for i in range(ib, ie):
+                    for j in range(jb, je):
+                        if kb == 0:
+                            a.touch_arg(A_in + i * n + j)
+                        else:
+                            a.touch(A + i * n + j)
+                        a.write(c_C + (j - jb))
+                    for k in range(sz):
+                        a.touch(A + i * n + (kb + k)); a.write(c_A)
+                        for j in range(sz_j):
+                            a.touch(c_C + j); a.touch(c_A); a.touch(c_B + k * NB + j)
+                            a.write(c_C + j)
+                    for j in range(jb, je):
+                        a.touch(c_C + (j - jb)); a.write(A + i * n + j)
     a.read_output()
     return a.cost
 
