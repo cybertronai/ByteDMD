@@ -23,13 +23,17 @@ assert bytedmd(myfunc, (1, 2, 3, 4, 5)) == 14
 
 Modern architectures spend more energy moving data than doing arithmetic, making FLOP counts an outdated cost metric. Bill Dally ([ACM Opinion](https://cacm.acm.org/opinion/on-the-model-of-computation-point/)) proposed penalizing data movement based on 2D spatial distance to the processor. To avoid manual spatial mapping, Ding and Smith ([Beyond Time Complexity, 2022](https://arxiv.org/abs/2203.02536)) automated this via Data Movement Distance (DMD): a rule treating memory as an LRU stack where reading a byte at depth $d$ costs $\sqrt{d}$, modeling a cache laid out in 2D.
 
-To avoid floating point issues, we round up to the nearest integer.
+We introduce two changes to DMD metric introduces by Ding/Smith:
 
-![ByteDMD](docs/ceil_figure.svg)
-
-This rounding corresponds to routing wire length on a 2D grid with LRU stack arranged in the following order.
+1. Round up to the nearest integer
+This corresponds to routing wire length on a 2D grid with LRU stack arranged in the following order.
 
 ![ByteDMD](docs/manhattan_figure.svg)
+
+2. Only "live" bytes contribute to reuse distance. This gives a closer correspondence between this metric and the cost of an optimal allocator on a 2D grid through bounds (todo(y): add bounds)
+
+Visualization: https://yaroslavvb.github.io/ByteDMD-vis/dotproduct_stack.html
+
 
 ## Computation Model
 
