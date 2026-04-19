@@ -25,14 +25,14 @@ assert bytedmd(myfunc, (1, 2, 3, 4, 5)) == 15
 
 Modern architectures spend more energy moving data than doing arithmetic, making FLOP counts an outdated cost metric. Bill Dally ([ACM Opinion](https://cacm.acm.org/opinion/on-the-model-of-computation-point/)) proposed penalizing data movement based on Manhattan distance to the processor. To avoid manual spatial mapping, Ding and Smith ([Beyond Time Complexity, 2022](https://arxiv.org/abs/2203.02536)) measure complexity using Reuse Distance, which considers distances between successive reuses of variables.
 
-We introduce two modifications to DMD to make it compatible with Bill Dally's [Manhattan distance model](docs/manhattan-diamond.md) - round up square roots to the nearest integer, and only consider "live variables" when computing reuse distance.  
+We modify DMD to make it compatible with Bill Dally's [Manhattan distance model](docs/manhattan-diamond.md). First we take a ceiling of the square root in the sum
 This rounding makes reuse costs correspond to Manhattan distances of a stack arranged in the following order in 2D:
 
 ![ByteDMD](docs/manhattan_figure.svg)
 
-Counting lives bytes between reuses is equivalent to maintaining a stack of live values. ([example](https://yaroslavvb.github.io/ByteDMD-vis/myfunc_stack.html))
+Second, we only consider "live variables" when computing reuse distance. Counting lives bytes between reuses is equivalent to a model which fetches from a stack which shrinks on garbage collection - ([example](https://yaroslavvb.github.io/ByteDMD-vis/myfunc_stack.html))
 
-We can bound the cost of optimal manually placed memory strategy in a 2D Manhattan model from the value of ByteDMD(live)
+An advantage of this modification, is that we can bound the cost of optimal manually placed memory strategy in a 2D Manhattan model from the value of of this metric
 - Lower bound: gemini/tarjan-bytedmd-lower-bound.pdf
 - Upper bound: gemini/bytedmd-upper-bound.pdf
 
