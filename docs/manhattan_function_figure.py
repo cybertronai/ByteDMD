@@ -95,15 +95,14 @@ def render_frame(d: int = 8,
         ax1.scatter(short[:, 0], short[:, 1], c=colors, s=55,
                     zorder=2, edgecolors='black', linewidths=0.4)
 
-        # Label first 15 points; put the number on the outside
-        for i in range(min(15, n_short)):
+        # Label first 16 points; number sits above each cell in both arenas.
+        for i in range(min(16, n_short)):
             cur = (i + 1 == highlight_idx)
             weight = 'bold' if cur else 'normal'
             alpha = 1.0 if cur else 0.4
             x_off = 5 if (i + 1) in (1, 3) else 0
-            # Put the arg-side labels ABOVE each point, scratch-side BELOW.
-            y_off = -10 if label_neg else 7
-            va = 'top' if label_neg else 'bottom'
+            y_off = 7
+            va = 'bottom'
             lbl = f"-{i + 1}" if label_neg else f"{i + 1}"
             ax1.annotate(
                 lbl, (short[i, 0], short[i, 1]),
@@ -163,7 +162,9 @@ def render_frame(d: int = 8,
     sx, sy = SCRATCH_PTS[d - 1]
     ax1.plot([0, 0], [0, sy], color='red', lw=3, zorder=3)
     ax1.plot([0, sx], [sy, sy], color='red', lw=3, zorder=3)
-    ax1.plot(sx, sy, marker='o', color='red', ms=12, mec='black', zorder=4)
+    # Hollow circle at the target so the cell's ring colour shows through.
+    ax1.plot(sx, sy, marker='o', markerfacecolor='none',
+             markeredgecolor='red', markeredgewidth=3, ms=16, zorder=4)
 
     # --- Axis dividing line (visual hint of the "arg | scratch" split) ---
     ax1.axhline(0, color='black', alpha=0.25, lw=1, zorder=0)
@@ -171,7 +172,7 @@ def render_frame(d: int = 8,
     # --- Arena labels ---
     y_top = ARG_PTS[:n_short_arg, 1].max() + 0.5
     y_bot = SCRATCH_PTS[:n_short_scratch, 1].min() - 0.5
-    ax1.text(0, y_top + 0.5, 'argument arena (inputs)',
+    ax1.text(0, y_top + 0.5, 'read only (arguments)',
              ha='center', va='bottom', fontsize=11,
              color='steelblue', fontweight='bold')
     ax1.text(0, y_bot - 0.5, 'scratch arena (intermediates + output)',
