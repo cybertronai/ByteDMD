@@ -47,6 +47,7 @@ from manual_dsl_examples import (
     manual_matrix_powers_ca_dsl,
     manual_regular_convolution_dsl,
     manual_fused_strassen_dsl,
+    manual_stencil_recursive_dsl,
 )
 
 
@@ -255,6 +256,11 @@ def test_dsl_matches_matrix_powers_ca() -> None:
 def test_dsl_matches_regular_convolution() -> None:
     _within_tolerance(manual_regular_convolution_dsl(16, 16, 3, 2, 2),
                       man.manual_regular_convolution(16, 16, 3, 2, 2))
+
+
+def test_dsl_matches_stencil_recursive() -> None:
+    _within_tolerance(manual_stencil_recursive_dsl(32, leaf=8),
+                      man.manual_stencil_recursive(32, leaf=8))
 
 
 def test_dsl_matches_fused_strassen() -> None:

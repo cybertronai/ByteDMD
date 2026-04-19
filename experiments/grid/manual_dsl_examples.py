@@ -935,6 +935,73 @@ def manual_stencil_naive_dsl(n: int) -> int:
     return sch.finalize()
 
 
+# ---------------------------------------------------------------------------
+# stencil_recursive — tile-recursive 5-point Jacobi with lazy row cache
+# and row-band reordering. Same cost as stencil_naive when leaves fit
+# monotonic row streaming.
+# ---------------------------------------------------------------------------
+
+def manual_stencil_recursive_dsl(n: int, leaf: int = 8) -> int:
+    sch = Sched()
+    # Rolling 3-row cache at lowest scratch addrs (matches hand-rolled layout).
+    row_slots = [sch.buffer(n) for _ in range(3)]
+    A = sch.arg_buffer(n * n)
+    B = sch.output_buffer(n * n)
+
+    current_row_in_slot = [-1, -1, -1]
+
+    def ensure_row_loaded(row: int):
+        slot_idx = row % 3
+        slot = row_slots[slot_idx]
+        if current_row_in_slot[slot_idx] != row:
+            for j in range(n):
+                sch.assign(A[row * n + j], slot[j])
+            current_row_in_slot[slot_idx] = row
+        return slot
+
+    leaves: list = []
+
+    def collect(r0, c0, sz):
+        if sz <= leaf:
+            leaves.append((r0, c0, sz))
+            return
+        h = sz // 2
+        collect(r0,     c0,     h)
+        collect(r0,     c0 + h, h)
+        collect(r0 + h, c0,     h)
+        collect(r0 + h, c0 + h, h)
+
+    collect(0, 0, n)
+
+    from collections import defaultdict
+    by_r0: dict = defaultdict(list)
+    for r0, c0, sz in leaves:
+        by_r0[r0].append((r0, c0, sz))
+    for r0 in by_r0:
+        by_r0[r0].sort(key=lambda t: t[1])
+
+    for r0 in sorted(by_r0.keys()):
+        band = by_r0[r0]
+        sz0 = band[0][2]
+        for i in range(r0, r0 + sz0):
+            if not (0 < i < n - 1):
+                continue
+            up = ensure_row_loaded(i - 1)
+            cur = ensure_row_loaded(i)
+            down = ensure_row_loaded(i + 1)
+            for _, c0, sz in band:
+                for j in range(c0, c0 + sz):
+                    if not (0 < j < n - 1):
+                        continue
+                    sch.read(cur[j])
+                    sch.read(up[j])
+                    sch.read(down[j])
+                    sch.read(cur[j - 1])
+                    sch.read(cur[j + 1])
+                    sch.write(B[i * n + j])
+    return sch.finalize()
+
+
 def manual_heapsort_dsl(N: int) -> int:
     sch = Sched()
     arr_in = sch.arg_buffer(N)
