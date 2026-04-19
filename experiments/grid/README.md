@@ -62,8 +62,8 @@ DAGs are identical, so `bytedmd_live` / `bytedmd_classic` match — only
 | [naive_matmul(n=16)](#naive_matmul)                                   |    79,044 |      109,217 |     177,744 |         181,258 |
 | [naive_tiled_matmul(n=16,k=2)](#naive_tiled_matmul)                   |    79,044 |      109,217 |     154,384 |         181,258 |
 | [naive_matmul_cached(n=16)](#naive_matmul_cached)                     |    79,044 |      109,217 |     114,838 |         181,258 |
-| [tiled_matmul(n=16)](#tiled_matmul)                                   |    93,369 |       78,708 |      68,270 |         143,812 |
-| [tiled_matmul_explicit(n=16,T=4)](#tiled_matmul_explicit)             |    73,927 |       99,006 |      68,270 |         201,547 |
+| [tiled_matmul(n=16)](#tiled_matmul)                                   |    93,369 |       78,708 |      67,758 |         143,812 |
+| [tiled_matmul_explicit(n=16,T=4)](#tiled_matmul_explicit)             |    73,927 |       99,006 |      67,758 |         201,547 |
 | [rmm(n=16)](#rmm)                                                     |   107,058 |       83,196 |     106,835 |         151,375 |
 | [naive_strassen(n=16)](#naive_strassen)                               |   135,273 |      175,157 |     251,486 |         343,737 |
 | [fused_strassen(n=16)](#fused_strassen)                               |   135,273 |      175,157 |     135,740 |         343,737 |
@@ -219,7 +219,7 @@ Drops manual **177,744 → 154,384** (−13 %) — modest but real.
 Still above `naive_matmul_cached` (114,838) because the A-row
 hoist there keeps all of A[i][*] hot across every j for fixed i
 (stronger reuse than a square tile), and well above
-`tiled_matmul` (68,270) which adds register-level stationary-
+`tiled_matmul` (67,758) which adds register-level stationary-
 operand scheduling on top.
 
 ![](traces/naive_tiled_matmul_n_16.png)
@@ -284,17 +284,27 @@ loop. Same arithmetic as naive but in block-major order for locality.
 > against the naive 2D-tiling Python code.
 
 **Manual placement.** Register-blocked outer product with a B-row
-stationary schedule ([gemini/optimized-tiled-matmul.md](../../gemini/optimized-tiled-matmul.md)):
-  `c_A` (addr 1) — scalar register for the current A element;
-  `c_B` (addrs 2..T+1) — L1 vector holding the current row of B;
-  `sC` (addrs T+2..T+1+blocks·T²) — 2D accumulator for TWO vertical
+stationary schedule ([gemini/optimized-tiled-matmul.md](../../gemini/optimized-tiled-matmul.md))
+plus two last-mile micro-optimizations
+([gemini/optimize-tiling-to-death.md](../../gemini/optimize-tiling-to-death.md)):
+  `c_A` (addr 1) — hottest scalar (4,096 touches);
+  `tmp` (addr 2) — multiply intermediate (3,840 touches);
+  `c_B` (addrs 3..T+2) — L1 vector holding the current row of B;
+  `sC` (addrs T+3..T+2+blocks·T²) — 2D accumulator for TWO vertical
   C tiles simultaneously so each B-row fetch is amortized.
 
-The inner MAC loop reads `c_A` + `c_B[jj]` + `sC[…]` — all within the
-bottom 37 scratch addresses — instead of touching the large bulk A/B
-tile scratchpads used before. Drops manual from 82,520 to **58,531**
-(−29%), now below all three heuristics (`space_dmd` 93,369,
-`bytedmd_live` 78,708, `bytedmd_classic` 143,812).
+The two micro-wins: (a) **frequency-first allocation** — `c_A`
+(4,096 touches) locks in at address 1 instead of `tmp` (3,840
+touches), saving 256 cost units; (b) **first-MAC bypass** — on
+the very first accumulator write (`bk=0, kk=0`) write the mul
+result *directly* into `sC` instead of the redundant `tmp → sC`
+round-trip, saving another 256. Together they drop manual
+**68,270 → 67,758**, which the gemini note argues is the strict
+AM-GM lower bound for this scratchpad geometry
+(`C₁·N³·√S + C₂·N³/√S ≥ 2N³√(C₁C₂)`, minimized at the 8×4
+accumulator footprint realised here). Below all three heuristics
+(`space_dmd` 93,369, `bytedmd_live` 78,708, `bytedmd_classic`
+143,812).
 
 ![](traces/tiled_matmul_n_16.png)
 

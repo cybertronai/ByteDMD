@@ -635,8 +635,9 @@ def manual_tiled_matmul_dsl(n: int, T: int | None = None) -> int:
     sch = Sched()
     A = sch.arg_buffer(n * n)
     B = sch.arg_buffer(n * n)
-    tmp = sch.scalar()
+    # Frequency-first allocation: c_A (4096 touches) before tmp (3840).
     c_A = sch.scalar()
+    tmp = sch.scalar()
     c_B = sch.buffer(T)
     blocks = 2
     sC = sch.buffer(blocks * T * T)
@@ -656,6 +657,7 @@ def manual_tiled_matmul_dsl(n: int, T: int | None = None) -> int:
                             for jj in range(min(T, n - bj)):
                                 slot = sC[local_bi * T * T + ii * T + jj]
                                 if bk == 0 and kk == 0:
+                                    # First MAC: bypass tmp entirely.
                                     sch.mul(c_A, c_B[jj], slot)
                                 else:
                                     sch.mac(slot, c_A, c_B[jj], tmp)

@@ -553,8 +553,9 @@ def manual_tiled_matmul(n: int, T: int | None = None) -> int:
     A = a.alloc_arg(n * n)
     B = a.alloc_arg(n * n)
 
-    tmp = a.alloc(1)
+    # Frequency-first: c_A (4,096 touches) before tmp (3,840 touches).
     c_A = a.alloc(1)
+    tmp = a.alloc(1)
     c_B = a.alloc(T)
     blocks = 2
     sC = a.alloc(blocks * T * T)
@@ -577,18 +578,19 @@ def manual_tiled_matmul(n: int, T: int | None = None) -> int:
                             a.touch_arg(A + (bi + ii) * n + (bk + kk))
                             a.write(c_A)
                             for jj in range(min(T, n - bj)):
-                                # multiply: read c_A, c_B → write tmp (free)
+                                # multiply: read c_A, c_B
                                 a.touch(c_A)
                                 a.touch(c_B + jj)
-                                a.write(tmp)
                                 if bk == 0 and kk == 0:
-                                    # first MAC: sC = tmp
-                                    a.touch(tmp)
+                                    # First MAC: bypass tmp, write mul
+                                    # result straight into sC.
+                                    a.write(sC + local_bi * T * T + ii * T + jj)
                                 else:
-                                    # accumulate: sC = sC + tmp
+                                    # accumulate: tmp = mul, sC += tmp
+                                    a.write(tmp)
                                     a.touch(sC + local_bi * T * T + ii * T + jj)
                                     a.touch(tmp)
-                                a.write(sC + local_bi * T * T + ii * T + jj)
+                                    a.write(sC + local_bi * T * T + ii * T + jj)
 
             # Flush the fully computed C tiles back once per (bj, bi_start).
             for bi in range(bi_start, min(n, bi_start + blocks * T), T):
