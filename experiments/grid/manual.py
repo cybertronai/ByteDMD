@@ -167,16 +167,21 @@ def manual_naive_matmul(n: int) -> int:
 
 
 def manual_naive_tiled_matmul(n: int, T: int = None) -> int:
-    """Naive matmul with 2x2 block iteration order but NO scratchpad
-    caching — just loop restructuring. Splits A, B, C into (n/T)x(n/T)
-    tiles of T-by-T (default T=n/2 → four blocks each). For each
-    output tile (BI, BJ), iterate over inner K-blocks and do the
-    naive (i,j,k) triple loop contributing into C[i][j] in place.
+    """Naive matmul with 2x2 block iteration order AND the simplest
+    possible scratchpad strategy: load the current A block and the
+    current B block into scratch once per (BI, BJ, BK) iteration,
+    then run the naive (i, j, k) triple loop against those two
+    scratch tiles. C is accumulated in place (no C-block cache).
 
-    Under the fixed-placement sqrt(addr) cost model, the total touch
-    sequence is a permutation of the `manual_naive_matmul` sequence,
-    so the cost is IDENTICAL. This row exists to make explicit that
-    tiling alone — without scratchpad caching — is cost-invisible."""
+      tmp (addr 1)           — multiply intermediate
+      sA  (addrs 2..T^2+1)   — current A block cache
+      sB  (addrs T^2+2..2T^2+1) — current B block cache
+      C   (above sB)         — output / accumulator in place
+
+    Each A cell now pays one arg read (during block load) plus T
+    scratch reads (inside the inner loop), vs n arg reads under
+    `manual_naive_matmul`. For n=16 this drops manual 177,744 →
+    less."""
     if T is None:
         T = n // 2
     assert n % T == 0, "T must divide n"
@@ -184,22 +189,37 @@ def manual_naive_tiled_matmul(n: int, T: int = None) -> int:
     a = _alloc()
     A = a.alloc_arg(n * n); B = a.alloc_arg(n * n)
     tmp = a.alloc(1)
+    sA = a.alloc(T * T)
+    sB = a.alloc(T * T)
     C = a.alloc(n * n)
     a.set_output_range(C, C + n * n)
     for bi in range(nb):
         for bj in range(nb):
             for bk in range(nb):
-                for i in range(bi * T, (bi + 1) * T):
-                    for j in range(bj * T, (bj + 1) * T):
-                        for k in range(bk * T, (bk + 1) * T):
-                            a.touch_arg(A + i * n + k)
-                            a.touch_arg(B + j * n + k)
+                # Load A block (bi, bk) into sA.
+                for i in range(T):
+                    for k in range(T):
+                        a.touch_arg(A + (bi * T + i) * n + (bk * T + k))
+                        a.write(sA + i * T + k)
+                # Load B block (bj, bk) into sB.
+                for j in range(T):
+                    for k in range(T):
+                        a.touch_arg(B + (bj * T + j) * n + (bk * T + k))
+                        a.write(sB + j * T + k)
+                # Naive triple loop against the two scratch tiles.
+                for i in range(T):
+                    for j in range(T):
+                        for k in range(T):
+                            a.touch(sA + i * T + k)
+                            a.touch(sB + j * T + k)
                             a.write(tmp)
-                            if bk == 0 and k == bk * T:
-                                a.touch(tmp); a.write(C + i * n + j)
+                            ii = bi * T + i
+                            jj = bj * T + j
+                            if bk == 0 and k == 0:
+                                a.touch(tmp); a.write(C + ii * n + jj)
                             else:
-                                a.touch(C + i * n + j); a.touch(tmp)
-                                a.write(C + i * n + j)
+                                a.touch(C + ii * n + jj); a.touch(tmp)
+                                a.write(C + ii * n + jj)
     a.read_output()
     return a.cost
 

@@ -37,7 +37,7 @@ def manual_naive_matmul_dsl(n: int) -> int:
 
 
 def manual_naive_tiled_matmul_dsl(n: int, T: int = None) -> int:
-    """Naive matmul with 2x2 block iteration order, no caching."""
+    """Naive 2x2-block matmul with A-block + B-block scratch tiles."""
     if T is None:
         T = n // 2
     assert n % T == 0
@@ -46,19 +46,31 @@ def manual_naive_tiled_matmul_dsl(n: int, T: int = None) -> int:
     A = s.arg_buffer(n * n)
     B = s.arg_buffer(n * n)
     tmp = s.scalar()
+    sA = s.buffer(T * T)
+    sB = s.buffer(T * T)
     C = s.output_buffer(n * n)
     for bi in range(nb):
         for bj in range(nb):
             for bk in range(nb):
-                for i in range(bi * T, (bi + 1) * T):
-                    for j in range(bj * T, (bj + 1) * T):
-                        for k in range(bk * T, (bk + 1) * T):
-                            if bk == 0 and k == bk * T:
-                                s.mul(A[i * n + k], B[j * n + k],
-                                      C[i * n + j])
+                for i in range(T):
+                    for k in range(T):
+                        s.assign(A[(bi * T + i) * n + (bk * T + k)],
+                                 sA[i * T + k])
+                for j in range(T):
+                    for k in range(T):
+                        s.assign(B[(bj * T + j) * n + (bk * T + k)],
+                                 sB[j * T + k])
+                for i in range(T):
+                    for j in range(T):
+                        ii = bi * T + i
+                        jj = bj * T + j
+                        for k in range(T):
+                            if bk == 0 and k == 0:
+                                s.mul(sA[i * T + k], sB[j * T + k],
+                                      C[ii * n + jj])
                             else:
-                                s.mac(C[i * n + j],
-                                      A[i * n + k], B[j * n + k], tmp)
+                                s.mac(C[ii * n + jj],
+                                      sA[i * T + k], sB[j * T + k], tmp)
     return s.finalize()
 
 

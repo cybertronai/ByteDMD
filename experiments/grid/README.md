@@ -60,7 +60,7 @@ DAGs are identical, so `bytedmd_live` / `bytedmd_classic` match — only
 | algorithm                                                            | space_dmd | bytedmd_live | manual      | bytedmd_classic |
 |-----------------------------------------------------------------------|----------:|-------------:|------------:|----------------:|
 | [naive_matmul(n=16)](#naive_matmul)                                   |    79,044 |      109,217 |     177,744 |         181,258 |
-| [naive_tiled_matmul(n=16)](#naive_tiled_matmul)                       |    79,044 |      109,217 |     177,744 |         181,258 |
+| [naive_tiled_matmul(n=16)](#naive_tiled_matmul)                       |    79,044 |      109,217 |     153,690 |         181,258 |
 | [naive_matmul_cached(n=16)](#naive_matmul_cached)                     |    79,044 |      109,217 |     114,838 |         181,258 |
 | [tiled_matmul(n=16)](#tiled_matmul)                                   |    93,369 |       78,708 |      68,270 |         143,812 |
 | [tiled_matmul_explicit(n=16,T=4)](#tiled_matmul_explicit)             |    73,927 |       99,006 |      68,270 |         201,547 |
@@ -187,19 +187,27 @@ with-scratchpad variant that drops 35 % off this baseline.
 
 ## naive_tiled_matmul [(code)](scripts/naive_tiled_matmul_n_16.py)
 `n=16, T=8` (four 8×8 blocks). **Algorithm.** Same matmul as
-`naive_matmul` but with a 2×2 block iteration order: iterate over
-output-block `(BI, BJ)`, inner-block `BK`, and then the naive
-triple-loop inside each block. No scratchpads — `tmp` is still the
-only scratch slot.
+`naive_matmul` but with 2×2 block iteration and the simplest
+possible scratchpad strategy: before each inner triple loop, load
+the current A block and current B block into two scratch tiles.
+C is accumulated in place (no C-block cache).
 
-**Manual placement.** Identical to `naive_matmul` (same `tmp` + `C`
-layout). **Cost is also identical: 177,744.** Under the fixed-
-placement sqrt(addr) cost model, loop reordering is cost-
-invisible: the set of touched addresses and the number of touches
-per address is the same; only their temporal order changes. This
-row exists to make that explicit — tiling alone is worthless;
-the wins come from scratchpad caching (see `naive_matmul_cached`,
-`tiled_matmul`).
+**Manual placement.**
+
+  `tmp` (addr 1)              — multiply intermediate
+  `sA`  (addrs 2..T²+1)       — current A block cache (T²=64)
+  `sB`  (addrs T²+2..2T²+1)   — current B block cache
+  `C`   (addrs 2T²+2..)       — output / accumulator in place
+
+Each A (or B) cell now pays one arg read at block-load time plus T
+cheap scratch reads inside the inner loop, vs n arg reads under
+`naive_matmul`. Drops manual **177,744 → 153,690** (−14 %) — a
+modest but real win from the minimal caching. Still above
+`naive_matmul_cached` (114,838) because the A-row hoist there
+keeps the whole of A[i][*] hot across all n values of j for fixed
+i (stronger reuse than a square tile), and well above
+`tiled_matmul` (68,270) which adds register-level stationary-
+operand scheduling on top.
 
 ![](traces/naive_tiled_matmul_n_16.png)
 

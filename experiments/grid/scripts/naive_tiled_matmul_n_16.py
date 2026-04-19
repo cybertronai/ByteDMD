@@ -522,32 +522,44 @@ def matmul_naive_abt(A, B):
 # ===========================================================================
 
 def manual_naive_matmul(n: int) -> int:
-    """Naive matmul with 2x2 block iteration order, NO scratchpad
-    caching. Same touch set as manual_naive_matmul — just different
-    loop order — so under the fixed-placement sqrt(addr) cost model
-    the total cost is identical."""
+    """Naive 2x2-block matmul with the simplest possible scratchpad
+    strategy: load the current A block and current B block into two
+    scratch tiles once per (BI, BJ, BK) iteration, then run the
+    naive (i, j, k) triple loop against them. C accumulates in place."""
     T = n // 2
     assert n % T == 0
     nb = n // T
     a = _alloc()
     A = a.alloc_arg(n * n); B = a.alloc_arg(n * n)
     tmp = a.alloc(1)
+    sA = a.alloc(T * T)
+    sB = a.alloc(T * T)
     C = a.alloc(n * n)
     a.set_output_range(C, C + n * n)
     for bi in range(nb):
         for bj in range(nb):
             for bk in range(nb):
-                for i in range(bi * T, (bi + 1) * T):
-                    for j in range(bj * T, (bj + 1) * T):
-                        for k in range(bk * T, (bk + 1) * T):
-                            a.touch_arg(A + i * n + k)
-                            a.touch_arg(B + j * n + k)
+                for i in range(T):
+                    for k in range(T):
+                        a.touch_arg(A + (bi * T + i) * n + (bk * T + k))
+                        a.write(sA + i * T + k)
+                for j in range(T):
+                    for k in range(T):
+                        a.touch_arg(B + (bj * T + j) * n + (bk * T + k))
+                        a.write(sB + j * T + k)
+                for i in range(T):
+                    for j in range(T):
+                        ii = bi * T + i
+                        jj = bj * T + j
+                        for k in range(T):
+                            a.touch(sA + i * T + k)
+                            a.touch(sB + j * T + k)
                             a.write(tmp)
-                            if bk == 0 and k == bk * T:
-                                a.touch(tmp); a.write(C + i * n + j)
+                            if bk == 0 and k == 0:
+                                a.touch(tmp); a.write(C + ii * n + jj)
                             else:
-                                a.touch(C + i * n + j); a.touch(tmp)
-                                a.write(C + i * n + j)
+                                a.touch(C + ii * n + jj); a.touch(tmp)
+                                a.write(C + ii * n + jj)
     a.read_output()
     return a.cost
 # ===========================================================================
