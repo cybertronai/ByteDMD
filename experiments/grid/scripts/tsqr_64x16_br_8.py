@@ -554,15 +554,27 @@ def tsqr(A, block_rows=8):
 # ===========================================================================
 
 def manual_tsqr(m: int, n: int, block_rows: int = 8) -> int:
-    """Tall-skinny QR. Input A preloaded from arg stack to scratch.
-    Local Householder QR per row-tile, pairwise tree-reduction over R factors."""
+    """Tall-skinny QR with hoisted scratchpads.
+    Phase 1 does local Householder QR per row-tile. Phase 2 tree-reduces
+    pairs of R factors. Both phases cache the current reflector column
+    into c_V and reuse it across the n trailing columns — exactly the
+    same trick as manual_blocked_qr.
+
+      c_A  (addr 1)                    — dot-product accumulator
+      c_V  (addr 2..block_rows+2)      — reflector column buffer
+                                         (Phase 2 needs one extra slot
+                                         for the left-block pivot element)"""
     a = _alloc()
     A_in = a.alloc_arg(m * n)
+    c_A = a.alloc(1)
+    c_V = a.alloc(block_rows + 1)
     A = a.alloc(m * n)
     a.set_output_range(A, A + m * n)
     for i in range(m * n):
         a.touch_arg(A_in + i); a.write(A + i)
-    # Phase 1: local QR per row-tile
+
+    # --- Phase 1: local QR per row-tile. Cache the reflector column
+    # into c_V and reuse across all n trailing columns. -----------------
     for row0 in range(0, m, block_rows):
         row1 = min(row0 + block_rows, m)
         for k in range(min(row1 - row0, n)):
@@ -573,15 +585,21 @@ def manual_tsqr(m: int, n: int, block_rows: int = 8) -> int:
             a.write(A + kk * n + k)
             for i in range(kk + 1, row1):
                 a.write(A + i * n + k)
+            a.touch(A + kk * n + k); a.write(c_V + 0)
+            for i in range(kk + 1, row1):
+                a.touch(A + i * n + k); a.write(c_V + (i - kk))
             for j in range(k + 1, n):
-                a.touch(A + kk * n + k); a.touch(A + kk * n + j)
+                a.touch(c_V + 0); a.touch(A + kk * n + j); a.write(c_A)
                 for i in range(kk + 1, row1):
-                    a.touch(A + i * n + k); a.touch(A + i * n + j)
-                a.touch(A + kk * n + j); a.touch(A + kk * n + k)
+                    a.touch(c_V + (i - kk)); a.touch(A + i * n + j)
+                    a.touch(c_A); a.write(c_A)
+                a.touch(c_A); a.touch(c_V + 0); a.touch(A + kk * n + j)
                 a.write(A + kk * n + j)
                 for i in range(kk + 1, row1):
-                    a.touch(A + i * n + j); a.touch(A + i * n + k)
-                    a.write(A + i * n + j)
+                    a.touch(c_A); a.touch(c_V + (i - kk))
+                    a.touch(A + i * n + j); a.write(A + i * n + j)
+
+    # --- Phase 2: pairwise tree-reduction over R factors. ---------------
     num_tiles = (m + block_rows - 1) // block_rows
     stride = 1
     while stride < num_tiles:
@@ -595,20 +613,26 @@ def manual_tsqr(m: int, n: int, block_rows: int = 8) -> int:
             for k in range(min(n, block_rows)):
                 a.touch(A + (left_row + k) * n + k)
                 a.touch(A + (right_row + k) * n + k)
+                # Cache reflector: one pivot element from left + right block.
+                a.touch(A + (left_row + k) * n + k); a.write(c_V + 0)
+                for i in range(right_row + k, right_end):
+                    a.touch(A + i * n + k); a.write(c_V + 1 + (i - right_row - k))
                 for j in range(k + 1, n):
-                    a.touch(A + (left_row + k) * n + k); a.touch(A + (left_row + k) * n + j)
+                    a.touch(c_V + 0); a.touch(A + (left_row + k) * n + j)
+                    a.write(c_A)
                     for i in range(right_row + k, right_end):
-                        a.touch(A + i * n + k); a.touch(A + i * n + j)
-                    a.touch(A + (left_row + k) * n + j); a.touch(A + (left_row + k) * n + k)
+                        a.touch(c_V + 1 + (i - right_row - k))
+                        a.touch(A + i * n + j)
+                        a.touch(c_A); a.write(c_A)
+                    a.touch(c_A); a.touch(c_V + 0)
+                    a.touch(A + (left_row + k) * n + j)
                     a.write(A + (left_row + k) * n + j)
                     for i in range(right_row + k, right_end):
-                        a.touch(A + i * n + j); a.touch(A + i * n + k)
-                        a.write(A + i * n + j)
+                        a.touch(c_A); a.touch(c_V + 1 + (i - right_row - k))
+                        a.touch(A + i * n + j); a.write(A + i * n + j)
         stride *= 2
     a.read_output()
     return a.cost
-
-
 # ===========================================================================
 # Driver — run under this script's specific algorithm.
 # ===========================================================================

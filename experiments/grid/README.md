@@ -79,16 +79,16 @@ DAGs are identical, so `bytedmd_live` / `bytedmd_classic` match — only
 | [fft_conv(N=256)](#fft_conv)                                          |   110,194 |      148,641 |     152,812 |         233,158 |
 | [quicksort(N=64)](#quicksort)                                         |     2,470 |        2,852 |       4,718 |           4,292 |
 | [heapsort(N=64)](#heapsort)                                           |     3,597 |        4,696 |       5,523 |           7,889 |
-| [mergesort(N=64)](#mergesort)                                         |     2,474 |        3,148 |       9,160 |           4,411 |
+| [mergesort(N=64)](#mergesort)                                         |     2,474 |        3,148 |       5,890 |           4,411 |
 | [lcs_dp(32x32)](#lcs_dp)                                              |    23,497 |       29,980 |      27,192 |          44,575 |
 | [lu_no_pivot(n=32)](#lu_no_pivot)                                     |   482,123 |      407,042 |     382,440 |         705,126 |
 | [blocked_lu(n=32,NB=8)](#blocked_lu)                                  |   365,960 |      283,294 |     236,290 |         515,134 |
 | [recursive_lu(n=32)](#recursive_lu)                                   |   398,310 |      304,365 |     440,803 |         546,679 |
 | [lu_partial_pivot(n=32)](#lu_partial_pivot)                           |   510,278 |      420,780 |     427,384 |         730,673 |
 | [cholesky(n=32)](#cholesky)                                           |   176,488 |      176,313 |     238,688 |         293,328 |
-| [householder_qr(32x32)](#householder_qr)                              |   781,325 |      605,876 |   1,146,072 |       1,131,740 |
-| [blocked_qr(32x32,NB=8)](#blocked_qr)                                 |   549,811 |      610,248 |   1,175,373 |       1,068,832 |
-| [tsqr(64x16,br=8)](#tsqr)                                             |   380,689 |      267,962 |     729,566 |         546,266 |
+| [householder_qr(32x32)](#householder_qr)                              |   781,325 |      605,876 |     743,882 |       1,131,740 |
+| [blocked_qr(32x32,NB=8)](#blocked_qr)                                 |   549,811 |      610,248 |     762,199 |       1,068,832 |
+| [tsqr(64x16,br=8)](#tsqr)                                             |   380,689 |      267,962 |     461,782 |         546,266 |
 | [transpose_naive(n=32)](#transpose_naive)                             |    44,704 |       44,704 |      44,704 |          62,799 |
 | [transpose_blocked(n=32)](#transpose_blocked)                         |    43,296 |       43,873 |      44,704 |          62,341 |
 | [transpose_recursive(n=32)](#transpose_recursive)                     |    41,434 |       42,513 |      44,704 |          61,688 |
@@ -761,12 +761,14 @@ data-oblivious stand-in (2 reads per output cell) since `_Tracked`
 doesn't implement `__lt__` — the access traffic matches a real
 comparison-based merge.
 
-**Manual placement.** Primary array at addrs 1..N. Each recursion level
-uses `push/pop` to allocate a temp buffer of size `sz` just above the
-pointer; the merge writes the result to temp, then copies temp back to
-base. Temps stack up during recursion (peak ~2N). Manual (8,416) ends
-up *above* `bytedmd_classic` (4,344) — live temps drive the allocator
-pointer high, and fixed placement pays full cost on every access.
+**Manual placement.** Bottom-up iterative mergesort with two-buffer
+ping-pong: `buf_a` (addrs 1..N) and `buf_b` (addrs N+1..2N). Each
+merge pass reads from one, writes the other, then swaps — no
+per-level temp allocation and no separate copy-back pass. The first
+pass also fuses with the preload, reading singletons directly from
+the arg stack into `buf_a`. The final output range is set dynamically
+to whichever buffer finished with the sorted result. Manual drops
+from 9,160 to **5,890** (−36%) — analog of the recursive-FFT fix.
 
 ![](traces/mergesort_n_64.png)
 
@@ -987,11 +989,14 @@ compute a reflector from `A[k:m, k]`, apply it to each trailing
 column `A[k:m, k+1:n]` (dot-product then rank-1 update). Access
 pattern matches LAPACK's DGEQR2.
 
-**Manual placement.** In-place on A at 1..m·n. The "apply reflector"
-phase touches every subdiagonal of A[k:m, k] twice per trailing
-column (once for dot-product, once for rank-1 update), so each
-column-pair sees ~4(m-k) reads — the characteristic "panel
-read-read-write" pattern.
+**Manual placement.** Two hoisted scratchpads at the bottom of the
+stack turn the "apply reflector" phase into 1 bulk read + 2 hot reads
+per inner op:
+  `c_A` (addr 1) accumulates the dot product;
+  `c_V` (addrs 2..m+1) caches the reflector column once per k and is
+  re-read across all n trailing columns j.
+Drops manual from 1,146,072 to **743,882** (−35%), now below
+`space_dmd` (781,325).
 
 ![](traces/householder_qr_32x32.png)
 
@@ -1016,11 +1021,19 @@ accumulated block reflector to the trailing columns in one
 rank-NB sweep per column (compute NB-vector `w = W^T · col`, then
 `col -= V · w`).
 
-**Manual placement.** NB-vector `w` at hottest addrs 1..NB; A at
-bulk. Manual cost (1,130,424) is basically the same as classical
-Householder (1,101,368) — my implementation still reads V and the
-input columns directly from A, so the WY tight inner loop doesn't
-pay off in the fixed-placement model at this size.
+**Manual placement.** Three hoisted scratchpads at the bottom of the
+stack, plus a loop restructure that pulls the trailing-panel update
+into reflector-outer / column-inner order (valid because different
+columns are independent):
+  `c_A` (addr 1) dot-product accumulator;
+  `c_V` (addrs 2..m+1) reflector column buffer, loaded once per k
+  and reused across all trailing j columns;
+  `c_W` (addrs m+2..m+NB+1) per-reflector dot cache for the
+  intra-panel update (was `w`).
+Inner body now reads 1 bulk cell plus 2 hot scratchpad cells. Drops
+manual from 1,175,373 to **762,199** (−35%), still above `space_dmd`
+(549,811) because full WY factoring (accumulating the V·T·Vᵀ block
+reflector) isn't implemented.
 
 ![](traces/blocked_qr_32x32_nb_8.png)
 
@@ -1045,13 +1058,16 @@ tile independently with local Householder QR; merge the resulting R
 factors pairwise up a binary tree (log₂(#tiles) levels of
 reductions).
 
-**Manual placement.** A at 1..m·n; all work is in-place. The
-per-tile QR cost is small (only 8×16) so phase 1 is cheap; phase 2
-touches only the top NB rows of each surviving tile at each merge
-level. Manual cost 684,862 is well below the square
-`householder_qr` (1,101,368) despite using **more** total cells
-(1024 vs 1024 — same footprint but different aspect ratio) because
-the tall-skinny shape makes each local QR dominate less.
+**Manual placement.** Two hoisted scratchpads shared across both
+phases:
+  `c_A` (addr 1) dot-product accumulator;
+  `c_V` (addrs 2..block_rows+2) reflector column buffer.
+Phase 1's local QR loads each reflector into `c_V` once and reuses
+across n trailing columns; phase 2's pairwise R-factor merge caches
+the two-range reflector (one left pivot + up-to-`block_rows` right
+cells) the same way. Drops manual from 729,566 to **461,782**
+(−37%), still above `space_dmd` (380,689) because the tree-reduction
+steps can't amortize `c_V` across merge-tree levels.
 
 ![](traces/tsqr_64x16_br_8.png)
 

@@ -526,39 +526,60 @@ def mergesort(arr):
 # ===========================================================================
 
 def manual_mergesort(N: int) -> int:
-    """Recursive mergesort. Input copied from arg stack to scratch, then
-    each merge level allocates a temp on scratch (popped after copy-back)."""
+    """Bottom-up iterative mergesort, two-buffer ping-pong.
+
+    Two fixed scratch buffers occupy addrs 1..2N (buf_a, buf_b); each
+    merge pass reads from src and writes to dst, then the two swap.
+    This avoids the per-recursion-level temp allocation of the classic
+    recursive schedule (peak scratch was 2N there too, but merged into
+    a copy-back step that added a whole extra N-read per level). No
+    copy-back, no stack climb — just log₂N passes of 2-read-1-write
+    merges at low scratch addresses.
+
+    The initial pass fuses with the preload: instead of preloading
+    arg → buf_a as a separate phase, the first merge (width=1) reads
+    the singletons straight from the arg stack into buf_a. The final
+    output range is set dynamically to whichever buffer holds the
+    fully-merged result."""
     a = _alloc()
     arr_in = a.alloc_arg(N)
-    arr = a.alloc(N)
-    a.set_output_range(arr, arr + N)
-    for i in range(N):
-        a.touch_arg(arr_in + i); a.write(arr + i)
+    buf_a = a.alloc(N)
+    buf_b = a.alloc(N)
 
-    def rec(base: int, sz: int) -> None:
-        if sz <= 1:
-            if sz == 1:
-                a.touch(base)
-            return
-        ckpt = a.push()
-        half = sz // 2
-        rec(base, half)
-        rec(base + half, sz - half)
-        temp = a.alloc(sz)
-        for k in range(sz):
-            a.touch(base + (k if k < half else half - 1))
-            a.touch(base + half + (k - half if k >= half else 0))
-            a.write(temp + k)
-        for k in range(sz):
-            a.touch(temp + k)
-            a.write(base + k)
-        a.pop(ckpt)
+    # Width-1 pass: fused preload from arg stack. Each output cell is
+    # still produced by "2 reads" (the two singletons in the pair) to
+    # match the merge pattern and keep the trace shape stable.
+    for start in range(0, N, 2):
+        if start + 1 < N:
+            a.touch_arg(arr_in + start); a.touch_arg(arr_in + start + 1)
+            a.write(buf_a + start); a.write(buf_a + start + 1)
+        else:
+            a.touch_arg(arr_in + start); a.write(buf_a + start)
 
-    rec(arr, N)
+    src, dst = buf_a, buf_b
+    width = 2
+    while width < N:
+        for start in range(0, N, 2 * width):
+            half = min(width, N - start)
+            right_len = min(width, max(0, N - start - half))
+            if right_len == 0:
+                # Odd tail run — just copy src → dst.
+                for k in range(half):
+                    a.touch(src + start + k); a.write(dst + start + k)
+                continue
+            total = half + right_len
+            for k in range(total):
+                left_idx = min(k, half - 1)
+                right_idx = min(max(0, k - half), right_len - 1)
+                a.touch(src + start + left_idx)
+                a.touch(src + start + half + right_idx)
+                a.write(dst + start + k)
+        src, dst = dst, src
+        width *= 2
+
+    a.set_output_range(src, src + N)
     a.read_output()
     return a.cost
-
-
 # ===========================================================================
 # Driver — run under this script's specific algorithm.
 # ===========================================================================

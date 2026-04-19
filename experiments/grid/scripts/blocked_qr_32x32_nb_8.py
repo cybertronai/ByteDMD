@@ -547,49 +547,82 @@ def blocked_qr(A, NB=8):
 # ===========================================================================
 
 def manual_blocked_qr(m: int, n: int, NB: int = 8) -> int:
-    """Blocked QR (WY form, simplified). Input A preloaded from arg stack
-    to scratch; W-vector scratchpad sits at the lowest scratch addrs."""
+    """Blocked QR (WY form, simplified) with hoisted scratchpads.
+
+    Three tight scratchpads at the bottom of the stack:
+      c_A   (addr 1)      — dot-product accumulator (hot scalar)
+      c_V   (addr 2..m+1) — reflector-column buffer, loaded once per
+                            reflector k and reused across all trailing
+                            columns j
+      c_W   (addr m+2..m+NB+1) — per-reflector dot-product cache in the
+                                 intra-panel update step (was `w`)
+
+    Observation: the inner A[i][k] reads of the trailing-panel update
+    can be pulled into c_V because each reflector is independent across
+    trailing columns (their updates write disjoint columns). So
+    restructuring the loop as `for k outer, for j inner` lets us load
+    each reflector into c_V exactly once and hit it 2·(m-k)·(n-ke)
+    times at near-top-of-stack depth."""
     a = _alloc()
     A_in = a.alloc_arg(m * n)
-    w = a.alloc(NB)
+    c_A = a.alloc(1)
+    c_V = a.alloc(m)
+    c_W = a.alloc(NB)
     A = a.alloc(m * n)
     a.set_output_range(A, A + m * n)
     for i in range(m * n):
         a.touch_arg(A_in + i); a.write(A + i)
+
     for kb in range(0, min(m, n), NB):
         ke = min(kb + NB, min(m, n))
+
+        # --- Panel reduction: sequential reflectors within the panel. ---
         for k in range(kb, ke):
+            # Build reflector: read column k below+including diagonal.
             a.touch(A + k * n + k)
             for i in range(k + 1, m):
                 a.touch(A + i * n + k)
             a.write(A + k * n + k)
             for i in range(k + 1, m):
                 a.write(A + i * n + k)
+            # Cache the reflector column into c_V.
+            a.touch(A + k * n + k); a.write(c_V + 0)
+            for i in range(k + 1, m):
+                a.touch(A + i * n + k); a.write(c_V + (i - k))
+            # Apply the reflector to the remaining panel columns j.
             for j in range(k + 1, ke):
-                a.touch(A + k * n + k); a.touch(A + k * n + j)
+                # Dot product v · A[:, j] accumulated in c_A.
+                a.touch(c_V + 0); a.touch(A + k * n + j); a.write(c_A)
                 for i in range(k + 1, m):
-                    a.touch(A + i * n + k); a.touch(A + i * n + j)
-                a.touch(A + k * n + j); a.touch(A + k * n + k)
+                    a.touch(c_V + (i - k)); a.touch(A + i * n + j)
+                    a.touch(c_A); a.write(c_A)
+                # Rank-1 update using c_A and c_V.
+                a.touch(c_A); a.touch(c_V + 0); a.touch(A + k * n + j)
                 a.write(A + k * n + j)
                 for i in range(k + 1, m):
-                    a.touch(A + i * n + j); a.touch(A + i * n + k)
-                    a.write(A + i * n + j)
-        for j in range(ke, n):
-            for t_idx, k in enumerate(range(kb, ke)):
-                a.touch(A + k * n + k); a.touch(A + k * n + j)
+                    a.touch(c_A); a.touch(c_V + (i - k))
+                    a.touch(A + i * n + j); a.write(A + i * n + j)
+
+        # --- Trailing-panel update: reflector-outer, column-inner. ---
+        for k in range(kb, ke):
+            # Cache reflector k into c_V.
+            a.touch(A + k * n + k); a.write(c_V + 0)
+            for i in range(k + 1, m):
+                a.touch(A + i * n + k); a.write(c_V + (i - k))
+            for j in range(ke, n):
+                # Dot v · A[:, j] → c_A.
+                a.touch(c_V + 0); a.touch(A + k * n + j); a.write(c_A)
                 for i in range(k + 1, m):
-                    a.touch(A + i * n + k); a.touch(A + i * n + j)
-                a.write(w + t_idx)
-            for t_idx, k in enumerate(range(kb, ke)):
-                a.touch(A + k * n + j); a.touch(A + k * n + k); a.touch(w + t_idx)
+                    a.touch(c_V + (i - k)); a.touch(A + i * n + j)
+                    a.touch(c_A); a.write(c_A)
+                # Update.
+                a.touch(c_A); a.touch(c_V + 0); a.touch(A + k * n + j)
                 a.write(A + k * n + j)
                 for i in range(k + 1, m):
-                    a.touch(A + i * n + j); a.touch(A + i * n + k); a.touch(w + t_idx)
-                    a.write(A + i * n + j)
+                    a.touch(c_A); a.touch(c_V + (i - k))
+                    a.touch(A + i * n + j); a.write(A + i * n + j)
     a.read_output()
     return a.cost
-
-
 # ===========================================================================
 # Driver — run under this script's specific algorithm.
 # ===========================================================================
