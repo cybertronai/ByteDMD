@@ -350,7 +350,9 @@ single-level outer Strassen (7 matrix multiplies instead of 8) where the
 sub-additions (A₁₁+A₂₂, etc.) are evaluated **on-the-fly** while loading
 the L1 tile — the intermediate M matrices are never materialized. Each of
 the 7 recipes is distributed directly into the target C quadrants with
-sign.
+sign. Inner MAC prices the multiply's intermediate and per-k accumulator
+read to close the earlier undercharge
+([gemini/strassen-cheating-macc.md](../../gemini/strassen-cheating-macc.md)).
 
 **Manual placement.** Only 3 L1 tile slots (`fast_A, fast_B, fast_C` at
 addrs 1..3T²) plus A, B, C in main memory. No allocation of the 7 M
@@ -908,12 +910,13 @@ trailing GEMM); `c_C` caches the currently-active A-row during the
 panel and GEMM inner loops so every `(i, j, k)` triple-loop body
 reads from addresses 1..73 only. The `n²` up-front preload is also
 skipped — each A cell is touched lazily from the arg stack on its
-first visit (when `kb == 0`) and from scratch `A` thereafter. These
-three changes together drop the manual cost **870,705 → 236,290**
-(–73 %), now below `space_dmd` (365,960) and `bytedmd_live`
-(283,294) both — the manual schedule wins because it can actively
-hoist hot operands that the static and dynamic heuristics can
-only approximate.
+first visit (when `kb == 0`) and from scratch `A` thereafter
+([gemini/optimize-blocked-lu.md](../../gemini/optimize-blocked-lu.md)).
+These three changes together drop the manual cost **870,705 →
+236,290** (–73 %), now below `space_dmd` (365,960) and
+`bytedmd_live` (283,294) both — the manual schedule wins because it
+can actively hoist hot operands that the static and dynamic
+heuristics can only approximate.
 
 ![](traces/blocked_lu_n_32_nb_8.png)
 
