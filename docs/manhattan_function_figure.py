@@ -88,10 +88,6 @@ def render_frame(d: int = 8,
         short = pts[:n_short]
         dists = np.array([abs(x) + abs(y) for x, y in short])
         colors = [RING_COLORS[min(int(v), MAX_RING) - 1] for v in dists]
-        # Low-opacity halo under each cell — same ring colour, larger.
-        ax1.scatter(short[:, 0], short[:, 1], c=colors, s=400,
-                    alpha=0.20, zorder=1.5, linewidths=0)
-        # Opaque cell dot.
         ax1.scatter(short[:, 0], short[:, 1], c=colors, s=55,
                     zorder=2, edgecolors='black', linewidths=0.4)
 
@@ -198,29 +194,42 @@ def render_frame(d: int = 8,
     ) + 1
     ax1.set_xlim(-x_ext, x_ext)
 
-    # --- Right-side address table (same format as manhattan_figure.py) ---
+    # --- Right-side address table with ring-colour strip ---
     divider = make_axes_locatable(ax1)
     ax2 = divider.append_axes("right", size="50%", pad=0.6)
     ax2.axis('off')
 
     table_data = []
+    wire_lengths = []
     for t in range(1, table_size + 1):
         x, y = SCRATCH_PTS[t - 1]
-        table_data.append([t, int(abs(x) + abs(y))])
+        wl = int(abs(x) + abs(y))
+        wire_lengths.append(wl)
+        # First column is a blank cell that we'll colour below; second
+        # and third columns hold d and its wire length.
+        table_data.append(['', t, wl])
 
     table = ax2.table(
         cellText=table_data,
-        colLabels=['d', 'Wire length'],
+        colLabels=['', 'd', 'Wire length'],
         cellLoc='center',
         bbox=[0, 0, 1, 1],
+        colWidths=[0.08, 0.4, 0.52],   # thin colour strip in col 0
     )
     table.auto_set_font_size(False)
     table.set_fontsize(10)
 
     for (row, col), cell in table.get_celld().items():
         if row == 0:
+            # Header row — keep the first (strip) cell matching header grey
+            # so it doesn't stick out.
             cell.set_text_props(weight='medium')
             cell.set_facecolor('#f2f2f2')
+        elif col == 0:
+            # Ring-colour strip: wire_lengths[row-1] -> RING_COLORS[...]
+            wl = wire_lengths[row - 1]
+            cell.set_facecolor(RING_COLORS[min(wl, MAX_RING) - 1])
+            cell.set_edgecolor('white')
         elif row == d:
             cell.set_facecolor('#ffcccc')
             cell.set_text_props(weight='bold')
