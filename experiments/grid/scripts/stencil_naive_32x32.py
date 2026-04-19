@@ -519,23 +519,45 @@ def stencil_naive(A):
 # ===========================================================================
 
 def manual_stencil_naive(n: int) -> int:
-    """Row-major single sweep of 5-point Jacobi. A on arg stack, B on scratch."""
+    """Row-major single sweep of 5-point Jacobi with rolling 3-row
+    buffer. Each A cell is read exactly once from the arg stack (via a
+    streaming preload of one row at a time); all 5 stencil reads
+    thereafter hit the rolling buffer at addresses 1..3n.
+
+      r0, r1, r2 (addrs 1..3n)    — rolling 3-row buffer, rotated via
+                                    (i-1)%3, i%3, (i+1)%3 indexing
+      B          (addrs 3n+1..)   — output matrix"""
     a = _alloc()
     A = a.alloc_arg(n * n)
+    r0 = a.alloc(n)
+    r1 = a.alloc(n)
+    r2 = a.alloc(n)
+    rows = [r0, r1, r2]
     B = a.alloc(n * n)
     a.set_output_range(B, B + n * n)
+
+    # Initial preload: rows 0, 1, 2.
+    for row in range(min(3, n)):
+        slot = rows[row % 3]
+        for j in range(n):
+            a.touch_arg(A + row * n + j); a.write(slot + j)
+
     for i in range(1, n - 1):
+        up, cur, down = rows[(i - 1) % 3], rows[i % 3], rows[(i + 1) % 3]
         for j in range(1, n - 1):
-            a.touch_arg(A + i * n + j)
-            a.touch_arg(A + (i - 1) * n + j)
-            a.touch_arg(A + (i + 1) * n + j)
-            a.touch_arg(A + i * n + j - 1)
-            a.touch_arg(A + i * n + j + 1)
+            a.touch(cur + j)        # center
+            a.touch(up + j)         # north
+            a.touch(down + j)       # south
+            a.touch(cur + j - 1)    # west
+            a.touch(cur + j + 1)    # east
             a.write(B + i * n + j)
+        # Stream the next row into the slot we no longer need.
+        if i + 2 < n:
+            replace = rows[(i - 1) % 3]
+            for j in range(n):
+                a.touch_arg(A + (i + 2) * n + j); a.write(replace + j)
     a.read_output()
     return a.cost
-
-
 # ===========================================================================
 # Driver — run under this script's specific algorithm.
 # ===========================================================================

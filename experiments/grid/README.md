@@ -154,14 +154,18 @@ DAGs are identical, so `bytedmd_live` / `bytedmd_classic` match — only
 (contiguous) in the inner k-loop — the symmetric, cache-friendly twin
 of the standard AB variant.
 
-**Manual placement.** Accumulator `s` at addr 1 (hot scalar); then `A`,
-`B`, `C` laid out contiguously at addrs 2..n²+1, n²+2..2n²+1, 2n²+2..3n²+1.
-Each output cell reads `s` once outside the k-loop, then touches A[i][k]
-and B[j][k] per k-iteration. `C[i][j]` is written for free. Cost in this
-fixed-placement model is identical to the AB variant (same set of
-addresses touched the same number of times) — only the LRU-recency
-heuristics distinguish them, and even there the differences are tiny
-because the two variants are symmetric.
+**Manual placement.** A[i][*] is reused across all n values of j for
+fixed outer i — preloading it once per i into `c_A_row` cuts n−1
+redundant arg reads per A cell:
+
+  `s`       (addr 1)           — accumulator
+  `c_A_row` (addrs 2..n+1)     — hot A[i][*] row buffer
+  `C`       (addrs n+2..n+n²+1) — output
+
+B[j][*] isn't cached (would need reload for every i, wiping the win).
+Drops manual from 130,824 to **102,026** (−22%). Still above
+`space_dmd` (79,044) because the fully-tiled variant (`tiled_matmul`,
+which caches both tiles) is what closes the gap further.
 
 ![](traces/naive_matmul_n_16.png)
 
@@ -413,10 +417,18 @@ naive's 242k to 137k.
 `n=64`. **Algorithm.** `y[i] = Σ_j A[i][j] · x[j]`, outer loop over `i`.
 A is read row-major (contiguous); `x` is re-read n times.
 
-**Manual placement.** Hot slots first: `s, tmp` (scalars), `y` (n slots),
-`x` (n slots) at addrs 1..2n+2; A at 2n+3..2n+2+n². The accumulator `s`
-is read once per output row; A and `x` are hit every k-iteration, but
-all of `x` sits in the hot region so its cost is amortized.
+**Manual placement.** The Python signature `matvec(A, x)` puts `x` at
+the *end* of the arg stack (addrs n²+1..n²+n). Each `x[j]` is re-read
+n times — from those high arg addresses. Preloading `x` once into a
+`c_X` scratch buffer at the bottom of the stack cuts every subsequent
+x access to near-top-of-scratch cost:
+
+  `s`, `tmp` (addrs 1-2)        — accumulator + tmp
+  `c_X`     (addrs 3..n+2)     — hot x buffer (one-time arg preload)
+  `y`       (addrs n+3..2n+2)  — output
+
+Drops manual from 455,587 to **218,552** (−52%), now just below
+`space_dmd` (217,053).
 
 ![](traces/matvec_row_n_64.png)
 
@@ -564,10 +576,15 @@ butterfly passes + 1 output epilogue), and it even beats
 `32×32, one sweep`. **Algorithm.** 5-point Jacobi row-major sweep:
 `B[i][j] = 0.2 · (A[i][j] + A[i±1][j] + A[i][j±1])` for interior cells.
 
-**Manual placement.** A at 1..n², B at n²+1..2n². Each interior A cell
-is touched 5× (once as center, four times as neighbor across its
-dependent B outputs), giving 5(n-2)² reads. Fixed-placement cost is
-pattern-independent.
+**Manual placement.** Rolling 3-row buffer at addrs 1..3n: each A
+cell is read exactly once from the arg stack (streaming preload, one
+row at a time) and all 5 stencil reads hit the rolling buffer at low
+addresses. B sits at addrs 3n+1..3n+n².
+
+  `r0, r1, r2` (addrs 1..3n)    — rotated via (i-1)%3, i%3, (i+1)%3
+  `B`          (addrs 3n+1..)   — output matrix
+
+Drops manual from 121,628 to **78,968** (−35%).
 
 ![](traces/stencil_naive_32x32.png)
 
@@ -1202,7 +1219,15 @@ steps can't amortize `c_V` across merge-tree levels.
 ## floyd_warshall_naive [(code)](scripts/floyd_warshall_naive_v_16.py)
 `V=16`. **Algorithm.** Standard 3-nested loop APSP: `D[i][j] = min(D[i][j], D[i][k] + D[k][j])` with branch-free stand-ins.
 
-**Manual.** Input graph preloaded to `D` on scratch; each (k,i,j) does 3 D-reads + 1 D-write — same access shape as naive matmul but with in-place update into D.
+**Manual.** Same `A[i][j] -= A[i][k] · A[k][j]` inner body as
+`lu_no_pivot` — apply the same hoisting recipe:
+
+  `c_A` (addr 1)        — hot scalar pinning D[i][k] across j-sweep
+  `c_C` (addrs 2..V+1)  — row buffer caching D[k][0..V-1]
+  `D`   (addrs V+2..)   — scratch graph
+
+Lazy arg reads at k=0 replace the V² preload. Drops manual from
+142,800 to **76,339** (−47%), now below `space_dmd` (82,119).
 
 ![](traces/floyd_warshall_naive_v_16.png)
 

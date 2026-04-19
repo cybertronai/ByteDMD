@@ -519,25 +519,38 @@ def matvec_row(A, x):
 # ===========================================================================
 
 def manual_matvec_row(n: int) -> int:
-    """y[i] = sum_j A[i][j] * x[j]. A, x on arg stack; s, tmp, y on scratch."""
+    """y[i] = sum_j A[i][j] * x[j] with x preloaded into a hot scratch
+    buffer at the very bottom of the stack.
+
+    Because the Python signature is `matvec(A, x)`, `x` sits at the
+    *end* of the arg stack (addrs n²+1..n²+n). Each x[j] is re-read
+    n times from those high arg addresses in the original. Preloading
+    x into `c_X` at addrs n+3..2n+2 cuts every subsequent x access to
+    near-top-of-scratch cost.
+
+      s, tmp  (addrs 1-2)        — accumulator + tmp
+      c_X     (addrs 3..n+2)     — hot x buffer (one-time preload)
+      y       (addrs n+3..2n+2)  — output"""
     a = _alloc()
     A = a.alloc_arg(n * n); x = a.alloc_arg(n)
     s = a.alloc(1); tmp = a.alloc(1)
+    c_X = a.alloc(n)
     y = a.alloc(n)
     a.set_output_range(y, y + n)
+    # Preload x once from arg into c_X.
+    for j in range(n):
+        a.touch_arg(x + j); a.write(c_X + j)
     for i in range(n):
-        a.touch_arg(A + i * n + 0); a.touch_arg(x + 0)
+        a.touch_arg(A + i * n + 0); a.touch(c_X + 0)
         a.write(s)
         for j in range(1, n):
-            a.touch_arg(A + i * n + j); a.touch_arg(x + j)
+            a.touch_arg(A + i * n + j); a.touch(c_X + j)
             a.touch(s); a.touch(tmp)
             a.write(s)
         a.touch(s)
         a.write(y + i)
     a.read_output()
     return a.cost
-
-
 # ===========================================================================
 # Driver — run under this script's specific algorithm.
 # ===========================================================================

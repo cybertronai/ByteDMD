@@ -133,18 +133,31 @@ def _alloc() -> Allocator:
 # ============================================================================
 
 def manual_naive_matmul(n: int) -> int:
-    """Hand-placed naive triple loop computing C = A @ B^T.
-    Inputs A, B on the arg stack; accumulator s and output C on scratch.
-    2 arg-reads + 1 scratch-read (s) per MAC."""
+    """Naive triple loop C[i][j] = Σₖ A[i][k] · B[j][k], with the
+    current A-row hoisted into a hot scratchpad.
+
+    Because A[i][*] is reused across all n values of j (for fixed i),
+    preloading it into `c_A_row` once per outer i iteration cuts n−1
+    redundant arg-stack reads per A cell down to zero. B[j][*] isn't
+    cached (it would need to be reloaded for each i, wiping the win).
+
+      s       (addr 1)         — accumulator
+      c_A_row (addrs 2..n+1)   — hot A[i][*] row buffer
+      C       (addrs n+2..)    — output"""
     a = _alloc()
     A = a.alloc_arg(n * n); B = a.alloc_arg(n * n)
-    s = a.alloc(1); C = a.alloc(n * n)
+    s = a.alloc(1)
+    c_A_row = a.alloc(n)
+    C = a.alloc(n * n)
     a.set_output_range(C, C + n * n)
     for i in range(n):
+        # Load A[i][*] into c_A_row once per outer i.
+        for k in range(n):
+            a.touch_arg(A + i * n + k); a.write(c_A_row + k)
         for j in range(n):
             a.touch(s)
             for k in range(n):
-                a.touch_arg(A + i * n + k)
+                a.touch(c_A_row + k)
                 a.touch_arg(B + j * n + k)
             a.write(C + i * n + j)
     a.read_output()
@@ -625,17 +638,32 @@ def manual_transpose_recursive(n: int) -> int:
 # ============================================================================
 
 def manual_matvec_row(n: int) -> int:
-    """y[i] = sum_j A[i][j] * x[j]. A, x on arg stack; s, tmp, y on scratch."""
+    """y[i] = sum_j A[i][j] * x[j] with x preloaded into a hot scratch
+    buffer at the very bottom of the stack.
+
+    Because the Python signature is `matvec(A, x)`, `x` sits at the
+    *end* of the arg stack (addrs n²+1..n²+n). Each x[j] is re-read
+    n times from those high arg addresses in the original. Preloading
+    x into `c_X` at addrs n+3..2n+2 cuts every subsequent x access to
+    near-top-of-scratch cost.
+
+      s, tmp  (addrs 1-2)        — accumulator + tmp
+      c_X     (addrs 3..n+2)     — hot x buffer (one-time preload)
+      y       (addrs n+3..2n+2)  — output"""
     a = _alloc()
     A = a.alloc_arg(n * n); x = a.alloc_arg(n)
     s = a.alloc(1); tmp = a.alloc(1)
+    c_X = a.alloc(n)
     y = a.alloc(n)
     a.set_output_range(y, y + n)
+    # Preload x once from arg into c_X.
+    for j in range(n):
+        a.touch_arg(x + j); a.write(c_X + j)
     for i in range(n):
-        a.touch_arg(A + i * n + 0); a.touch_arg(x + 0)
+        a.touch_arg(A + i * n + 0); a.touch(c_X + 0)
         a.write(s)
         for j in range(1, n):
-            a.touch_arg(A + i * n + j); a.touch_arg(x + j)
+            a.touch_arg(A + i * n + j); a.touch(c_X + j)
             a.touch(s); a.touch(tmp)
             a.write(s)
         a.touch(s)
@@ -776,19 +804,43 @@ def manual_fft_recursive(N: int) -> int:
 # ============================================================================
 
 def manual_stencil_naive(n: int) -> int:
-    """Row-major single sweep of 5-point Jacobi. A on arg stack, B on scratch."""
+    """Row-major single sweep of 5-point Jacobi with rolling 3-row
+    buffer. Each A cell is read exactly once from the arg stack (via a
+    streaming preload of one row at a time); all 5 stencil reads
+    thereafter hit the rolling buffer at addresses 1..3n.
+
+      r0, r1, r2 (addrs 1..3n)    — rolling 3-row buffer, rotated via
+                                    (i-1)%3, i%3, (i+1)%3 indexing
+      B          (addrs 3n+1..)   — output matrix"""
     a = _alloc()
     A = a.alloc_arg(n * n)
+    r0 = a.alloc(n)
+    r1 = a.alloc(n)
+    r2 = a.alloc(n)
+    rows = [r0, r1, r2]
     B = a.alloc(n * n)
     a.set_output_range(B, B + n * n)
+
+    # Initial preload: rows 0, 1, 2.
+    for row in range(min(3, n)):
+        slot = rows[row % 3]
+        for j in range(n):
+            a.touch_arg(A + row * n + j); a.write(slot + j)
+
     for i in range(1, n - 1):
+        up, cur, down = rows[(i - 1) % 3], rows[i % 3], rows[(i + 1) % 3]
         for j in range(1, n - 1):
-            a.touch_arg(A + i * n + j)
-            a.touch_arg(A + (i - 1) * n + j)
-            a.touch_arg(A + (i + 1) * n + j)
-            a.touch_arg(A + i * n + j - 1)
-            a.touch_arg(A + i * n + j + 1)
+            a.touch(cur + j)        # center
+            a.touch(up + j)         # north
+            a.touch(down + j)       # south
+            a.touch(cur + j - 1)    # west
+            a.touch(cur + j + 1)    # east
             a.write(B + i * n + j)
+        # Stream the next row into the slot we no longer need.
+        if i + 2 < n:
+            replace = rows[(i - 1) % 3]
+            for j in range(n):
+                a.touch_arg(A + (i + 2) * n + j); a.write(replace + j)
     a.read_output()
     return a.cost
 
@@ -1784,20 +1836,38 @@ def manual_stencil_time_diamond(n: int, T: int = 4, block: int = 4) -> int:
 # ============================================================================
 
 def manual_floyd_warshall_naive(V: int) -> int:
-    """Standard 3-loop APSP. Input D₀ preloaded from arg stack to the
-    scratch D (we update in place)."""
+    """Standard 3-loop APSP with hoisted scratchpads and lazy loading.
+    Same inner body as lu_no_pivot's Schur update — apply the same
+    pattern:
+      c_A  (addr 1)         — hot scalar for D[i][k]
+      c_C  (addrs 2..V+1)   — row buffer caching D[k][0..V-1]
+    Lazy arg reads at k=0 replace the V² preload: every D cell is
+    first-touched at k=0 (either in the row-cache step, the c_A
+    cache step, or the Schur inner body) so it's safe to route
+    arg→scratch on the first visit."""
     a = _alloc()
     M = a.alloc_arg(V * V)
+    c_A = a.alloc(1)
+    c_C = a.alloc(V)
     D = a.alloc(V * V)
     a.set_output_range(D, D + V * V)
-    for i in range(V * V):
-        a.touch_arg(M + i); a.write(D + i)
+
+    def _read(i, j, k):
+        if k == 0:
+            a.touch_arg(M + i * V + j)
+        else:
+            a.touch(D + i * V + j)
+
     for k in range(V):
+        # Cache row k into c_C.
+        for j in range(V):
+            _read(k, j, k); a.write(c_C + j)
         for i in range(V):
+            _read(i, k, k); a.write(c_A)
             for j in range(V):
-                a.touch(D + i * V + j)
-                a.touch(D + i * V + k)
-                a.touch(D + k * V + j)
+                _read(i, j, k)
+                a.touch(c_A)
+                a.touch(c_C + j)
                 a.write(D + i * V + j)
     a.read_output()
     return a.cost

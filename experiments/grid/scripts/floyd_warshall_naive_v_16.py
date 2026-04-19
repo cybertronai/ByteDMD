@@ -520,25 +520,41 @@ def floyd_warshall_naive(M):
 # ===========================================================================
 
 def manual_floyd_warshall_naive(V: int) -> int:
-    """Standard 3-loop APSP. Input D₀ preloaded from arg stack to the
-    scratch D (we update in place)."""
+    """Standard 3-loop APSP with hoisted scratchpads and lazy loading.
+    Same inner body as lu_no_pivot's Schur update — apply the same
+    pattern:
+      c_A  (addr 1)         — hot scalar for D[i][k]
+      c_C  (addrs 2..V+1)   — row buffer caching D[k][0..V-1]
+    Lazy arg reads at k=0 replace the V² preload: every D cell is
+    first-touched at k=0 (either in the row-cache step, the c_A
+    cache step, or the Schur inner body) so it's safe to route
+    arg→scratch on the first visit."""
     a = _alloc()
     M = a.alloc_arg(V * V)
+    c_A = a.alloc(1)
+    c_C = a.alloc(V)
     D = a.alloc(V * V)
     a.set_output_range(D, D + V * V)
-    for i in range(V * V):
-        a.touch_arg(M + i); a.write(D + i)
+
+    def _read(i, j, k):
+        if k == 0:
+            a.touch_arg(M + i * V + j)
+        else:
+            a.touch(D + i * V + j)
+
     for k in range(V):
+        # Cache row k into c_C.
+        for j in range(V):
+            _read(k, j, k); a.write(c_C + j)
         for i in range(V):
+            _read(i, k, k); a.write(c_A)
             for j in range(V):
-                a.touch(D + i * V + j)
-                a.touch(D + i * V + k)
-                a.touch(D + k * V + j)
+                _read(i, j, k)
+                a.touch(c_A)
+                a.touch(c_C + j)
                 a.write(D + i * V + j)
     a.read_output()
     return a.cost
-
-
 # ===========================================================================
 # Driver — run under this script's specific algorithm.
 # ===========================================================================
