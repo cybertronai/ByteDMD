@@ -78,17 +78,10 @@ def render_frame(d: int = 8,
     """
     fig, ax1 = plt.subplots(figsize=(10, 10))
 
-    # --- helper to draw one arena as a quiver + scatter + labels ---
+    # --- helper to draw one arena as scatter + labels ---
     def draw_arena(pts: np.ndarray, n_short: int, highlight_idx: int,
                    arrow_color: str, label_neg: bool):
         short = pts[:n_short]
-        u = np.diff(short[:, 0])
-        v = np.diff(short[:, 1])
-        ax1.quiver(short[:n_short - 1, 0], short[:n_short - 1, 1], u, v,
-                   angles='xy', scale_units='xy', scale=1,
-                   color=arrow_color, alpha=0.6, width=0.005,
-                   headwidth=4, headlength=6, zorder=1)
-
         dists = np.array([abs(x) + abs(y) for x, y in short])
         max_d = int(dists.max()) or 1
         cmap = plt.cm.plasma
@@ -121,24 +114,19 @@ def render_frame(d: int = 8,
     draw_arena(SCRATCH_PTS, n_short_scratch, d,
                arrow_color='gray', label_neg=False)
 
+    _ = arg_d  # arg target is no longer drawn as a wire path
+
     # --- ALU at origin ---
     ax1.plot(0, 0, marker='o', color='red', ms=14, mec='black', zorder=5)
     ax1.annotate("core", (0, 0), textcoords="offset points",
                  xytext=(14, 0), ha='left', va='center', fontsize=10,
                  fontweight='bold', color='red')
 
-    # --- Wire paths from the core to each highlighted target ---
-    # Scratch target (below)
+    # --- Single wire path from the core to the highlighted scratch target ---
     sx, sy = SCRATCH_PTS[d - 1]
     ax1.plot([0, 0], [0, sy], color='red', lw=3, zorder=3)
     ax1.plot([0, sx], [sy, sy], color='red', lw=3, zorder=3)
     ax1.plot(sx, sy, marker='o', color='red', ms=12, mec='black', zorder=4)
-
-    # Arg target (above)
-    ax, ay = ARG_PTS[arg_d - 1]
-    ax1.plot([0, 0], [0, ay], color='red', lw=3, zorder=3, linestyle='--')
-    ax1.plot([0, ax], [ay, ay], color='red', lw=3, zorder=3, linestyle='--')
-    ax1.plot(ax, ay, marker='o', color='red', ms=12, mec='black', zorder=4)
 
     # --- Axis dividing line (visual hint of the "arg | scratch" split) ---
     ax1.axhline(0, color='black', alpha=0.25, lw=1, zorder=0)
