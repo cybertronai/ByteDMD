@@ -95,30 +95,28 @@ class Cell:
         if self.origin == "scratch":
             a.touch(self.addr)
         else:
-            if self._promoted_addr is None:
-                # First-touch of an arg cell: pay arg-stack cost and
-                # auto-allocate a promoted scratch slot for subsequent
-                # reads (mirrors the two-stack promotion the tracer
-                # applies to input_vars).
-                a.touch_arg(self.arg_addr)
-                self._promoted_addr = a.alloc(1)
-                a.write(self._promoted_addr)
-            else:
+            # If the cell has been explicitly promoted into a scratch
+            # slot (via Sched.assign(arg, scratch) or Sched.promote()),
+            # read from there; otherwise pay the arg-stack cost.
+            # No auto-promotion: many algorithms read each arg cell
+            # exactly once and auto-promotion would waste scratch slots.
+            if self._promoted_addr is not None:
                 a.touch(self._promoted_addr)
+            else:
+                a.touch_arg(self.arg_addr)
 
     def _write(self) -> None:
-        """Writes are free in ByteDMD; we still record the target for
-        visualization and downstream promotion bookkeeping."""
+        """Writes are free in ByteDMD. Scratch cells write directly;
+        arg cells CANNOT be written (the arg stack is read-only)."""
         a = self.sched._a
         if self.origin == "scratch":
             a.write(self.addr)
         else:
-            # Writing to an arg cell doesn't make sense — treat as a
-            # write to its promoted scratch slot (which may still be
-            # None; allocate if needed).
-            if self._promoted_addr is None:
-                self._promoted_addr = a.alloc(1)
-            a.write(self._promoted_addr)
+            raise ValueError(
+                f"Cannot write to arg cell at arg_addr={self.arg_addr}. "
+                "Arg cells are read-only. Use Sched.assign(arg, scratch) "
+                "to copy into scratch first, or Sched.promote(arg) to "
+                "materialize a cached scratch slot.")
 
     @property
     def effective_addr(self) -> int:
@@ -228,6 +226,23 @@ class Sched:
         reads. Use explicitly to document intent (and avoid accidentally
         touching an uninitialized cell)."""
         dst._write()
+
+    def promote(self, arg_cell: Cell, dst_cell: Optional[Cell] = None) -> Cell:
+        """Explicitly cache an arg cell into a scratch slot for reuse.
+        After `promote(x)`, subsequent `x._read()` calls cost the cheap
+        scratch-stack price instead of the arg-stack price. Returns the
+        scratch Cell that now holds x's value (same object as `arg_cell`,
+        just with `_promoted_addr` set)."""
+        assert arg_cell.origin == "arg", (
+            "promote() only applies to arg cells")
+        if arg_cell._promoted_addr is None:
+            self._a.touch_arg(arg_cell.arg_addr)
+            if dst_cell is None:
+                arg_cell._promoted_addr = self._a.alloc(1)
+            else:
+                arg_cell._promoted_addr = dst_cell.addr
+            self._a.write(arg_cell._promoted_addr)
+        return arg_cell
 
     # ----- Array-oriented helpers -------------------------------------------
 

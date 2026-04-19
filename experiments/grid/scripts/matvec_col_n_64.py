@@ -520,21 +520,28 @@ def matvec_col(A, x):
 
 def manual_matvec_col(n: int) -> int:
     """Outer loop over j: y[i] += A[i][j] * x[j]. A, x on arg stack;
-    tmp and y on scratch."""
+    tmp, c_xj (scalar cache for x[j]) and y on scratch.
+
+    Earlier version read x[j] only once per j (outside the i-loop) —
+    an accumulator-outside undercharge caught by the DSL parity
+    check. Fixed by caching x[j] into `c_xj` once per j and re-reading
+    from it per inner MAC."""
     a = _alloc()
     A = a.alloc_arg(n * n); x = a.alloc_arg(n)
     tmp = a.alloc(1)
+    c_xj = a.alloc(1)
     y = a.alloc(n)
     a.set_output_range(y, y + n)
     for j in range(n):
-        a.touch_arg(x + j)
+        a.touch_arg(x + j); a.write(c_xj)   # preload x[j] into hot scalar
         for i in range(n):
-            a.touch_arg(A + i * n + j)
             if j == 0:
-                a.write(y + i)  # init
+                # First contribution: y[i] = A[i][0] * x[0] (mul only)
+                a.touch_arg(A + i * n + j); a.touch(c_xj); a.write(y + i)
             else:
-                a.touch(y + i); a.touch(tmp)
-                a.write(y + i)
+                # MAC: y[i] += A[i][j] * x[j]  — 4 priced reads
+                a.touch_arg(A + i * n + j); a.touch(c_xj); a.write(tmp)
+                a.touch(y + i); a.touch(tmp); a.write(y + i)
     a.read_output()
     return a.cost
 # ===========================================================================

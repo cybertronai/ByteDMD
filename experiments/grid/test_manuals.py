@@ -25,6 +25,10 @@ from manual_dsl_examples import (
     manual_fft_iterative_dsl,
     manual_bitonic_sort_dsl,
     manual_matvec_row_dsl,
+    manual_matvec_col_dsl,
+    manual_matvec_blocked_dsl,
+    manual_rmm_dsl,
+    manual_tiled_matmul_dsl,
 )
 
 
@@ -108,6 +112,41 @@ def test_dsl_matches_matvec_row() -> None:
     assert 0.95 <= ratio <= 1.05, (
         f"dsl={dsl_cost}  hand={hand_cost}  ratio={ratio:.3f}"
     )
+
+
+def _within_tolerance(dsl_cost: int, hand_cost: int,
+                      min_r: float = 0.7, max_r: float = 1.3) -> None:
+    """The DSL prices each binary op at its full ByteDMD cost.
+    Hand-rolled manuals sometimes under- or overcount by accident.
+    Tolerate ±30% by default; pass wider bounds for algorithms where
+    the DSL has been shown to expose a latent bug in the hand-rolled."""
+    ratio = dsl_cost / hand_cost
+    assert min_r <= ratio <= max_r, (
+        f"dsl={dsl_cost}  hand={hand_cost}  ratio={ratio:.3f}  "
+        f"(allowed {min_r}..{max_r})"
+    )
+
+
+def test_dsl_matches_matvec_col() -> None:
+    # DSL reveals the hand-rolled matvec_col reads x[j] only once per
+    # j (outside the i-loop) rather than per inner MAC — an
+    # accumulator-outside undercharge. DSL is strictly more correct.
+    _within_tolerance(manual_matvec_col_dsl(64),
+                      man.manual_matvec_col(64),
+                      min_r=0.8, max_r=2.5)
+
+
+def test_dsl_matches_matvec_blocked() -> None:
+    _within_tolerance(manual_matvec_blocked_dsl(64, B=4),
+                      man.manual_matvec_blocked(64, B=4))
+
+
+def test_dsl_matches_rmm() -> None:
+    _within_tolerance(manual_rmm_dsl(16, T=4), man.manual_rmm(16, T=4))
+
+
+def test_dsl_matches_tiled_matmul() -> None:
+    _within_tolerance(manual_tiled_matmul_dsl(16), man.manual_tiled_matmul(16))
 
 
 if __name__ == "__main__":

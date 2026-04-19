@@ -64,6 +64,10 @@ ALLOWED = {
         "manual_flash_attention",     # Q re-read per KV block (docs: loophole 1)
         "manual_layernorm_unfused",   # x re-read across 3 passes
         "manual_layernorm_fused",     # x re-read in 2-pass variant
+        # False positive — loop variable `i` makes successive
+        # textually-identical `a.touch_arg(A + i * n + j)` reads hit
+        # different cells.
+        "manual_matvec_col",
     },
 }
 

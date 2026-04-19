@@ -68,7 +68,7 @@ DAGs are identical, so `bytedmd_live` / `bytedmd_classic` match — only
 | [naive_attn(N=32,d=2)](#naive_attn)                                   |   127,674 |      144,851 |     106,026 |         281,164 |
 | [flash_attn(N=32,d=2,Bk=8)](#flash_attn)                              |    75,992 |       98,273 |     127,782 |         167,393 |
 | [matvec_row(n=64)](#matvec_row)                                       |   217,053 |      229,527 |     218,552 |         266,353 |
-| [matvec_col(n=64)](#matvec_col)                                       |   197,719 |      229,716 |     209,312 |         270,193 |
+| [matvec_col(n=64)](#matvec_col)                                       |   197,719 |      229,716 |     217,952 |         270,193 |
 | [matvec_blocked(n=64,B=4)](#matvec_blocked)                           |   208,307 |      215,668 |     275,535 |         256,422 |
 | [fft_iterative(N=256)](#fft_iterative)                                |    35,400 |       47,088 |      55,516 |          71,317 |
 | [fft_recursive(N=256)](#fft_recursive)                                |    28,170 |       33,110 |      52,704 |          62,417 |
