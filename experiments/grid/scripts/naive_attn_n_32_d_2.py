@@ -545,58 +545,62 @@ def naive_attention(Q, K, V):
 # ===========================================================================
 
 def manual_naive_attention(N: int, d: int) -> int:
-    """Three stages: S = Q K^T, P = softmax(S), O = P V.
-    Q, K, V on arg stack; S (full N×N) and O on scratch; hot scalars too."""
+    """Three stages fused row-by-row: for each i, compute S[i][:]=Q[i]·K[:]^T,
+    softmax it in place in a hot N-cell c_S_row buffer, then accumulate
+    O[i][dd] = Σⱼ P[i][j]·V[j][dd]. Q[i][:] is hoisted into a c_Q row (d
+    cells) so each Q[i][dd] is read once from the arg stack per i, not N
+    times. Never materializes the full N×N S/P matrix — keeps footprint low,
+    so every scratch touch lands in the cheap inner addresses."""
     a = _alloc()
     Q = a.alloc_arg(N * d); K = a.alloc_arg(N * d); V = a.alloc_arg(N * d)
     # Hot scratch scalars at low addresses
     s_acc = a.alloc(1); tmp = a.alloc(1)
     row_max = a.alloc(1); row_sum = a.alloc(1); inv_sum = a.alloc(1)
-    S = a.alloc(N * N)
+    # Hot row scratchpads — still at low addresses (N+d cells, not N*N)
+    c_Q = a.alloc(d)           # current Q row, reused N times per i
+    c_S_row = a.alloc(N)       # current S[i][:] → P[i][:]
     O = a.alloc(N * d)
     a.set_output_range(O, O + N * d)
 
-    # Stage 1: S[i][j] = Q[i] . K[j] (scale folded in)
     for i in range(N):
+        # Hoist Q[i][:] into c_Q (arg reads once per i, not N times).
+        for dd in range(d):
+            a.touch_arg(Q + i * d + dd)
+            a.write(c_Q + dd)
+
+        # Stage 1 (row i): c_S_row[j] = c_Q · K[j]
         for j in range(N):
-            a.touch_arg(Q + i * d + 0); a.touch_arg(K + j * d + 0)
+            a.touch(c_Q + 0); a.touch_arg(K + j * d + 0)
             for dd in range(1, d):
-                a.touch_arg(Q + i * d + dd); a.touch_arg(K + j * d + dd)
+                a.touch(c_Q + dd); a.touch_arg(K + j * d + dd)
                 a.touch(s_acc); a.touch(tmp)
             a.touch(s_acc)
-            a.write(S + i * N + j)  # write S[i][j]
+            a.write(c_S_row + j)
 
-    # Stage 2: row-wise softmax (in place on S, becomes P)
-    for i in range(N):
-        a.touch(S + i * N + 0)
+        # Stage 2 (row i): softmax in place in c_S_row.
+        a.touch(c_S_row + 0)
         for j in range(1, N):
-            a.touch(S + i * N + j); a.touch(row_max)
+            a.touch(c_S_row + j); a.touch(row_max)
         for j in range(N):
-            a.touch(S + i * N + j); a.touch(row_max)
-            a.write(S + i * N + j)  # exp -> P[i][j] (reuse S storage)
-            if j == 0:
-                pass
-            else:
-                a.touch(row_sum); a.touch(S + i * N + j)
-        a.touch(row_sum)
+            a.touch(c_S_row + j); a.touch(row_max)
+            a.write(c_S_row + j)                  # exp
+            if j > 0:
+                a.touch(row_sum); a.touch(c_S_row + j)
+        a.touch(row_sum)                          # inv_sum = 1 / row_sum
         for j in range(N):
-            a.touch(S + i * N + j); a.touch(inv_sum)
-            a.write(S + i * N + j)  # normalized P[i][j]
+            a.touch(c_S_row + j); a.touch(inv_sum)
+            a.write(c_S_row + j)                  # normalized P[i][j]
 
-    # Stage 3: O[i][dd] = sum_j P[i][j] * V[j][dd]
-    P = S
-    for i in range(N):
+        # Stage 3 (row i): O[i][dd] = Σⱼ c_S_row[j] · V[j][dd]
         for dd in range(d):
-            a.touch(P + i * N + 0); a.touch_arg(V + 0 * d + dd)
+            a.touch(c_S_row + 0); a.touch_arg(V + 0 * d + dd)
             for j in range(1, N):
-                a.touch(P + i * N + j); a.touch_arg(V + j * d + dd)
+                a.touch(c_S_row + j); a.touch_arg(V + j * d + dd)
                 a.touch(s_acc); a.touch(tmp)
             a.touch(s_acc)
             a.write(O + i * d + dd)
     a.read_output()
     return a.cost
-
-
 # ===========================================================================
 # Driver — run under this script's specific algorithm.
 # ===========================================================================

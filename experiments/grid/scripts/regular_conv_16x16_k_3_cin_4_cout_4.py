@@ -535,30 +535,71 @@ def regular_convolution(A, Wk):
 # ===========================================================================
 
 def manual_regular_convolution(H: int, W: int, K: int, Cin: int, Cout: int) -> int:
-    """Full multi-channel CNN layer. img and Wk on arg stack;
-    accumulator s and output O on scratch."""
+    """Full multi-channel CNN layer with a rolling K-row image cache.
+
+    Layout strategy (under the sqrt(addr) cost model):
+      - Wk stays on the arg stack at its natural low arg-addresses
+        (addrs 1..K*K*Cin*Cout); it is hot (every output cell reads every
+        kernel weight) but already cheap because the arg stack has its
+        own origin at 1.
+      - img stays on the arg stack too, but each img row is copied ONCE
+        into a tiny rolling K-row buffer on scratch at addrs right above
+        the scalar accumulator. That moves the K*K*Cin reads per (i,j,co)
+        from high arg addresses (~sqrt(1000)) to low scratch addresses
+        (~sqrt(200)).
+      - O sits on scratch above the row buffer so that the epilogue
+        read_output() still sees the output at modest addresses.
+    """
     a = _alloc()
     Wk = a.alloc_arg(K * K * Cin * Cout)
     img = a.alloc_arg(H * W * Cin)
-    s = a.alloc(1)
     out_h = H - K + 1
     out_w = W - K + 1
+
+    # Low-scratch layout: accumulator, then K-row rolling img buffer.
+    s = a.alloc(1)
+    row_stride = W * Cin
+    buf = a.alloc(K * row_stride)   # buf[r % K] starts at buf + (r % K)*row_stride
     O = a.alloc(out_h * out_w * Cout)
     a.set_output_range(O, O + out_h * out_w * Cout)
+
+    def load_row(r: int) -> None:
+        """Copy img row `r` from the arg stack into scratch slot r % K."""
+        slot = buf + (r % K) * row_stride
+        base_arg = img + r * row_stride
+        for x in range(row_stride):
+            a.touch_arg(base_arg + x)
+            a.write(slot + x)
+
+    # Prime the buffer with the first K rows.
+    for r in range(K):
+        load_row(r)
+
     for i in range(out_h):
+        # Ensure rows i..i+K-1 are in the buffer. Row i..i+K-2 are
+        # already there from the previous iteration (or from priming);
+        # we only need to load the new frontier row i+K-1. For i == 0
+        # it is already loaded by the priming loop above.
+        if i > 0:
+            load_row(i + K - 1)
+
+        # Per-row precomputed slot bases for the K cached rows.
+        slot_base = [buf + ((i + ki) % K) * row_stride for ki in range(K)]
+
         for j in range(out_w):
             for co in range(Cout):
                 a.touch(s)
                 for ki in range(K):
+                    sb = slot_base[ki]
                     for kj in range(K):
+                        col_off = (j + kj) * Cin
+                        wk_base = Wk + ((ki * K + kj) * Cin) * Cout + co
                         for ci in range(Cin):
-                            a.touch_arg(img + ((i + ki) * W + (j + kj)) * Cin + ci)
-                            a.touch_arg(Wk + ((ki * K + kj) * Cin + ci) * Cout + co)
+                            a.touch(sb + col_off + ci)
+                            a.touch_arg(wk_base + ci * Cout)
                 a.write(O + (i * out_w + j) * Cout + co)
     a.read_output()
     return a.cost
-
-
 # ===========================================================================
 # Driver — run under this script's specific algorithm.
 # ===========================================================================

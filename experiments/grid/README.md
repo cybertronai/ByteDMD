@@ -65,7 +65,7 @@ DAGs are identical, so `bytedmd_live` / `bytedmd_classic` match — only
 | [rmm(n=16)](#rmm)                                                     |   107,058 |       83,196 |      93,291 |         151,375 |
 | [naive_strassen(n=16)](#naive_strassen)                               |   135,273 |      175,157 |     231,112 |         343,737 |
 | [fused_strassen(n=16)](#fused_strassen)                               |   135,273 |      175,157 |     121,612 |         343,737 |
-| [naive_attn(N=32,d=2)](#naive_attn)                                   |   127,674 |      144,851 |     215,538 |         281,164 |
+| [naive_attn(N=32,d=2)](#naive_attn)                                   |   127,674 |      144,851 |     106,026 |         281,164 |
 | [flash_attn(N=32,d=2,Bk=8)](#flash_attn)                              |    75,992 |       98,273 |     127,782 |         167,393 |
 | [matvec_row(n=64)](#matvec_row)                                       |   217,053 |      229,527 |     218,552 |         266,353 |
 | [matvec_col(n=64)](#matvec_col)                                       |   197,719 |      229,716 |     209,312 |         270,193 |
@@ -73,9 +73,9 @@ DAGs are identical, so `bytedmd_live` / `bytedmd_classic` match — only
 | [fft_iterative(N=256)](#fft_iterative)                                |    35,400 |       47,088 |      31,240 |          71,317 |
 | [fft_recursive(N=256)](#fft_recursive)                                |    28,170 |       33,110 |      28,560 |          62,417 |
 | [stencil_naive(32x32)](#stencil_naive)                                |    61,258 |       65,937 |      78,968 |         109,401 |
-| [stencil_recursive(32x32,leaf=8)](#stencil_recursive)                 |    54,599 |       58,764 |     121,628 |         101,657 |
+| [stencil_recursive(32x32,leaf=8)](#stencil_recursive)                 |    54,599 |       58,764 |      78,968 |         101,657 |
 | [spatial_conv(32x32,K=5)](#spatial_conv)                              |   344,389 |      402,858 |     537,944 |         681,253 |
-| [regular_conv(16x16,K=3,Cin=4,Cout=4)](#regular_conv)                 |   724,678 |      778,473 |     975,610 |       1,290,500 |
+| [regular_conv(16x16,K=3,Cin=4,Cout=4)](#regular_conv)                 |   724,678 |      778,473 |     562,658 |       1,290,500 |
 | [fft_conv(N=256)](#fft_conv)                                          |   110,194 |      148,641 |     152,812 |         233,158 |
 | [quicksort(N=64)](#quicksort)                                         |     2,470 |        2,852 |       4,718 |           4,292 |
 | [heapsort(N=64)](#heapsort)                                           |     3,597 |        4,696 |       5,523 |           7,889 |
@@ -83,11 +83,11 @@ DAGs are identical, so `bytedmd_live` / `bytedmd_classic` match — only
 | [lcs_dp(32x32)](#lcs_dp)                                              |    23,497 |       29,980 |      27,192 |          44,575 |
 | [lu_no_pivot(n=32)](#lu_no_pivot)                                     |   482,123 |      407,042 |     382,440 |         705,126 |
 | [blocked_lu(n=32,NB=8)](#blocked_lu)                                  |   365,960 |      283,294 |     236,290 |         515,134 |
-| [recursive_lu(n=32)](#recursive_lu)                                   |   398,310 |      304,365 |     440,803 |         546,679 |
+| [recursive_lu(n=32)](#recursive_lu)                                   |   398,310 |      304,365 |     352,612 |         546,679 |
 | [lu_partial_pivot(n=32)](#lu_partial_pivot)                           |   510,278 |      420,780 |     427,384 |         730,673 |
 | [cholesky(n=32)](#cholesky)                                           |   176,488 |      176,313 |     238,688 |         293,328 |
 | [householder_qr(32x32)](#householder_qr)                              |   781,325 |      605,876 |     743,882 |       1,131,740 |
-| [blocked_qr(32x32,NB=8)](#blocked_qr)                                 |   549,811 |      610,248 |     762,199 |       1,068,832 |
+| [blocked_qr(32x32,NB=8)](#blocked_qr)                                 |   549,811 |      610,248 |     529,552 |       1,068,832 |
 | [tsqr(64x16,br=8)](#tsqr)                                             |   380,689 |      267,962 |     461,782 |         546,266 |
 | [transpose_naive(n=32)](#transpose_naive)                             |    44,704 |       44,704 |      44,704 |          62,799 |
 | [transpose_blocked(n=32)](#transpose_blocked)                         |    43,296 |       43,873 |      44,704 |          62,341 |

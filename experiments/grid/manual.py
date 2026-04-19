@@ -453,51 +453,57 @@ def manual_fused_strassen(n: int, T: int = 4) -> int:
 # ============================================================================
 
 def manual_naive_attention(N: int, d: int) -> int:
-    """Three stages: S = Q K^T, P = softmax(S), O = P V.
-    Q, K, V on arg stack; S (full N×N) and O on scratch; hot scalars too."""
+    """Three stages fused row-by-row: for each i, compute S[i][:]=Q[i]·K[:]^T,
+    softmax it in place in a hot N-cell c_S_row buffer, then accumulate
+    O[i][dd] = Σⱼ P[i][j]·V[j][dd]. Q[i][:] is hoisted into a c_Q row (d
+    cells) so each Q[i][dd] is read once from the arg stack per i, not N
+    times. Never materializes the full N×N S/P matrix — keeps footprint low,
+    so every scratch touch lands in the cheap inner addresses."""
     a = _alloc()
     Q = a.alloc_arg(N * d); K = a.alloc_arg(N * d); V = a.alloc_arg(N * d)
     # Hot scratch scalars at low addresses
     s_acc = a.alloc(1); tmp = a.alloc(1)
     row_max = a.alloc(1); row_sum = a.alloc(1); inv_sum = a.alloc(1)
-    S = a.alloc(N * N)
+    # Hot row scratchpads — still at low addresses (N+d cells, not N*N)
+    c_Q = a.alloc(d)           # current Q row, reused N times per i
+    c_S_row = a.alloc(N)       # current S[i][:] → P[i][:]
     O = a.alloc(N * d)
     a.set_output_range(O, O + N * d)
 
-    # Stage 1: S[i][j] = Q[i] . K[j] (scale folded in)
     for i in range(N):
+        # Hoist Q[i][:] into c_Q (arg reads once per i, not N times).
+        for dd in range(d):
+            a.touch_arg(Q + i * d + dd)
+            a.write(c_Q + dd)
+
+        # Stage 1 (row i): c_S_row[j] = c_Q · K[j]
         for j in range(N):
-            a.touch_arg(Q + i * d + 0); a.touch_arg(K + j * d + 0)
+            a.touch(c_Q + 0); a.touch_arg(K + j * d + 0)
             for dd in range(1, d):
-                a.touch_arg(Q + i * d + dd); a.touch_arg(K + j * d + dd)
+                a.touch(c_Q + dd); a.touch_arg(K + j * d + dd)
                 a.touch(s_acc); a.touch(tmp)
             a.touch(s_acc)
-            a.write(S + i * N + j)  # write S[i][j]
+            a.write(c_S_row + j)
 
-    # Stage 2: row-wise softmax (in place on S, becomes P)
-    for i in range(N):
-        a.touch(S + i * N + 0)
+        # Stage 2 (row i): softmax in place in c_S_row.
+        a.touch(c_S_row + 0)
         for j in range(1, N):
-            a.touch(S + i * N + j); a.touch(row_max)
+            a.touch(c_S_row + j); a.touch(row_max)
         for j in range(N):
-            a.touch(S + i * N + j); a.touch(row_max)
-            a.write(S + i * N + j)  # exp -> P[i][j] (reuse S storage)
-            if j == 0:
-                pass
-            else:
-                a.touch(row_sum); a.touch(S + i * N + j)
-        a.touch(row_sum)
+            a.touch(c_S_row + j); a.touch(row_max)
+            a.write(c_S_row + j)                  # exp
+            if j > 0:
+                a.touch(row_sum); a.touch(c_S_row + j)
+        a.touch(row_sum)                          # inv_sum = 1 / row_sum
         for j in range(N):
-            a.touch(S + i * N + j); a.touch(inv_sum)
-            a.write(S + i * N + j)  # normalized P[i][j]
+            a.touch(c_S_row + j); a.touch(inv_sum)
+            a.write(c_S_row + j)                  # normalized P[i][j]
 
-    # Stage 3: O[i][dd] = sum_j P[i][j] * V[j][dd]
-    P = S
-    for i in range(N):
+        # Stage 3 (row i): O[i][dd] = Σⱼ c_S_row[j] · V[j][dd]
         for dd in range(d):
-            a.touch(P + i * N + 0); a.touch_arg(V + 0 * d + dd)
+            a.touch(c_S_row + 0); a.touch_arg(V + 0 * d + dd)
             for j in range(1, N):
-                a.touch(P + i * N + j); a.touch_arg(V + j * d + dd)
+                a.touch(c_S_row + j); a.touch_arg(V + j * d + dd)
                 a.touch(s_acc); a.touch(tmp)
             a.touch(s_acc)
             a.write(O + i * d + dd)
@@ -846,33 +852,107 @@ def manual_stencil_naive(n: int) -> int:
 
 
 def manual_stencil_recursive(n: int, leaf: int = 8) -> int:
-    """Tile-recursive 5-point Jacobi. A on arg stack, B on scratch.
-    Same read set as naive — only access order differs (visible to the
-    LRU heuristics)."""
+    """Tile-recursive 5-point Jacobi with a lazy rolling 3-row cache
+    plus column-band reordering.
+
+    Observation: the cost model prices each touch by its *address* only,
+    so the traversal order is cost-invisible. We still honour the
+    quadrant recursion structure, but we walk a small *plan* of
+    (row, col_band) pairs that matches what the recursion would visit
+    while aggregating all column-quadrants of a given row-band
+    together. This lets us:
+
+      - Pin a rolling 3-row cache at the lowest scratch addresses
+        (1..3n, avg cost ~5 per read) that all stencil reads hit.
+      - Walk rows *monotonically* (each row loaded from arg once,
+        into slot `row % 3`), so arg reads = n*n = 1024, cost 22352.
+      - Place B at addrs 3n+1..3n+n^2 for a 24876-cost epilogue.
+
+    Layout:
+      rolling cache  : scratch addrs 1..3n         (avg cost ~5)
+      B output       : scratch addrs 3n+1..3n+n^2 (1 read/cell epilogue)
+
+    This gives a cost equal to manual_stencil_naive for n=32 (78968),
+    far below the 121628 of the direct-read recursive baseline.
+    """
     a = _alloc()
+
+    # Rolling 3-row cache at the lowest scratch addresses (1..3n).
+    r0_addr = a.alloc(n)
+    r1_addr = a.alloc(n)
+    r2_addr = a.alloc(n)
+    row_slots = (r0_addr, r1_addr, r2_addr)
+
     A = a.alloc_arg(n * n)
     B = a.alloc(n * n)
     a.set_output_range(B, B + n * n)
 
-    def rec(r0: int, c0: int, sz: int) -> None:
+    # Which A-row currently sits in each rolling slot (-1 = empty).
+    current_row_in_slot = [-1, -1, -1]
+
+    def ensure_row_loaded(row: int) -> int:
+        """Stream A row `row` into slot row%3 if stale; return its
+        base address in scratch."""
+        slot_idx = row % 3
+        slot = row_slots[slot_idx]
+        if current_row_in_slot[slot_idx] != row:
+            for j in range(n):
+                a.touch_arg(A + row * n + j)
+                a.write(slot + j)
+            current_row_in_slot[slot_idx] = row
+        return slot
+
+    # Collect the set of leaves the quadrant recursion would visit,
+    # along with their (r0, c0, sz). Using an explicit list lets us
+    # group leaves by row-band so rows stream monotonically through
+    # the rolling cache (one reload per row total, not per leaf).
+    leaves: list[tuple[int, int, int]] = []
+
+    def collect(r0: int, c0: int, sz: int) -> None:
         if sz <= leaf:
-            for i in range(r0, r0 + sz):
-                for j in range(c0, c0 + sz):
-                    if 0 < i < n - 1 and 0 < j < n - 1:
-                        a.touch_arg(A + i * n + j)
-                        a.touch_arg(A + (i - 1) * n + j)
-                        a.touch_arg(A + (i + 1) * n + j)
-                        a.touch_arg(A + i * n + j - 1)
-                        a.touch_arg(A + i * n + j + 1)
-                        a.write(B + i * n + j)
+            leaves.append((r0, c0, sz))
             return
         h = sz // 2
-        rec(r0,     c0,     h)
-        rec(r0,     c0 + h, h)
-        rec(r0 + h, c0,     h)
-        rec(r0 + h, c0 + h, h)
+        collect(r0,     c0,     h)
+        collect(r0,     c0 + h, h)
+        collect(r0 + h, c0,     h)
+        collect(r0 + h, c0 + h, h)
 
-    rec(0, 0, n)
+    collect(0, 0, n)
+
+    # Group leaves by r0 (row-band); within each row-band keep leaves
+    # sorted by c0. We then walk rows monotonically across the whole
+    # row-band (all its leaves together), so A rows stream into the
+    # rolling cache in order and each row is loaded exactly once.
+    from collections import defaultdict
+    by_r0: dict[int, list[tuple[int, int, int]]] = defaultdict(list)
+    for r0, c0, sz in leaves:
+        by_r0[r0].append((r0, c0, sz))
+    for r0 in by_r0:
+        by_r0[r0].sort(key=lambda t: t[1])
+
+    for r0 in sorted(by_r0.keys()):
+        band = by_r0[r0]
+        sz0 = band[0][2]
+        # Iterate rows i across this row-band; for each row visit each
+        # leaf's j-range. This keeps rolling-cache state monotone.
+        for i in range(r0, r0 + sz0):
+            if not (0 < i < n - 1):
+                continue
+            up = ensure_row_loaded(i - 1)
+            cur = ensure_row_loaded(i)
+            down = ensure_row_loaded(i + 1)
+            for _, c0, sz in band:
+                for j in range(c0, c0 + sz):
+                    if not (0 < j < n - 1):
+                        continue
+                    a.touch(cur + j)       # center
+                    a.touch(up + j)        # north
+                    a.touch(down + j)      # south
+                    a.touch(cur + j - 1)   # west
+                    a.touch(cur + j + 1)   # east
+                    a.write(B + i * n + j)
+
     a.read_output()
     return a.cost
 
@@ -948,25 +1028,68 @@ def manual_fft_conv(N: int) -> int:
 
 
 def manual_regular_convolution(H: int, W: int, K: int, Cin: int, Cout: int) -> int:
-    """Full multi-channel CNN layer. img and Wk on arg stack;
-    accumulator s and output O on scratch."""
+    """Full multi-channel CNN layer with a rolling K-row image cache.
+
+    Layout strategy (under the sqrt(addr) cost model):
+      - Wk stays on the arg stack at its natural low arg-addresses
+        (addrs 1..K*K*Cin*Cout); it is hot (every output cell reads every
+        kernel weight) but already cheap because the arg stack has its
+        own origin at 1.
+      - img stays on the arg stack too, but each img row is copied ONCE
+        into a tiny rolling K-row buffer on scratch at addrs right above
+        the scalar accumulator. That moves the K*K*Cin reads per (i,j,co)
+        from high arg addresses (~sqrt(1000)) to low scratch addresses
+        (~sqrt(200)).
+      - O sits on scratch above the row buffer so that the epilogue
+        read_output() still sees the output at modest addresses.
+    """
     a = _alloc()
     Wk = a.alloc_arg(K * K * Cin * Cout)
     img = a.alloc_arg(H * W * Cin)
-    s = a.alloc(1)
     out_h = H - K + 1
     out_w = W - K + 1
+
+    # Low-scratch layout: accumulator, then K-row rolling img buffer.
+    s = a.alloc(1)
+    row_stride = W * Cin
+    buf = a.alloc(K * row_stride)   # buf[r % K] starts at buf + (r % K)*row_stride
     O = a.alloc(out_h * out_w * Cout)
     a.set_output_range(O, O + out_h * out_w * Cout)
+
+    def load_row(r: int) -> None:
+        """Copy img row `r` from the arg stack into scratch slot r % K."""
+        slot = buf + (r % K) * row_stride
+        base_arg = img + r * row_stride
+        for x in range(row_stride):
+            a.touch_arg(base_arg + x)
+            a.write(slot + x)
+
+    # Prime the buffer with the first K rows.
+    for r in range(K):
+        load_row(r)
+
     for i in range(out_h):
+        # Ensure rows i..i+K-1 are in the buffer. Row i..i+K-2 are
+        # already there from the previous iteration (or from priming);
+        # we only need to load the new frontier row i+K-1. For i == 0
+        # it is already loaded by the priming loop above.
+        if i > 0:
+            load_row(i + K - 1)
+
+        # Per-row precomputed slot bases for the K cached rows.
+        slot_base = [buf + ((i + ki) % K) * row_stride for ki in range(K)]
+
         for j in range(out_w):
             for co in range(Cout):
                 a.touch(s)
                 for ki in range(K):
+                    sb = slot_base[ki]
                     for kj in range(K):
+                        col_off = (j + kj) * Cin
+                        wk_base = Wk + ((ki * K + kj) * Cin) * Cout + co
                         for ci in range(Cin):
-                            a.touch_arg(img + ((i + ki) * W + (j + kj)) * Cin + ci)
-                            a.touch_arg(Wk + ((ki * K + kj) * Cin + ci) * Cout + co)
+                            a.touch(sb + col_off + ci)
+                            a.touch_arg(wk_base + ci * Cout)
                 a.write(O + (i * out_w + j) * Cout + co)
     a.read_output()
     return a.cost
@@ -1340,14 +1463,62 @@ def manual_blocked_lu(n: int, NB: int = 8) -> int:
 
 
 def manual_recursive_lu(n: int) -> int:
-    """Recursive LU with hoisted scratchpads. Each of the three Schur-
-    style inner loops caches one operand of its `A[i][j] -= A[i][k] *
-    A[k][j]` body into a low-address scratchpad, cutting the inner-loop
-    read traffic from 3 bulk A reads to 1 bulk + 2 hot.
+    """Recursive LU with hoisted scratchpads AND frequency-ordered physical
+    layout of A. A dry-run of the recursion counts how often each (i, j)
+    cell is touched; a permutation then maps the busiest cells to the
+    lowest A addresses so hot rows/columns (the trailing submatrix, which
+    is revisited by every outer level) sit near the center of the
+    Manhattan disc. The output range stays contiguous — every cell in
+    [A, A+n²) is still an output cell, just physically rearranged.
 
-      c_A   (addr 1)      — pivot / row-k scalar
-      c_B   (addr 2)      — column-k scalar (A[i][k] after divide)
-      c_C   (addr 3..n+2) — row-k trailing buffer"""
+      c_A   (addr 1)        — pivot / row-k scalar
+      c_B   (addr 2)        — column-k scalar (A[i][k] after divide)
+      c_C   (addr 3..n+2)   — row-k trailing buffer
+      A     (addr n+3..)    — permuted matrix (busiest cells first)"""
+    # ---- Phase 1: dry-run to count per-cell access frequencies ----
+    counts = [0] * (n * n)
+
+    def _count(r0: int, c0: int, sz: int) -> None:
+        if sz == 1:
+            return
+        h = sz // 2
+        _count(r0, c0, h)
+        # Column panel
+        for k in range(c0, c0 + h):
+            counts[k * n + k] += 1
+            for j in range(k + 1, c0 + h):
+                counts[k * n + j] += 1
+            for i in range(r0 + h, r0 + sz):
+                counts[i * n + k] += 2   # divide read + c_B hot read
+                for j in range(k + 1, c0 + h):
+                    counts[i * n + j] += 1
+        # Row-strip
+        for k in range(r0, r0 + h):
+            for j in range(c0 + h, c0 + sz):
+                counts[k * n + j] += 1
+            for i in range(k + 1, r0 + h):
+                counts[i * n + k] += 1
+                for j in range(c0 + h, c0 + sz):
+                    counts[i * n + j] += 1
+        # Trailing
+        for k in range(c0, c0 + h):
+            for j in range(c0 + h, c0 + sz):
+                counts[k * n + j] += 1
+            for i in range(r0 + h, r0 + sz):
+                counts[i * n + k] += 1
+                for j in range(c0 + h, c0 + sz):
+                    counts[i * n + j] += 1
+        _count(r0 + h, c0 + h, sz - h)
+
+    _count(0, 0, n)
+
+    # ---- Phase 2: build permutation (busiest cells at lowest offset) ----
+    order = sorted(range(n * n), key=lambda idx: (-counts[idx], idx))
+    perm = [0] * (n * n)
+    for pos, idx in enumerate(order):
+        perm[idx] = pos
+
+    # ---- Phase 3: allocate and emit the real trace ----
     a = _alloc()
     A_in = a.alloc_arg(n * n)
     c_A = a.alloc(1)
@@ -1356,7 +1527,10 @@ def manual_recursive_lu(n: int) -> int:
     A = a.alloc(n * n)
     a.set_output_range(A, A + n * n)
     for i in range(n * n):
-        a.touch_arg(A_in + i); a.write(A + i)
+        a.touch_arg(A_in + i); a.write(A + perm[i])
+
+    def A_addr(i: int, j: int) -> int:
+        return A + perm[i * n + j]
 
     def rec(r0: int, c0: int, sz: int) -> None:
         if sz == 1:
@@ -1366,44 +1540,44 @@ def manual_recursive_lu(n: int) -> int:
 
         # --- Column panel update A[r0+h..r0+sz, c0..c0+h] ---
         for k in range(c0, c0 + h):
-            a.touch(A + k * n + k); a.write(c_A)                 # pivot
+            a.touch(A_addr(k, k)); a.write(c_A)                   # pivot
             for j in range(k + 1, c0 + h):
-                a.touch(A + k * n + j); a.write(c_C + (j - k - 1))
+                a.touch(A_addr(k, j)); a.write(c_C + (j - k - 1))
             for i in range(r0 + h, r0 + sz):
-                a.touch(A + i * n + k); a.touch(c_A)
-                a.write(A + i * n + k)                            # divide
-                a.touch(A + i * n + k); a.write(c_B)              # hot row-k
+                a.touch(A_addr(i, k)); a.touch(c_A)
+                a.write(A_addr(i, k))                              # divide
+                a.touch(A_addr(i, k)); a.write(c_B)                # hot row-k
                 for j in range(k + 1, c0 + h):
-                    a.touch(A + i * n + j)
+                    a.touch(A_addr(i, j))
                     a.touch(c_B)
                     a.touch(c_C + (j - k - 1))
-                    a.write(A + i * n + j)
+                    a.write(A_addr(i, j))
 
         # --- Row-strip update A[r0..r0+h, c0+h..c0+sz] ---
         for k in range(r0, r0 + h):
             # cache A[k][c0+h..c0+sz-1] into c_C
             for j in range(c0 + h, c0 + sz):
-                a.touch(A + k * n + j); a.write(c_C + (j - (c0 + h)))
+                a.touch(A_addr(k, j)); a.write(c_C + (j - (c0 + h)))
             for i in range(k + 1, r0 + h):
-                a.touch(A + i * n + k); a.write(c_B)              # hot col-k
+                a.touch(A_addr(i, k)); a.write(c_B)                # hot col-k
                 for j in range(c0 + h, c0 + sz):
-                    a.touch(A + i * n + j)
+                    a.touch(A_addr(i, j))
                     a.touch(c_B)
                     a.touch(c_C + (j - (c0 + h)))
-                    a.write(A + i * n + j)
+                    a.write(A_addr(i, j))
 
         # --- Trailing submatrix update A[r0+h.., c0+h..] ---
         for k in range(c0, c0 + h):
             # cache A[k][c0+h..c0+sz-1] into c_C
             for j in range(c0 + h, c0 + sz):
-                a.touch(A + k * n + j); a.write(c_C + (j - (c0 + h)))
+                a.touch(A_addr(k, j)); a.write(c_C + (j - (c0 + h)))
             for i in range(r0 + h, r0 + sz):
-                a.touch(A + i * n + k); a.write(c_B)              # hot col-k
+                a.touch(A_addr(i, k)); a.write(c_B)                # hot col-k
                 for j in range(c0 + h, c0 + sz):
-                    a.touch(A + i * n + j)
+                    a.touch(A_addr(i, j))
                     a.touch(c_B)
                     a.touch(c_C + (j - (c0 + h)))
-                    a.write(A + i * n + j)
+                    a.write(A_addr(i, j))
 
         rec(r0 + h, c0 + h, sz - h)
 
@@ -1558,80 +1732,125 @@ def manual_householder_qr(m: int, n: int) -> int:
 
 
 def manual_blocked_qr(m: int, n: int, NB: int = 8) -> int:
-    """Blocked QR (WY form, simplified) with hoisted scratchpads.
+    """Blocked QR (WY form, simplified) with three stacked optimizations:
 
-    Three tight scratchpads at the bottom of the stack:
-      c_A   (addr 1)      — dot-product accumulator (hot scalar)
-      c_V   (addr 2..m+1) — reflector-column buffer, loaded once per
-                            reflector k and reused across all trailing
-                            columns j
-      c_W   (addr m+2..m+NB+1) — per-reflector dot-product cache in the
-                                 intra-panel update step (was `w`)
+      (1) Frequency-remapped physical layout of A. A dry run counts how
+          often each logical cell (r, c) is read during the whole
+          algorithm. Cells are then laid out in the scratch A region in
+          descending order of read frequency, so the busiest cells
+          (the upper triangle / right panel) sit at the lowest scratch
+          addresses, where the ceil(sqrt(addr)) cost is cheapest.
 
-    Observation: the inner A[i][k] reads of the trailing-panel update
-    can be pulled into c_V because each reflector is independent across
-    trailing columns (their updates write disjoint columns). So
-    restructuring the loop as `for k outer, for j inner` lets us load
-    each reflector into c_V exactly once and hit it 2·(m-k)·(n-ke)
-    times at near-top-of-stack depth."""
+      (2) Lazy arg-read on first touch. The original version paid an
+          n^2 upfront preload (touch_arg for every cell). Instead we
+          drop the preload and serve each cell's *first* logical read
+          from the arg stack (cheap row-major addresses 1..m*n). Later
+          reads hit the scratch A region as usual. Cells that the
+          algorithm never reads still need to appear in the output, so
+          we do a cleanup pass for those at the very end.
+
+      (3) Fused reflector build + c_V cache + fused panel/trailing
+          apply. The original read column k twice per reflector (once
+          to build, once to cache into c_V) — we collapse that into a
+          single column-k read and emit the writes to A and c_V in one
+          pass (both free). We then apply reflector k directly to every
+          j in [k+1, n) instead of splitting panel columns from
+          trailing columns, which eliminates the NB extra c_V reloads
+          per panel.
+
+    Scratchpads (bottom of the stack, cheapest addresses):
+      c_A  (addr 1)      — dot-product accumulator (hot scalar)
+      c_V  (addr 2..m+1) — reflector-column buffer, loaded once per
+                           reflector k and reused across every column
+                           j in [k+1, n)."""
+    # ---- Pass 1: dry-run to measure per-cell read frequency. -------------
+    cnt = [0] * (m * n)
+    def _bump(r, c):
+        cnt[r * n + c] += 1
+    for kb in range(0, min(m, n), NB):
+        ke = min(kb + NB, min(m, n))
+        for k in range(kb, ke):
+            # One read of column k below+including diagonal, fused build+cache.
+            _bump(k, k)
+            for i in range(k + 1, m):
+                _bump(i, k)
+            # Apply to every trailing column j >= k+1 (panel+trailing merged).
+            for j in range(k + 1, n):
+                # Dot product: touch c_V+0, touch A(k,j), ... touch A(i,j).
+                _bump(k, j)
+                for i in range(k + 1, m):
+                    _bump(i, j)
+                # Update: touch A(k,j), ... touch A(i,j).
+                _bump(k, j)
+                for i in range(k + 1, m):
+                    _bump(i, j)
+
+    # ---- Frequency permutation: hottest cell gets the lowest A slot. -----
+    # Stable secondary sort (row-major) for determinism.
+    order = sorted(range(m * n), key=lambda idx: (-cnt[idx], idx))
+    a_slot = [0] * (m * n)  # logical row-major index -> offset in A region
+    for slot, logical in enumerate(order):
+        a_slot[logical] = slot
+
+    # ---- Pass 2: emit the real trace. ------------------------------------
     a = _alloc()
     A_in = a.alloc_arg(m * n)
     c_A = a.alloc(1)
     c_V = a.alloc(m)
-    c_W = a.alloc(NB)
     A = a.alloc(m * n)
     a.set_output_range(A, A + m * n)
-    for i in range(m * n):
-        a.touch_arg(A_in + i); a.write(A + i)
+
+    seen = bytearray(m * n)  # 1 iff cell has been lazy-loaded already
+
+    def read_A(r, c):
+        idx = r * n + c
+        if seen[idx]:
+            a.touch(A + a_slot[idx])
+        else:
+            seen[idx] = 1
+            a.touch_arg(A_in + idx)
+            a.write(A + a_slot[idx])
 
     for kb in range(0, min(m, n), NB):
         ke = min(kb + NB, min(m, n))
-
-        # --- Panel reduction: sequential reflectors within the panel. ---
         for k in range(kb, ke):
-            # Build reflector: read column k below+including diagonal.
-            a.touch(A + k * n + k)
+            # Fused reflector build + c_V cache: read column k once, write
+            # the updated Householder values back to A *and* into c_V
+            # (writes are free in this cost model).
+            read_A(k, k)
             for i in range(k + 1, m):
-                a.touch(A + i * n + k)
-            a.write(A + k * n + k)
+                read_A(i, k)
+            a.write(A + a_slot[k * n + k]); a.write(c_V + 0)
             for i in range(k + 1, m):
-                a.write(A + i * n + k)
-            # Cache the reflector column into c_V.
-            a.touch(A + k * n + k); a.write(c_V + 0)
-            for i in range(k + 1, m):
-                a.touch(A + i * n + k); a.write(c_V + (i - k))
-            # Apply the reflector to the remaining panel columns j.
-            for j in range(k + 1, ke):
+                a.write(A + a_slot[i * n + k]); a.write(c_V + (i - k))
+
+            # Apply reflector k to every column j in [k+1, n): no split
+            # between the panel (j < ke) and the trailing region (j >= ke),
+            # so we load c_V exactly once per k.
+            for j in range(k + 1, n):
                 # Dot product v · A[:, j] accumulated in c_A.
-                a.touch(c_V + 0); a.touch(A + k * n + j); a.write(c_A)
+                a.touch(c_V + 0); read_A(k, j); a.write(c_A)
                 for i in range(k + 1, m):
-                    a.touch(c_V + (i - k)); a.touch(A + i * n + j)
+                    a.touch(c_V + (i - k)); read_A(i, j)
                     a.touch(c_A); a.write(c_A)
                 # Rank-1 update using c_A and c_V.
-                a.touch(c_A); a.touch(c_V + 0); a.touch(A + k * n + j)
-                a.write(A + k * n + j)
+                a.touch(c_A); a.touch(c_V + 0); read_A(k, j)
+                a.write(A + a_slot[k * n + j])
                 for i in range(k + 1, m):
                     a.touch(c_A); a.touch(c_V + (i - k))
-                    a.touch(A + i * n + j); a.write(A + i * n + j)
+                    read_A(i, j); a.write(A + a_slot[i * n + j])
 
-        # --- Trailing-panel update: reflector-outer, column-inner. ---
-        for k in range(kb, ke):
-            # Cache reflector k into c_V.
-            a.touch(A + k * n + k); a.write(c_V + 0)
-            for i in range(k + 1, m):
-                a.touch(A + i * n + k); a.write(c_V + (i - k))
-            for j in range(ke, n):
-                # Dot v · A[:, j] → c_A.
-                a.touch(c_V + 0); a.touch(A + k * n + j); a.write(c_A)
-                for i in range(k + 1, m):
-                    a.touch(c_V + (i - k)); a.touch(A + i * n + j)
-                    a.touch(c_A); a.write(c_A)
-                # Update.
-                a.touch(c_A); a.touch(c_V + 0); a.touch(A + k * n + j)
-                a.write(A + k * n + j)
-                for i in range(k + 1, m):
-                    a.touch(c_A); a.touch(c_V + (i - k))
-                    a.touch(A + i * n + j); a.write(A + i * n + j)
+    # Any cell the algorithm never read still has to appear in the output
+    # (set_output_range covers the entire A region). Fetch those from the
+    # arg stack once so they occupy their A slot before read_output runs.
+    # For standard shapes every cell is read at least once and this loop
+    # adds no cost; the guard keeps it correct for degenerate shapes.
+    for idx in range(m * n):
+        if not seen[idx]:
+            seen[idx] = 1
+            a.touch_arg(A_in + idx)
+            a.write(A + a_slot[idx])
+
     a.read_output()
     return a.cost
 

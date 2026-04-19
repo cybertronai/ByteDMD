@@ -551,14 +551,62 @@ def recursive_lu(A):
 # ===========================================================================
 
 def manual_recursive_lu(n: int) -> int:
-    """Recursive LU with hoisted scratchpads. Each of the three Schur-
-    style inner loops caches one operand of its `A[i][j] -= A[i][k] *
-    A[k][j]` body into a low-address scratchpad, cutting the inner-loop
-    read traffic from 3 bulk A reads to 1 bulk + 2 hot.
+    """Recursive LU with hoisted scratchpads AND frequency-ordered physical
+    layout of A. A dry-run of the recursion counts how often each (i, j)
+    cell is touched; a permutation then maps the busiest cells to the
+    lowest A addresses so hot rows/columns (the trailing submatrix, which
+    is revisited by every outer level) sit near the center of the
+    Manhattan disc. The output range stays contiguous — every cell in
+    [A, A+n²) is still an output cell, just physically rearranged.
 
-      c_A   (addr 1)      — pivot / row-k scalar
-      c_B   (addr 2)      — column-k scalar (A[i][k] after divide)
-      c_C   (addr 3..n+2) — row-k trailing buffer"""
+      c_A   (addr 1)        — pivot / row-k scalar
+      c_B   (addr 2)        — column-k scalar (A[i][k] after divide)
+      c_C   (addr 3..n+2)   — row-k trailing buffer
+      A     (addr n+3..)    — permuted matrix (busiest cells first)"""
+    # ---- Phase 1: dry-run to count per-cell access frequencies ----
+    counts = [0] * (n * n)
+
+    def _count(r0: int, c0: int, sz: int) -> None:
+        if sz == 1:
+            return
+        h = sz // 2
+        _count(r0, c0, h)
+        # Column panel
+        for k in range(c0, c0 + h):
+            counts[k * n + k] += 1
+            for j in range(k + 1, c0 + h):
+                counts[k * n + j] += 1
+            for i in range(r0 + h, r0 + sz):
+                counts[i * n + k] += 2   # divide read + c_B hot read
+                for j in range(k + 1, c0 + h):
+                    counts[i * n + j] += 1
+        # Row-strip
+        for k in range(r0, r0 + h):
+            for j in range(c0 + h, c0 + sz):
+                counts[k * n + j] += 1
+            for i in range(k + 1, r0 + h):
+                counts[i * n + k] += 1
+                for j in range(c0 + h, c0 + sz):
+                    counts[i * n + j] += 1
+        # Trailing
+        for k in range(c0, c0 + h):
+            for j in range(c0 + h, c0 + sz):
+                counts[k * n + j] += 1
+            for i in range(r0 + h, r0 + sz):
+                counts[i * n + k] += 1
+                for j in range(c0 + h, c0 + sz):
+                    counts[i * n + j] += 1
+        _count(r0 + h, c0 + h, sz - h)
+
+    _count(0, 0, n)
+
+    # ---- Phase 2: build permutation (busiest cells at lowest offset) ----
+    order = sorted(range(n * n), key=lambda idx: (-counts[idx], idx))
+    perm = [0] * (n * n)
+    for pos, idx in enumerate(order):
+        perm[idx] = pos
+
+    # ---- Phase 3: allocate and emit the real trace ----
     a = _alloc()
     A_in = a.alloc_arg(n * n)
     c_A = a.alloc(1)
@@ -567,7 +615,10 @@ def manual_recursive_lu(n: int) -> int:
     A = a.alloc(n * n)
     a.set_output_range(A, A + n * n)
     for i in range(n * n):
-        a.touch_arg(A_in + i); a.write(A + i)
+        a.touch_arg(A_in + i); a.write(A + perm[i])
+
+    def A_addr(i: int, j: int) -> int:
+        return A + perm[i * n + j]
 
     def rec(r0: int, c0: int, sz: int) -> None:
         if sz == 1:
@@ -577,44 +628,44 @@ def manual_recursive_lu(n: int) -> int:
 
         # --- Column panel update A[r0+h..r0+sz, c0..c0+h] ---
         for k in range(c0, c0 + h):
-            a.touch(A + k * n + k); a.write(c_A)                 # pivot
+            a.touch(A_addr(k, k)); a.write(c_A)                   # pivot
             for j in range(k + 1, c0 + h):
-                a.touch(A + k * n + j); a.write(c_C + (j - k - 1))
+                a.touch(A_addr(k, j)); a.write(c_C + (j - k - 1))
             for i in range(r0 + h, r0 + sz):
-                a.touch(A + i * n + k); a.touch(c_A)
-                a.write(A + i * n + k)                            # divide
-                a.touch(A + i * n + k); a.write(c_B)              # hot row-k
+                a.touch(A_addr(i, k)); a.touch(c_A)
+                a.write(A_addr(i, k))                              # divide
+                a.touch(A_addr(i, k)); a.write(c_B)                # hot row-k
                 for j in range(k + 1, c0 + h):
-                    a.touch(A + i * n + j)
+                    a.touch(A_addr(i, j))
                     a.touch(c_B)
                     a.touch(c_C + (j - k - 1))
-                    a.write(A + i * n + j)
+                    a.write(A_addr(i, j))
 
         # --- Row-strip update A[r0..r0+h, c0+h..c0+sz] ---
         for k in range(r0, r0 + h):
             # cache A[k][c0+h..c0+sz-1] into c_C
             for j in range(c0 + h, c0 + sz):
-                a.touch(A + k * n + j); a.write(c_C + (j - (c0 + h)))
+                a.touch(A_addr(k, j)); a.write(c_C + (j - (c0 + h)))
             for i in range(k + 1, r0 + h):
-                a.touch(A + i * n + k); a.write(c_B)              # hot col-k
+                a.touch(A_addr(i, k)); a.write(c_B)                # hot col-k
                 for j in range(c0 + h, c0 + sz):
-                    a.touch(A + i * n + j)
+                    a.touch(A_addr(i, j))
                     a.touch(c_B)
                     a.touch(c_C + (j - (c0 + h)))
-                    a.write(A + i * n + j)
+                    a.write(A_addr(i, j))
 
         # --- Trailing submatrix update A[r0+h.., c0+h..] ---
         for k in range(c0, c0 + h):
             # cache A[k][c0+h..c0+sz-1] into c_C
             for j in range(c0 + h, c0 + sz):
-                a.touch(A + k * n + j); a.write(c_C + (j - (c0 + h)))
+                a.touch(A_addr(k, j)); a.write(c_C + (j - (c0 + h)))
             for i in range(r0 + h, r0 + sz):
-                a.touch(A + i * n + k); a.write(c_B)              # hot col-k
+                a.touch(A_addr(i, k)); a.write(c_B)                # hot col-k
                 for j in range(c0 + h, c0 + sz):
-                    a.touch(A + i * n + j)
+                    a.touch(A_addr(i, j))
                     a.touch(c_B)
                     a.touch(c_C + (j - (c0 + h)))
-                    a.write(A + i * n + j)
+                    a.write(A_addr(i, j))
 
         rec(r0 + h, c0 + h, sz - h)
 
