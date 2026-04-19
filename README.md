@@ -1,4 +1,4 @@
-# ˜
+# ByteDMD
 
 Data movement matters more than FLOPs. Recently accessed bytes can be cached, penalize non-local reads using the following cost model:
 
