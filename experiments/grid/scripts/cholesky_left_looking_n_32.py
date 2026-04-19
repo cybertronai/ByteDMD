@@ -539,6 +539,7 @@ def manual_cholesky_left_looking(n: int) -> int:
     naive version. Lazy arg-stack reads replace the n² preload."""
     a = _alloc()
     A_in = a.alloc_arg(n * n)
+    tmp = a.alloc(1)
     c_A = a.alloc(1)
     c_C = a.alloc(n)
     L = a.alloc(n * n)
@@ -555,6 +556,7 @@ def manual_cholesky_left_looking(n: int) -> int:
                     a.touch(L + i * n + j)
                     a.touch(c_C + j)
                     a.touch(c_A)
+                    a.touch(tmp)
                     a.write(c_A)
                 a.touch(c_A); a.write(L + i * n + k)
         # Diagonal sqrt. Lazy-load A[k][k] at k=0.

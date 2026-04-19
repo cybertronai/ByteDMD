@@ -545,8 +545,6 @@ def manual_stencil_time_naive(n: int, T: int = 4) -> int:
         a.set_output_range(cur, cur + n * n)
     a.read_output()
     return a.cost
-
-
 # ===========================================================================
 # Driver — run under this script's specific algorithm.
 # ===========================================================================

@@ -578,8 +578,6 @@ def manual_spmv_csr_random(n: int, nnz_per_row: int = 7,
             col_ind.append(j); total += 1
         row_ptr.append(total)
     return _manual_spmv(n, row_ptr, col_ind)
-
-
 # ===========================================================================
 # Driver — run under this script's specific algorithm.
 # ===========================================================================

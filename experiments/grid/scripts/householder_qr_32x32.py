@@ -536,6 +536,7 @@ def manual_householder_qr(m: int, n: int) -> int:
                            reflector k and reused across n trailing cols"""
     a = _alloc()
     A_in = a.alloc_arg(m * n)
+    tmp = a.alloc(1)
     c_A = a.alloc(1)
     c_V = a.alloc(m)
     A = a.alloc(m * n)

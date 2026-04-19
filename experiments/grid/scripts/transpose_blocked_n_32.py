@@ -535,8 +535,6 @@ def manual_transpose_blocked(n: int, T: int | None = None) -> int:
                     a.write(B + (bi + ii) * n + (bj + jj))
     a.read_output()
     return a.cost
-
-
 # ===========================================================================
 # Driver — run under this script's specific algorithm.
 # ===========================================================================

@@ -785,18 +785,20 @@ def manual_matvec_col(n: int) -> int:
 # ============================================================================
 
 def manual_fft_iterative(N: int) -> int:
-    """In-place radix-2 Cooley-Tukey. Input on arg stack is copied once
-    to the scratch-side x buffer (the output); all butterflies then run
-    on scratch."""
+    """In-place radix-2 Cooley-Tukey with correctly-priced butterflies.
+    Each butterfly is TWO binary ops (x[k]=x[k]+x[k+m]; x[k+m]=x[k]_old-
+    x[k+m]_old), which under ByteDMD requires either two tmps or a
+    buffer. Minimum trace: 5 reads per butterfly. Also a swap is two
+    binary moves through a tmp (2 reads + the swap-through-tmp's 1)."""
     a = _alloc()
+    tmp = a.alloc(1)
     x_in = a.alloc_arg(N)
     x = a.alloc(N)
     a.set_output_range(x, x + N)
-    # Load input from arg stack into scratch.
     for i in range(N):
         a.touch_arg(x_in + i)
         a.write(x + i)
-    # Bit-reverse permutation — swaps
+    # Bit-reverse permutation — swap through tmp.
     j = 0
     for i in range(1, N):
         bit = N >> 1
@@ -805,32 +807,30 @@ def manual_fft_iterative(N: int) -> int:
             bit >>= 1
         j ^= bit
         if i < j:
-            a.touch(x + i); a.touch(x + j)
-            a.write(x + i); a.write(x + j)
-    # Butterflies: each writes 2 cells of x
+            a.touch(x + i); a.write(tmp)   # tmp = x[i]
+            a.touch(x + j); a.write(x + i)  # x[i] = x[j]
+            a.touch(tmp);   a.write(x + j)  # x[j] = tmp
+    # Butterflies: each butterfly is two binary ops. Priced in full:
+    # tmp = x[k] - x[k+m]  (2 reads + free write)
+    # x[k] = x[k] + x[k+m] (2 reads + free write of x[k])
+    # x[k+m] = tmp         (1 read + free write)
     m = 1
     while m < N:
         for k in range(0, N, m * 2):
             for jj in range(m):
-                a.touch(x + k + jj + m)
-                a.touch(x + k + jj)
-                a.write(x + k + jj)
-                a.write(x + k + jj + m)
+                a.touch(x + k + jj); a.touch(x + k + jj + m); a.write(tmp)
+                a.touch(x + k + jj); a.touch(x + k + jj + m); a.write(x + k + jj)
+                a.touch(tmp); a.write(x + k + jj + m)
         m *= 2
     a.read_output()
     return a.cost
 
 
 def manual_fft_recursive(N: int) -> int:
-    """In-place recursive radix-2 Cooley-Tukey. Input on arg stack is
-    evaluated directly into the target output array x via strided reads,
-    avoiding fresh even/odd temps on the scratch stack.
-
-    Leaves route arg-stack cells straight into their bit-reversed slots
-    inside a single N-wide scratch buffer; every butterfly combination
-    then operates purely in-place. Peak scratch footprint is exactly N,
-    and the geometric cost evaluates over addresses 1..N only."""
+    """In-place recursive radix-2 Cooley-Tukey. Butterflies correctly
+    priced as two binary ops each (5 reads per butterfly)."""
     a = _alloc()
+    tmp = a.alloc(1)
     x_in = a.alloc_arg(N)
     x = a.alloc(N)
     a.set_output_range(x, x + N)
@@ -843,10 +843,12 @@ def manual_fft_recursive(N: int) -> int:
         rec(base, sz // 2, stride * 2, offset)
         rec(base + sz // 2, sz // 2, stride * 2, offset + stride)
         for k in range(sz // 2):
-            a.touch(base + sz // 2 + k)   # odd component
-            a.touch(base + k)             # even component
-            a.write(base + k)             # overwrite even
-            a.write(base + sz // 2 + k)   # overwrite odd
+            # tmp = odd - even (or however the butterfly is defined)
+            a.touch(base + k); a.touch(base + sz // 2 + k); a.write(tmp)
+            # x[even] = x[even] + x[odd]
+            a.touch(base + k); a.touch(base + sz // 2 + k); a.write(base + k)
+            # x[odd] = tmp
+            a.touch(tmp); a.write(base + sz // 2 + k)
 
     rec(x, N, 1, x_in)
     a.read_output()
@@ -1040,9 +1042,11 @@ def manual_spatial_convolution(H: int, W: int, K: int) -> int:
 
 
 def manual_fft_conv(N: int) -> int:
-    """Convolution via FFT. Inputs X_in, Y_in on arg stack; X, Y (working
-    copies) and Z (output) on scratch. Preload X_in→X, Y_in→Y."""
+    """Convolution via FFT. Butterflies correctly priced (5 reads per
+    butterfly via one hot tmp); bit-reversal swap is priced as three
+    moves through tmp."""
     a = _alloc()
+    tmp = a.alloc(1)
     X_in = a.alloc_arg(N); Y_in = a.alloc_arg(N)
     X = a.alloc(N); Y = a.alloc(N); Z = a.alloc(N)
     a.set_output_range(Z, Z + N)
@@ -1059,24 +1063,28 @@ def manual_fft_conv(N: int) -> int:
                 bit >>= 1
             j ^= bit
             if i < j:
-                a.touch(base + i); a.touch(base + j)
-                a.write(base + i); a.write(base + j)
+                a.touch(base + i); a.write(tmp)
+                a.touch(base + j); a.write(base + i)
+                a.touch(tmp); a.write(base + j)
         m = 1
         while m < N:
             for k in range(0, N, m * 2):
                 for jj in range(m):
-                    a.touch(base + k + jj + m)
-                    a.touch(base + k + jj)
+                    a.touch(base + k + jj); a.touch(base + k + jj + m)
+                    a.write(tmp)
+                    a.touch(base + k + jj); a.touch(base + k + jj + m)
                     a.write(base + k + jj)
-                    a.write(base + k + jj + m)
+                    a.touch(tmp); a.write(base + k + jj + m)
             m *= 2
 
     fft_in_place(X)
     fft_in_place(Y)
+    # Pointwise multiply Z[k] = X[k] * Y[k]: 2 reads, write tmp, read tmp,
+    # write Z[k] — but the last read-tmp-write-Z is the multiply's result
+    # being assigned; equivalently treat as single binary op: 2 reads,
+    # free write of Z.
     for k in range(N):
-        a.touch(X + k)
-        a.touch(Y + k)
-        a.write(Z + k)
+        a.touch(X + k); a.touch(Y + k); a.write(Z + k)
     fft_in_place(Z)
     a.read_output()
     return a.cost
@@ -1327,15 +1335,17 @@ def manual_mergesort(N: int) -> int:
 # ============================================================================
 
 def manual_lu_no_pivot(n: int) -> int:
-    """In-place no-pivot LU with hoisted scratchpads and lazy loading.
-    Two tight scratchpads occupy addresses 1..n+1:
-      c_A  (addr 1)         — hot scalar for pivot / A[i][k]
-      c_C  (addr 2..n+1)    — row buffer caching A[k][k+1..n-1]
-    The n² upfront preload is replaced with lazy reads from the arg
-    stack on the first outer-k pass; every subsequent access comes
-    from scratch A just above c_C."""
+    """In-place no-pivot LU with hoisted scratchpads, lazy loading, and
+    correctly-priced MAC intermediates. Every Schur inner body reads
+    the multiplication tmp in addition to the three operand reads
+    (ByteDMD prices multiply + subtract as two binary ops).
+
+      tmp  (addr 1)         — multiply intermediate
+      c_A  (addr 2)         — hot pivot / A[i][k]
+      c_C  (addr 3..n+2)    — row buffer caching A[k][k+1..n-1]"""
     a = _alloc()
     A_in = a.alloc_arg(n * n)
+    tmp = a.alloc(1)
     c_A = a.alloc(1)
     c_C = a.alloc(n)
     A = a.alloc(n * n)
@@ -1361,9 +1371,9 @@ def manual_lu_no_pivot(n: int) -> int:
         for i in range(k + 1, n):
             a.touch(A + i * n + k); a.write(c_A)
             for j in range(k + 1, n):
-                _read_A(i, j, k)
-                a.touch(c_A)
-                a.touch(c_C + (j - k - 1))
+                # multiply c_A * c_C → tmp (free); subtract A[i][j] - tmp
+                a.touch(c_A); a.touch(c_C + (j - k - 1)); a.write(tmp)
+                _read_A(i, j, k); a.touch(tmp)
                 a.write(A + i * n + j)
     a.read_output()
     return a.cost
@@ -1388,6 +1398,7 @@ def manual_blocked_lu(n: int, NB: int = 8) -> int:
     """
     a = _alloc()
     A_in = a.alloc_arg(n * n)
+    tmp = a.alloc(1)
 
     # 1. Tight scratchpads at the very bottom of the scratch stack.
     c_A = a.alloc(1)
@@ -1576,6 +1587,7 @@ def manual_recursive_lu(n: int) -> int:
     # ---- Phase 3: allocate and emit the real trace ----
     a = _alloc()
     A_in = a.alloc_arg(n * n)
+    tmp = a.alloc(1)
     c_A = a.alloc(1)
     c_B = a.alloc(1)
     c_C = a.alloc(n)
@@ -1647,6 +1659,7 @@ def manual_lu_partial_pivot(n: int) -> int:
     pivot-selection phase and a row-swap pass each outer step."""
     a = _alloc()
     A_in = a.alloc_arg(n * n)
+    tmp = a.alloc(1)
     c_A = a.alloc(1)
     c_C = a.alloc(n)
     A = a.alloc(n * n)
@@ -1706,6 +1719,7 @@ def manual_cholesky(n: int) -> int:
     traffic of a full LU."""
     a = _alloc()
     A_in = a.alloc_arg(n * n)
+    tmp = a.alloc(1)
     c_A = a.alloc(1)
     c_C = a.alloc(n)
     A = a.alloc(n * n)
@@ -1733,9 +1747,9 @@ def manual_cholesky(n: int) -> int:
         for j in range(k + 1, n):
             a.touch(c_C + (j - k - 1)); a.write(c_A)
             for i in range(j, n):
-                _read(i, j, k)
-                a.touch(c_C + (i - k - 1))
-                a.touch(c_A)
+                # multiply c_C[i-k-1] * c_A → tmp (free); subtract
+                a.touch(c_C + (i - k - 1)); a.touch(c_A); a.write(tmp)
+                _read(i, j, k); a.touch(tmp)
                 a.write(A + i * n + j)
     a.read_output()
     return a.cost
@@ -1753,6 +1767,7 @@ def manual_householder_qr(m: int, n: int) -> int:
                            reflector k and reused across n trailing cols"""
     a = _alloc()
     A_in = a.alloc_arg(m * n)
+    tmp = a.alloc(1)
     c_A = a.alloc(1)
     c_V = a.alloc(m)
     A = a.alloc(m * n)
@@ -1850,6 +1865,7 @@ def manual_blocked_qr(m: int, n: int, NB: int = 8) -> int:
     # ---- Pass 2: emit the real trace. ------------------------------------
     a = _alloc()
     A_in = a.alloc_arg(m * n)
+    tmp = a.alloc(1)
     c_A = a.alloc(1)
     c_V = a.alloc(m)
     A = a.alloc(m * n)
@@ -1928,6 +1944,7 @@ def manual_tsqr(m: int, n: int, block_rows: int = 8) -> int:
        recursive_lu)."""
     a = _alloc()
     A_in = a.alloc_arg(m * n)
+    tmp = a.alloc(1)
     c_A = a.alloc(1)
     c_V = a.alloc(block_rows + 1)
     cache_A = a.alloc(block_rows * n)
@@ -2269,6 +2286,7 @@ def manual_floyd_warshall_naive(V: int) -> int:
     arg→scratch on the first visit."""
     a = _alloc()
     M = a.alloc_arg(V * V)
+    tmp = a.alloc(1)
     c_A = a.alloc(1)
     c_C = a.alloc(V)
     D = a.alloc(V * V)
@@ -2290,6 +2308,7 @@ def manual_floyd_warshall_naive(V: int) -> int:
                 _read(i, j, k)
                 a.touch(c_A)
                 a.touch(c_C + j)
+                a.touch(tmp)
                 a.write(D + i * V + j)
     a.read_output()
     return a.cost
@@ -2313,6 +2332,7 @@ def manual_floyd_warshall_recursive(V: int) -> int:
     """
     a = _alloc()
     M = a.alloc_arg(V * V)
+    tmp = a.alloc(1)
 
     SZ = 2
     cache_T = a.alloc(SZ * SZ)
@@ -2554,6 +2574,7 @@ def manual_cholesky_left_looking(n: int) -> int:
     naive version. Lazy arg-stack reads replace the n² preload."""
     a = _alloc()
     A_in = a.alloc_arg(n * n)
+    tmp = a.alloc(1)
     c_A = a.alloc(1)
     c_C = a.alloc(n)
     L = a.alloc(n * n)
@@ -2570,6 +2591,7 @@ def manual_cholesky_left_looking(n: int) -> int:
                     a.touch(L + i * n + j)
                     a.touch(c_C + j)
                     a.touch(c_A)
+                    a.touch(tmp)
                     a.write(c_A)
                 a.touch(c_A); a.write(L + i * n + k)
         # Diagonal sqrt. Lazy-load A[k][k] at k=0.
@@ -2651,9 +2673,11 @@ def manual_spmv_csr_random(n: int, nnz_per_row: int = 7,
 
 def manual_bitonic_sort(N: int) -> int:
     """Sorting network: input arr preloaded from arg stack to scratch.
-    For each (k, j), every pair (i, i^j) with l=i^j > i is read together
-    and written back — same butterfly pattern as iterative FFT."""
+    Each compare-swap is TWO binary ops (max/min or sum/diff under the
+    branch-free stand-in), so priced as 5 reads per compare-swap via
+    one hot tmp — same fix as FFT butterflies."""
     a = _alloc()
+    tmp = a.alloc(1)
     arr_in = a.alloc_arg(N)
     arr = a.alloc(N)
     a.set_output_range(arr, arr + N)
@@ -2666,8 +2690,9 @@ def manual_bitonic_sort(N: int) -> int:
             for i in range(N):
                 l = i ^ j
                 if l > i:
-                    a.touch(arr + i); a.touch(arr + l)
-                    a.write(arr + i); a.write(arr + l)
+                    a.touch(arr + i); a.touch(arr + l); a.write(tmp)
+                    a.touch(arr + i); a.touch(arr + l); a.write(arr + i)
+                    a.touch(tmp); a.write(arr + l)
             j //= 2
         k *= 2
     a.read_output()

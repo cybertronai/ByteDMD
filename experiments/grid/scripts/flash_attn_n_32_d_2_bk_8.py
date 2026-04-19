@@ -630,8 +630,6 @@ def manual_flash_attention(N: int, d: int, Bk: int) -> int:
             a.write(O + i * d + dd)
     a.read_output()
     return a.cost
-
-
 # ===========================================================================
 # Driver — run under this script's specific algorithm.
 # ===========================================================================

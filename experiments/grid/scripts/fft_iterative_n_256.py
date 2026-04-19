@@ -538,18 +538,20 @@ def fft_iterative(x_in):
 # ===========================================================================
 
 def manual_fft_iterative(N: int) -> int:
-    """In-place radix-2 Cooley-Tukey. Input on arg stack is copied once
-    to the scratch-side x buffer (the output); all butterflies then run
-    on scratch."""
+    """In-place radix-2 Cooley-Tukey with correctly-priced butterflies.
+    Each butterfly is TWO binary ops (x[k]=x[k]+x[k+m]; x[k+m]=x[k]_old-
+    x[k+m]_old), which under ByteDMD requires either two tmps or a
+    buffer. Minimum trace: 5 reads per butterfly. Also a swap is two
+    binary moves through a tmp (2 reads + the swap-through-tmp's 1)."""
     a = _alloc()
+    tmp = a.alloc(1)
     x_in = a.alloc_arg(N)
     x = a.alloc(N)
     a.set_output_range(x, x + N)
-    # Load input from arg stack into scratch.
     for i in range(N):
         a.touch_arg(x_in + i)
         a.write(x + i)
-    # Bit-reverse permutation — swaps
+    # Bit-reverse permutation — swap through tmp.
     j = 0
     for i in range(1, N):
         bit = N >> 1
@@ -558,22 +560,23 @@ def manual_fft_iterative(N: int) -> int:
             bit >>= 1
         j ^= bit
         if i < j:
-            a.touch(x + i); a.touch(x + j)
-            a.write(x + i); a.write(x + j)
-    # Butterflies: each writes 2 cells of x
+            a.touch(x + i); a.write(tmp)   # tmp = x[i]
+            a.touch(x + j); a.write(x + i)  # x[i] = x[j]
+            a.touch(tmp);   a.write(x + j)  # x[j] = tmp
+    # Butterflies: each butterfly is two binary ops. Priced in full:
+    # tmp = x[k] - x[k+m]  (2 reads + free write)
+    # x[k] = x[k] + x[k+m] (2 reads + free write of x[k])
+    # x[k+m] = tmp         (1 read + free write)
     m = 1
     while m < N:
         for k in range(0, N, m * 2):
             for jj in range(m):
-                a.touch(x + k + jj + m)
-                a.touch(x + k + jj)
-                a.write(x + k + jj)
-                a.write(x + k + jj + m)
+                a.touch(x + k + jj); a.touch(x + k + jj + m); a.write(tmp)
+                a.touch(x + k + jj); a.touch(x + k + jj + m); a.write(x + k + jj)
+                a.touch(tmp); a.write(x + k + jj + m)
         m *= 2
     a.read_output()
     return a.cost
-
-
 # ===========================================================================
 # Driver — run under this script's specific algorithm.
 # ===========================================================================

@@ -530,6 +530,7 @@ def manual_cholesky(n: int) -> int:
     traffic of a full LU."""
     a = _alloc()
     A_in = a.alloc_arg(n * n)
+    tmp = a.alloc(1)
     c_A = a.alloc(1)
     c_C = a.alloc(n)
     A = a.alloc(n * n)
@@ -557,9 +558,9 @@ def manual_cholesky(n: int) -> int:
         for j in range(k + 1, n):
             a.touch(c_C + (j - k - 1)); a.write(c_A)
             for i in range(j, n):
-                _read(i, j, k)
-                a.touch(c_C + (i - k - 1))
-                a.touch(c_A)
+                # multiply c_C[i-k-1] * c_A → tmp (free); subtract
+                a.touch(c_C + (i - k - 1)); a.touch(c_A); a.write(tmp)
+                _read(i, j, k); a.touch(tmp)
                 a.write(A + i * n + j)
     a.read_output()
     return a.cost

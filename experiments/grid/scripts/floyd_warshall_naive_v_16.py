@@ -531,6 +531,7 @@ def manual_floyd_warshall_naive(V: int) -> int:
     arg→scratch on the first visit."""
     a = _alloc()
     M = a.alloc_arg(V * V)
+    tmp = a.alloc(1)
     c_A = a.alloc(1)
     c_C = a.alloc(V)
     D = a.alloc(V * V)
@@ -552,6 +553,7 @@ def manual_floyd_warshall_naive(V: int) -> int:
                 _read(i, j, k)
                 a.touch(c_A)
                 a.touch(c_C + j)
+                a.touch(tmp)
                 a.write(D + i * V + j)
     a.read_output()
     return a.cost

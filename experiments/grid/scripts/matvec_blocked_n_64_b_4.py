@@ -561,8 +561,6 @@ def manual_matvec_blocked(n: int, B: int = 4) -> int:
             a.write(y + i_out + i)
     a.read_output()
     return a.cost
-
-
 # ===========================================================================
 # Driver — run under this script's specific algorithm.
 # ===========================================================================

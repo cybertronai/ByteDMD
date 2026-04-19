@@ -521,15 +521,17 @@ def lu_no_pivot(A):
 # ===========================================================================
 
 def manual_lu_no_pivot(n: int) -> int:
-    """In-place no-pivot LU with hoisted scratchpads and lazy loading.
-    Two tight scratchpads occupy addresses 1..n+1:
-      c_A  (addr 1)         — hot scalar for pivot / A[i][k]
-      c_C  (addr 2..n+1)    — row buffer caching A[k][k+1..n-1]
-    The n² upfront preload is replaced with lazy reads from the arg
-    stack on the first outer-k pass; every subsequent access comes
-    from scratch A just above c_C."""
+    """In-place no-pivot LU with hoisted scratchpads, lazy loading, and
+    correctly-priced MAC intermediates. Every Schur inner body reads
+    the multiplication tmp in addition to the three operand reads
+    (ByteDMD prices multiply + subtract as two binary ops).
+
+      tmp  (addr 1)         — multiply intermediate
+      c_A  (addr 2)         — hot pivot / A[i][k]
+      c_C  (addr 3..n+2)    — row buffer caching A[k][k+1..n-1]"""
     a = _alloc()
     A_in = a.alloc_arg(n * n)
+    tmp = a.alloc(1)
     c_A = a.alloc(1)
     c_C = a.alloc(n)
     A = a.alloc(n * n)
@@ -555,9 +557,9 @@ def manual_lu_no_pivot(n: int) -> int:
         for i in range(k + 1, n):
             a.touch(A + i * n + k); a.write(c_A)
             for j in range(k + 1, n):
-                _read_A(i, j, k)
-                a.touch(c_A)
-                a.touch(c_C + (j - k - 1))
+                # multiply c_A * c_C → tmp (free); subtract A[i][j] - tmp
+                a.touch(c_A); a.touch(c_C + (j - k - 1)); a.write(tmp)
+                _read_A(i, j, k); a.touch(tmp)
                 a.write(A + i * n + j)
     a.read_output()
     return a.cost

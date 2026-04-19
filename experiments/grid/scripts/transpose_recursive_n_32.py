@@ -547,8 +547,6 @@ def manual_transpose_recursive(n: int) -> int:
     rec(0, 0, 0, 0, n)
     a.read_output()
     return a.cost
-
-
 # ===========================================================================
 # Driver — run under this script's specific algorithm.
 # ===========================================================================

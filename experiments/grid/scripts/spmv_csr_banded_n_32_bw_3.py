@@ -572,8 +572,6 @@ def manual_spmv_csr_banded(n: int, bandwidth: int = 3) -> int:
             col_ind.append(j); total += 1
         row_ptr.append(total)
     return _manual_spmv(n, row_ptr, col_ind)
-
-
 # ===========================================================================
 # Driver — run under this script's specific algorithm.
 # ===========================================================================

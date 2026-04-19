@@ -609,6 +609,7 @@ def manual_recursive_lu(n: int) -> int:
     # ---- Phase 3: allocate and emit the real trace ----
     a = _alloc()
     A_in = a.alloc_arg(n * n)
+    tmp = a.alloc(1)
     c_A = a.alloc(1)
     c_B = a.alloc(1)
     c_C = a.alloc(n)

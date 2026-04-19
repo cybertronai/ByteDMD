@@ -552,8 +552,6 @@ def manual_layernorm_fused(N: int) -> int:
         a.write(y + i)
     a.read_output()
     return a.cost
-
-
 # ===========================================================================
 # Driver — run under this script's specific algorithm.
 # ===========================================================================

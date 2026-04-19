@@ -532,9 +532,11 @@ def bitonic_sort(arr):
 
 def manual_bitonic_sort(N: int) -> int:
     """Sorting network: input arr preloaded from arg stack to scratch.
-    For each (k, j), every pair (i, i^j) with l=i^j > i is read together
-    and written back — same butterfly pattern as iterative FFT."""
+    Each compare-swap is TWO binary ops (max/min or sum/diff under the
+    branch-free stand-in), so priced as 5 reads per compare-swap via
+    one hot tmp — same fix as FFT butterflies."""
     a = _alloc()
+    tmp = a.alloc(1)
     arr_in = a.alloc_arg(N)
     arr = a.alloc(N)
     a.set_output_range(arr, arr + N)
@@ -547,14 +549,13 @@ def manual_bitonic_sort(N: int) -> int:
             for i in range(N):
                 l = i ^ j
                 if l > i:
-                    a.touch(arr + i); a.touch(arr + l)
-                    a.write(arr + i); a.write(arr + l)
+                    a.touch(arr + i); a.touch(arr + l); a.write(tmp)
+                    a.touch(arr + i); a.touch(arr + l); a.write(arr + i)
+                    a.touch(tmp); a.write(arr + l)
             j //= 2
         k *= 2
     a.read_output()
     return a.cost
-
-
 # ===========================================================================
 # Driver — run under this script's specific algorithm.
 # ===========================================================================

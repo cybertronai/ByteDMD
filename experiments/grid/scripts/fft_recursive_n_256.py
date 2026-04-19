@@ -522,15 +522,10 @@ def fft_recursive(x_in):
 # ===========================================================================
 
 def manual_fft_recursive(N: int) -> int:
-    """In-place recursive radix-2 Cooley-Tukey. Input on arg stack is
-    evaluated directly into the target output array x via strided reads,
-    avoiding fresh even/odd temps on the scratch stack.
-
-    Leaves route arg-stack cells straight into their bit-reversed slots
-    inside a single N-wide scratch buffer; every butterfly combination
-    then operates purely in-place. Peak scratch footprint is exactly N,
-    and the geometric cost evaluates over addresses 1..N only."""
+    """In-place recursive radix-2 Cooley-Tukey. Butterflies correctly
+    priced as two binary ops each (5 reads per butterfly)."""
     a = _alloc()
+    tmp = a.alloc(1)
     x_in = a.alloc_arg(N)
     x = a.alloc(N)
     a.set_output_range(x, x + N)
@@ -543,16 +538,16 @@ def manual_fft_recursive(N: int) -> int:
         rec(base, sz // 2, stride * 2, offset)
         rec(base + sz // 2, sz // 2, stride * 2, offset + stride)
         for k in range(sz // 2):
-            a.touch(base + sz // 2 + k)   # odd component
-            a.touch(base + k)             # even component
-            a.write(base + k)             # overwrite even
-            a.write(base + sz // 2 + k)   # overwrite odd
+            # tmp = odd - even (or however the butterfly is defined)
+            a.touch(base + k); a.touch(base + sz // 2 + k); a.write(tmp)
+            # x[even] = x[even] + x[odd]
+            a.touch(base + k); a.touch(base + sz // 2 + k); a.write(base + k)
+            # x[odd] = tmp
+            a.touch(tmp); a.write(base + sz // 2 + k)
 
     rec(x, N, 1, x_in)
     a.read_output()
     return a.cost
-
-
 # ===========================================================================
 # Driver — run under this script's specific algorithm.
 # ===========================================================================

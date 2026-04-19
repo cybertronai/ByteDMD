@@ -549,8 +549,6 @@ def manual_quicksort(N: int) -> int:
     rec(arr, N)
     a.read_output()
     return a.cost
-
-
 # ===========================================================================
 # Driver — run under this script's specific algorithm.
 # ===========================================================================

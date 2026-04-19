@@ -529,8 +529,6 @@ def manual_transpose_naive(n: int) -> int:
             a.write(B + i * n + j)
     a.read_output()
     return a.cost
-
-
 # ===========================================================================
 # Driver — run under this script's specific algorithm.
 # ===========================================================================

@@ -554,6 +554,7 @@ def manual_floyd_warshall_recursive(V: int) -> int:
     """
     a = _alloc()
     M = a.alloc_arg(V * V)
+    tmp = a.alloc(1)
 
     SZ = 2
     cache_T = a.alloc(SZ * SZ)

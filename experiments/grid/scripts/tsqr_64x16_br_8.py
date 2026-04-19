@@ -571,6 +571,7 @@ def manual_tsqr(m: int, n: int, block_rows: int = 8) -> int:
        recursive_lu)."""
     a = _alloc()
     A_in = a.alloc_arg(m * n)
+    tmp = a.alloc(1)
     c_A = a.alloc(1)
     c_V = a.alloc(block_rows + 1)
     cache_A = a.alloc(block_rows * n)

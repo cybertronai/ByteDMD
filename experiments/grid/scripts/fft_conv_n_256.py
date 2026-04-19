@@ -547,9 +547,11 @@ def fft_conv(x_in, y_in):
 # ===========================================================================
 
 def manual_fft_conv(N: int) -> int:
-    """Convolution via FFT. Inputs X_in, Y_in on arg stack; X, Y (working
-    copies) and Z (output) on scratch. Preload X_in→X, Y_in→Y."""
+    """Convolution via FFT. Butterflies correctly priced (5 reads per
+    butterfly via one hot tmp); bit-reversal swap is priced as three
+    moves through tmp."""
     a = _alloc()
+    tmp = a.alloc(1)
     X_in = a.alloc_arg(N); Y_in = a.alloc_arg(N)
     X = a.alloc(N); Y = a.alloc(N); Z = a.alloc(N)
     a.set_output_range(Z, Z + N)
@@ -566,29 +568,31 @@ def manual_fft_conv(N: int) -> int:
                 bit >>= 1
             j ^= bit
             if i < j:
-                a.touch(base + i); a.touch(base + j)
-                a.write(base + i); a.write(base + j)
+                a.touch(base + i); a.write(tmp)
+                a.touch(base + j); a.write(base + i)
+                a.touch(tmp); a.write(base + j)
         m = 1
         while m < N:
             for k in range(0, N, m * 2):
                 for jj in range(m):
-                    a.touch(base + k + jj + m)
-                    a.touch(base + k + jj)
+                    a.touch(base + k + jj); a.touch(base + k + jj + m)
+                    a.write(tmp)
+                    a.touch(base + k + jj); a.touch(base + k + jj + m)
                     a.write(base + k + jj)
-                    a.write(base + k + jj + m)
+                    a.touch(tmp); a.write(base + k + jj + m)
             m *= 2
 
     fft_in_place(X)
     fft_in_place(Y)
+    # Pointwise multiply Z[k] = X[k] * Y[k]: 2 reads, write tmp, read tmp,
+    # write Z[k] — but the last read-tmp-write-Z is the multiply's result
+    # being assigned; equivalently treat as single binary op: 2 reads,
+    # free write of Z.
     for k in range(N):
-        a.touch(X + k)
-        a.touch(Y + k)
-        a.write(Z + k)
+        a.touch(X + k); a.touch(Y + k); a.write(Z + k)
     fft_in_place(Z)
     a.read_output()
     return a.cost
-
-
 # ===========================================================================
 # Driver — run under this script's specific algorithm.
 # ===========================================================================

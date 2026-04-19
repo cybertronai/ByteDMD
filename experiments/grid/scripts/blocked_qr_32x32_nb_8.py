@@ -610,6 +610,7 @@ def manual_blocked_qr(m: int, n: int, NB: int = 8) -> int:
     # ---- Pass 2: emit the real trace. ------------------------------------
     a = _alloc()
     A_in = a.alloc_arg(m * n)
+    tmp = a.alloc(1)
     c_A = a.alloc(1)
     c_V = a.alloc(m)
     A = a.alloc(m * n)

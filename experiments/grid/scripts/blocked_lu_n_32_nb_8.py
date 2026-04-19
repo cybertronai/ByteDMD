@@ -543,19 +543,31 @@ def blocked_lu(A, NB=8):
 
 def manual_blocked_lu(n: int, NB: int = 8) -> int:
     """One-level blocked LU with optimal caching and lazy loading.
-    Three tight scratchpads occupy the bottom 73 scratch slots:
-      c_A (addr 1)       — scalar hoist for hot single values
-      c_C (addr 2..NB+1) — 1D row buffer
-      c_B (addr NB+2..)  — 2D NB×NB block buffer
-    c_B is multiplexed across all four stages; c_C caches an A-row
-    during panel + GEMM inner loops so every (i, j, k) body reads from
-    the bottom of the stack. The n² upfront preload is skipped —
-    lazy-read arg cells on first visit (kb==0)."""
+    Actively hoists blocks, rows, and scalars into extremely low-address
+    stack variables to mimic L1/register reuse, and lazily evaluates the
+    argument array to bypass the sequential copy overhead.
+
+    Three unified scratchpads occupy the bottom 73 scratch slots:
+      c_A  (addr 1)        — scalar hoist for hot single values
+      c_C  (addr 2..NB+1)  — 1D row buffer
+      c_B  (addr NB+2..)   — 2D NB×NB block buffer
+    c_B is multiplexed across the four stages (diagonal factor, panel
+    update, row-strip update, trailing GEMM); c_C caches an A-row
+    during the panel + GEMM updates so all (i, j, k)-body reads draw
+    from addresses 1..NB²+NB+1. The n² preload is skipped — each A
+    cell is touched from the arg stack on its first visit (kb == 0)
+    and from scratch A thereafter.
+    """
     a = _alloc()
     A_in = a.alloc_arg(n * n)
+    tmp = a.alloc(1)
+
+    # 1. Tight scratchpads at the very bottom of the scratch stack.
     c_A = a.alloc(1)
     c_C = a.alloc(NB)
     c_B = a.alloc(NB * NB)
+
+    # 2. Main target array — right above the scratchpads.
     A = a.alloc(n * n)
     a.set_output_range(A, A + n * n)
 
@@ -563,7 +575,7 @@ def manual_blocked_lu(n: int, NB: int = 8) -> int:
         ke = min(kb + NB, n)
         sz = ke - kb
 
-        # (a) Factor diagonal block locally in c_B.
+        # (a) Factor the diagonal block locally in c_B.
         for i in range(kb, ke):
             for j in range(kb, ke):
                 if kb == 0:
@@ -571,6 +583,7 @@ def manual_blocked_lu(n: int, NB: int = 8) -> int:
                 else:
                     a.touch(A + i * n + j)
                 a.write(c_B + (i - kb) * NB + (j - kb))
+
         for k in range(sz):
             pivot_addr = c_B + k * NB + k
             a.touch(pivot_addr); a.write(c_A)
@@ -584,6 +597,7 @@ def manual_blocked_lu(n: int, NB: int = 8) -> int:
                     a.touch(c_A)
                     a.touch(c_B + k * NB + j)
                     a.write(c_B + i * NB + j)
+
         for i in range(kb, ke):
             for j in range(kb, ke):
                 a.touch(c_B + (i - kb) * NB + (j - kb))
@@ -600,13 +614,19 @@ def manual_blocked_lu(n: int, NB: int = 8) -> int:
                         a.touch(A + i * n + j)
                     a.write(c_C + (j - kb))
                 for k in range(sz):
-                    a.touch(c_C + k); a.touch(c_B + k * NB + k); a.write(c_C + k)
+                    a.touch(c_C + k)
+                    a.touch(c_B + k * NB + k)
+                    a.write(c_C + k)
+
                     a.touch(c_C + k); a.write(c_A)
                     for j in range(k + 1, sz):
-                        a.touch(c_C + j); a.touch(c_A); a.touch(c_B + k * NB + j)
+                        a.touch(c_C + j)
+                        a.touch(c_A)
+                        a.touch(c_B + k * NB + j)
                         a.write(c_C + j)
                 for j in range(kb, ke):
-                    a.touch(c_C + (j - kb)); a.write(A + i * n + j)
+                    a.touch(c_C + (j - kb))
+                    a.write(A + i * n + j)
 
         # (c) Row-strip update A[kb:ke, ke:n] — buffer block into c_B.
         for jb in range(ke, n, NB):
@@ -621,22 +641,28 @@ def manual_blocked_lu(n: int, NB: int = 8) -> int:
                     a.write(c_B + (k - kb) * NB + (j - jb))
             for k in range(sz):
                 for i in range(k + 1, sz):
-                    a.touch(A + (kb + i) * n + (kb + k)); a.write(c_A)
+                    a.touch(A + (kb + i) * n + (kb + k))
+                    a.write(c_A)
                     for j in range(sz_j):
-                        a.touch(c_B + i * NB + j); a.touch(c_A)
-                        a.touch(c_B + k * NB + j); a.write(c_B + i * NB + j)
+                        a.touch(c_B + i * NB + j)
+                        a.touch(c_A)
+                        a.touch(c_B + k * NB + j)
+                        a.write(c_B + i * NB + j)
             for k in range(kb, ke):
                 for j in range(jb, je):
                     a.touch(c_B + (k - kb) * NB + (j - jb))
                     a.write(A + k * n + j)
 
-        # (d) Trailing GEMM update.
+        # (d) Trailing GEMM update — block-row register loading.
         for jb in range(ke, n, NB):
-            je = min(jb + NB, n); sz_j = je - jb
+            je = min(jb + NB, n)
+            sz_j = je - jb
+
             for k in range(kb, ke):
                 for j in range(jb, je):
                     a.touch(A + k * n + j)
                     a.write(c_B + (k - kb) * NB + (j - jb))
+
             for ib in range(ke, n, NB):
                 ie = min(ib + NB, n)
                 for i in range(ib, ie):
@@ -646,17 +672,22 @@ def manual_blocked_lu(n: int, NB: int = 8) -> int:
                         else:
                             a.touch(A + i * n + j)
                         a.write(c_C + (j - jb))
+
                     for k in range(sz):
-                        a.touch(A + i * n + (kb + k)); a.write(c_A)
+                        a.touch(A + i * n + (kb + k))
+                        a.write(c_A)
                         for j in range(sz_j):
-                            a.touch(c_C + j); a.touch(c_A); a.touch(c_B + k * NB + j)
+                            a.touch(c_C + j)
+                            a.touch(c_A)
+                            a.touch(c_B + k * NB + j)
                             a.write(c_C + j)
+
                     for j in range(jb, je):
-                        a.touch(c_C + (j - jb)); a.write(A + i * n + j)
+                        a.touch(c_C + (j - jb))
+                        a.write(A + i * n + j)
+
     a.read_output()
     return a.cost
-
-
 # ===========================================================================
 # Driver — run under this script's specific algorithm.
 # ===========================================================================

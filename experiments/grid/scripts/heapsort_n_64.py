@@ -570,8 +570,6 @@ def manual_heapsort(N: int) -> int:
         sift_down(0, k)
     a.read_output()
     return a.cost
-
-
 # ===========================================================================
 # Driver — run under this script's specific algorithm.
 # ===========================================================================

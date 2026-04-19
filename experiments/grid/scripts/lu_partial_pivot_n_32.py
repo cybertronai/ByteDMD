@@ -535,6 +535,7 @@ def manual_lu_partial_pivot(n: int) -> int:
     pivot-selection phase and a row-swap pass each outer step."""
     a = _alloc()
     A_in = a.alloc_arg(n * n)
+    tmp = a.alloc(1)
     c_A = a.alloc(1)
     c_C = a.alloc(n)
     A = a.alloc(n * n)
