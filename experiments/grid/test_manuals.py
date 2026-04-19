@@ -46,6 +46,7 @@ from manual_dsl_examples import (
     manual_matrix_powers_naive_dsl,
     manual_matrix_powers_ca_dsl,
     manual_regular_convolution_dsl,
+    manual_fused_strassen_dsl,
 )
 
 
@@ -254,6 +255,17 @@ def test_dsl_matches_matrix_powers_ca() -> None:
 def test_dsl_matches_regular_convolution() -> None:
     _within_tolerance(manual_regular_convolution_dsl(16, 16, 3, 2, 2),
                       man.manual_regular_convolution(16, 16, 3, 2, 2))
+
+
+def test_dsl_matches_fused_strassen() -> None:
+    # Stress test for DSL's MAC primitive: signed C fan-out + fused
+    # arg→scratch loads. Exact cost match expected.
+    dsl_cost = manual_fused_strassen_dsl(16, T=4)
+    hand_cost = man.manual_fused_strassen(16, T=4)
+    ratio = dsl_cost / hand_cost
+    assert 0.95 <= ratio <= 1.05, (
+        f"dsl={dsl_cost}  hand={hand_cost}  ratio={ratio:.3f}"
+    )
 
 
 def test_dsl_matches_layernorm_fused() -> None:

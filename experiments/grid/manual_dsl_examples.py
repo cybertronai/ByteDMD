@@ -648,6 +648,76 @@ def manual_fft_recursive_dsl(N: int) -> int:
 # ---------------------------------------------------------------------------
 
 # ---------------------------------------------------------------------------
+# fused_strassen — Zero-Allocation Fused Strassen (ZAFS). MAC pattern
+# with fused arg→scratch loads and signed C fan-out. Stress test for
+# the DSL's MAC primitive.
+# ---------------------------------------------------------------------------
+
+def manual_fused_strassen_dsl(n: int, T: int = 4) -> int:
+    sch = Sched()
+    A = sch.arg_buffer(n * n); B = sch.arg_buffer(n * n)
+    tmp = sch.scalar()
+    fast_A = sch.buffer(T * T); fast_B = sch.buffer(T * T)
+    fast_C = sch.buffer(T * T)
+    C = sch.output_buffer(n * n)
+
+    def compute_fused_tile(ops_A, ops_B, ops_C, r, c, k_off):
+        # 1. Fused arg→fast load of A tile (multi-operand add, 1 write).
+        for i in range(T):
+            for j in range(T):
+                for _sgn, rb, cb in ops_A:
+                    sch.read(A[(rb + r + i) * n + cb + k_off + j])
+                sch.write(fast_A[i * T + j])
+        # 2. Fused arg→fast load of B tile.
+        for i in range(T):
+            for j in range(T):
+                for _sgn, rb, cb in ops_B:
+                    sch.read(B[(rb + k_off + i) * n + cb + c + j])
+                sch.write(fast_B[i * T + j])
+        # 3. Tile MAC.
+        for i in range(T):
+            for j in range(T):
+                for k in range(T):
+                    if k == 0 and k_off == 0:
+                        sch.mul(fast_A[i * T + k], fast_B[k * T + j],
+                                fast_C[i * T + j])
+                    else:
+                        sch.mac(fast_C[i * T + j],
+                                fast_A[i * T + k],
+                                fast_B[k * T + j], tmp)
+        # 4. Fan-out fast_C → signed C targets.
+        for _sgn, rb, cb, is_first in ops_C:
+            for i in range(T):
+                for j in range(T):
+                    if is_first:
+                        sch.assign(fast_C[i * T + j],
+                                   C[(rb + r + i) * n + cb + c + j])
+                    else:
+                        # C += fast_C: 2 reads, 1 write.
+                        sch.read(fast_C[i * T + j])
+                        sch.read(C[(rb + r + i) * n + cb + c + j])
+                        sch.write(C[(rb + r + i) * n + cb + c + j])
+
+    h = n // 2
+    q11, q12, q21, q22 = (0, 0), (0, h), (h, 0), (h, h)
+    recipes = [
+        ([(1, *q11), (1, *q22)], [(1, *q11), (1, *q22)], [(1, *q11, True), (1, *q22, True)]),
+        ([(1, *q21), (1, *q22)], [(1, *q11)],            [(1, *q21, True), (-1, *q22, False)]),
+        ([(1, *q11)],            [(1, *q12), (-1, *q22)], [(1, *q12, True), (1, *q22, False)]),
+        ([(1, *q22)],            [(1, *q21), (-1, *q11)], [(1, *q11, False), (1, *q21, False)]),
+        ([(1, *q11), (1, *q12)], [(1, *q22)],             [(-1, *q11, False), (1, *q12, False)]),
+        ([(1, *q21), (-1, *q11)], [(1, *q11), (1, *q12)], [(1, *q22, False)]),
+        ([(1, *q12), (-1, *q22)], [(1, *q21), (1, *q22)], [(1, *q11, False)]),
+    ]
+    for A_ops, B_ops, C_ops in recipes:
+        for r, c in [(0, 0), (0, T), (T, 0), (T, T)]:
+            compute_fused_tile(A_ops, B_ops, C_ops, r, c, k_off=0)
+            C_ops_accum = [(sgn, rb, cb, False) for sgn, rb, cb, _ in C_ops]
+            compute_fused_tile(A_ops, B_ops, C_ops_accum, r, c, k_off=T)
+    return sch.finalize()
+
+
+# ---------------------------------------------------------------------------
 # spmv (CSR) — row-wise MAC with arg-stack vals + x, scratch acc.
 # ---------------------------------------------------------------------------
 
