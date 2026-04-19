@@ -107,6 +107,37 @@ def render_frame(d: int = 8,
                           ec='none', alpha=0.7 if cur else 0.3),
             )
 
+    # --- Hypothetical access wires ---
+    # One vertical trunk down the middle (x=0) + one horizontal branch
+    # at every row the arenas occupy. Every memory read goes core ->
+    # vertical trunk down/up to the row -> horizontal branch to the
+    # cell; these thin lines show that infrastructure.
+    arg_y_max = int(ARG_PTS[:n_short_arg, 1].max())
+    arg_x_ext = int(abs(ARG_PTS[:n_short_arg, 0]).max())
+    scr_y_min = int(SCRATCH_PTS[:n_short_scratch, 1].min())
+    scr_x_ext = int(abs(SCRATCH_PTS[:n_short_scratch, 0]).max())
+
+    # Vertical trunk from deepest scratch row to deepest arg row.
+    ax1.plot([0, 0], [scr_y_min, arg_y_max],
+             color='lightgray', lw=1, zorder=0)
+
+    # Horizontal branches, one per row.
+    for row_y in range(1, arg_y_max + 1):
+        half = arg_x_ext
+        # Don't extend past the cells actually populated on that row.
+        populated = [x for x, y in ARG_PTS[:n_short_arg] if y == row_y]
+        if populated:
+            half = max(abs(x) for x in populated)
+        ax1.plot([-half, half], [row_y, row_y],
+                 color='lightgray', lw=1, zorder=0)
+    for row_y in range(-1, scr_y_min - 1, -1):
+        half = scr_x_ext
+        populated = [x for x, y in SCRATCH_PTS[:n_short_scratch] if y == row_y]
+        if populated:
+            half = max(abs(x) for x in populated)
+        ax1.plot([-half, half], [row_y, row_y],
+                 color='lightgray', lw=1, zorder=0)
+
     # Arg arena (above) — label numbers prefixed with minus sign.
     draw_arena(ARG_PTS, n_short_arg, arg_d,
                arrow_color='steelblue', label_neg=True)
