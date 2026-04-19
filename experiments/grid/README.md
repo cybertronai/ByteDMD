@@ -557,6 +557,15 @@ x access to near-top-of-scratch cost:
 Drops manual from 455,587 to **218,552** (−52%), now just below
 `space_dmd` (217,053).
 
+> **Theoretical floor for n=64 matvec** (applies to all three
+> variants below):
+> [gemini/optimal-matvec.md](../../gemini/optimal-matvec.md) derives
+> a strict lower bound under the semi-ring + polyhedron restrictions:
+> the compulsory-I/O barrier is **180,960** (just the arg transport
+> cost), and the achievable minimum is **208,832**. All three
+> manuals honour it: `matvec_row` 218,552 (+5%), `matvec_col`
+> 217,952 (+4%), `matvec_blocked` 275,535 (+32%).
+
 ![](traces/matvec_row_n_64.png)
 
 **Working-set size over time** (peak = 128).
