@@ -11,18 +11,15 @@ where $D(b)$ is the depth of byte $b$ in the LRU stack. Square-root is motivated
 ```python
 from bytedmd import bytedmd
 
-def dot(a, b):
-    return sum(i1*i2 for (i1,i2) in zip(a,b))
+def myfunc(a, b, c, d, e):
+    return a*b + c*d + e
 
-a = [0, 1]
-b = [2, 3]
+# function result
+assert myfunc(1, 2, 3, 4, 5) == 19
 
-# dot product
-assert dot(a,b) == 3
-
-# ByteDMD cost of dot product (two-stack model: arg elements at arg
-# depths 1..4, intermediates on the geometric stack)
-assert bytedmd(dot, (a, b)) == 11
+# ByteDMD cost — two-stack model: a, b, c, d, e sit at argument
+# depths 1..5; intermediates live on the geometric (scratch) stack.
+assert bytedmd(myfunc, (1, 2, 3, 4, 5)) == 14
 ```
 
 ## Motivation
@@ -63,37 +60,55 @@ For an instruction with inputs $x_1, \dots, x_m$ and outputs $y_1, \dots, y_n$ w
 
 ## Example Walkthrough
 
-Consider the following function with three scalar arguments:
+Consider the following function with five scalar arguments:
 
 ```python
-def my_add(a, b, c):
-    return (a + b) + c
+def myfunc(a, b, c, d, e):
+    return a*b + c*d + e
 ```
 
 **1. Initial state (left = top, right = bottom)**
 Arguments are packed left to right on the argument stack; the geometric stack starts empty:
 ```text
-arg stack:  [a, b, c]    ← a at depth 1, b at depth 2, c at depth 3
+arg stack:  [a, b, c, d, e]    ← a@1, b@2, c@3, d@4, e@5
 geom stack: []
 ```
 
-**2. First operation: `a + b`**
-`a` and `b` are both first reads — priced against the argument stack. Both operands see the pre-instruction snapshot simultaneously:
+**2. First operation: `a * b`**
+`a` and `b` are both first reads — priced against the argument stack at their static depths:
 
 $$C(a) + C(b) = \lceil\sqrt{1}\rceil + \lceil\sqrt{2}\rceil = 1 + 2 = 3$$
 
-After the op, `a` and `b` are promoted onto the top of the geometric stack, the result `t = a + b` is pushed, and liveness evicts `a` and `b` (their last use just happened):
+`a` and `b` are promoted onto the top of the geometric stack, the result `p₀ = a*b` is pushed, and liveness evicts `a` and `b` (their last use just happened):
 ```text
-arg stack:  [a, b, c]    ← a and b remain in their slots but no longer matter
-geom stack: [t]          ← t at depth 1
+arg stack:  [a, b, c, d, e]    ← a, b promoted out but slots fixed (c@3, d@4, e@5)
+geom stack: [p₀]               ← p₀ at geom depth 1
 ```
 
-**3. Second operation: `t + c`**
-`t` is read from the geometric stack at depth 1. `c` is a first read — priced against the argument stack at depth 3:
+**3. Second operation: `c * d`**
+Same pattern — two more first reads against the argument stack:
 
-$$C(t) + C(c) = \lceil\sqrt{1}\rceil + \lceil\sqrt{3}\rceil = 1 + 2 = 3$$
+$$C(c) + C(d) = \lceil\sqrt{3}\rceil + \lceil\sqrt{4}\rceil = 2 + 2 = 4$$
 
-**Total cost:** $3 + 3 = 6$. Trace: `[1, 2, 1, 2]`.
+`c`, `d` promoted and die; push `p₁`:
+```text
+arg stack:  [a, b, c, d, e]    ← only e remains unpromoted
+geom stack: [p₀, p₁]           ← p₁ top (depth 1), p₀ at depth 2
+```
+
+**4. Third operation: `p₀ + p₁`**
+Both operands on the geometric stack. Simultaneous pricing against the pre-op snapshot:
+
+$$C(p_0) + C(p_1) = \lceil\sqrt{2}\rceil + \lceil\sqrt{1}\rceil = 2 + 1 = 3$$
+
+`p₀`, `p₁` die; push `p₂`. Geom stack: `[p₂]`.
+
+**5. Fourth operation: `p₂ + e`**
+A **mixed read**: `p₂` is on the geometric stack (depth 1), `e` is a first read against the argument stack (depth 5):
+
+$$C(p_2) + C(e) = \lceil\sqrt{1}\rceil + \lceil\sqrt{5}\rceil = 1 + 3 = 4$$
+
+**Total cost:** $3 + 4 + 3 + 4 = 14$. Trace: `[1, 2, 3, 4, 2, 1, 1, 5]`.
 
 
 ## Inspecting the IR
