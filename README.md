@@ -1,10 +1,10 @@
-# A cost model of complexity for the 21st century: ByteDMD
+# ˜
 
 Data movement matters more than FLOPs. Recently accessed bytes can be cached, penalize non-local reads using the following cost model:
 
 $$C=\sum_{b \in bytes} \sqrt{D(b)}$$
 
-where $D(b)$ is the depth of byte $b$ in the LRU stack. Square-root is motivated by VLSI routing cost in 2D.
+where $D(b)$ is the reuse distance. Square-root is motivated by VLSI routing cost in 2D.
 
 ## Usage
 
