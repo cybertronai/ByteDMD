@@ -36,6 +36,32 @@ def manual_naive_matmul_dsl(n: int) -> int:
     return s.finalize()
 
 
+def manual_naive_tiled_matmul_dsl(n: int, T: int = None) -> int:
+    """Naive matmul with 2x2 block iteration order, no caching."""
+    if T is None:
+        T = n // 2
+    assert n % T == 0
+    nb = n // T
+    s = Sched()
+    A = s.arg_buffer(n * n)
+    B = s.arg_buffer(n * n)
+    tmp = s.scalar()
+    C = s.output_buffer(n * n)
+    for bi in range(nb):
+        for bj in range(nb):
+            for bk in range(nb):
+                for i in range(bi * T, (bi + 1) * T):
+                    for j in range(bj * T, (bj + 1) * T):
+                        for k in range(bk * T, (bk + 1) * T):
+                            if bk == 0 and k == bk * T:
+                                s.mul(A[i * n + k], B[j * n + k],
+                                      C[i * n + j])
+                            else:
+                                s.mac(C[i * n + j],
+                                      A[i * n + k], B[j * n + k], tmp)
+    return s.finalize()
+
+
 def manual_naive_matmul_cached_dsl(n: int) -> int:
     """Naive matmul with A-row hoist (c_A_row) and a hot accumulator."""
     s = Sched()

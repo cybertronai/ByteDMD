@@ -166,6 +166,44 @@ def manual_naive_matmul(n: int) -> int:
     return a.cost
 
 
+def manual_naive_tiled_matmul(n: int, T: int = None) -> int:
+    """Naive matmul with 2x2 block iteration order but NO scratchpad
+    caching — just loop restructuring. Splits A, B, C into (n/T)x(n/T)
+    tiles of T-by-T (default T=n/2 → four blocks each). For each
+    output tile (BI, BJ), iterate over inner K-blocks and do the
+    naive (i,j,k) triple loop contributing into C[i][j] in place.
+
+    Under the fixed-placement sqrt(addr) cost model, the total touch
+    sequence is a permutation of the `manual_naive_matmul` sequence,
+    so the cost is IDENTICAL. This row exists to make explicit that
+    tiling alone — without scratchpad caching — is cost-invisible."""
+    if T is None:
+        T = n // 2
+    assert n % T == 0, "T must divide n"
+    nb = n // T
+    a = _alloc()
+    A = a.alloc_arg(n * n); B = a.alloc_arg(n * n)
+    tmp = a.alloc(1)
+    C = a.alloc(n * n)
+    a.set_output_range(C, C + n * n)
+    for bi in range(nb):
+        for bj in range(nb):
+            for bk in range(nb):
+                for i in range(bi * T, (bi + 1) * T):
+                    for j in range(bj * T, (bj + 1) * T):
+                        for k in range(bk * T, (bk + 1) * T):
+                            a.touch_arg(A + i * n + k)
+                            a.touch_arg(B + j * n + k)
+                            a.write(tmp)
+                            if bk == 0 and k == bk * T:
+                                a.touch(tmp); a.write(C + i * n + j)
+                            else:
+                                a.touch(C + i * n + j); a.touch(tmp)
+                                a.write(C + i * n + j)
+    a.read_output()
+    return a.cost
+
+
 def manual_naive_matmul_cached(n: int) -> int:
     """Naive triple loop C[i][j] = Σₖ A[i][k] · B[j][k], with the
     current A-row hoisted into a hot scratchpad.

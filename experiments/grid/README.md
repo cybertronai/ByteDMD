@@ -60,6 +60,7 @@ DAGs are identical, so `bytedmd_live` / `bytedmd_classic` match — only
 | algorithm                                                            | space_dmd | bytedmd_live | manual      | bytedmd_classic |
 |-----------------------------------------------------------------------|----------:|-------------:|------------:|----------------:|
 | [naive_matmul(n=16)](#naive_matmul)                                   |    79,044 |      109,217 |     177,744 |         181,258 |
+| [naive_tiled_matmul(n=16)](#naive_tiled_matmul)                       |    79,044 |      109,217 |     177,744 |         181,258 |
 | [naive_matmul_cached(n=16)](#naive_matmul_cached)                     |    79,044 |      109,217 |     114,838 |         181,258 |
 | [tiled_matmul(n=16)](#tiled_matmul)                                   |    93,369 |       78,708 |      68,270 |         143,812 |
 | [tiled_matmul_explicit(n=16,T=4)](#tiled_matmul_explicit)             |    73,927 |       99,006 |      68,270 |         201,547 |
@@ -181,6 +182,38 @@ with-scratchpad variant that drops 35 % off this baseline.
 **Working-set size over a τ = 100-event window** (max = 100).
 
 ![](traces/naive_matmul_n_16_wss.png)
+
+---
+
+## naive_tiled_matmul [(code)](scripts/naive_tiled_matmul_n_16.py)
+`n=16, T=8` (four 8×8 blocks). **Algorithm.** Same matmul as
+`naive_matmul` but with a 2×2 block iteration order: iterate over
+output-block `(BI, BJ)`, inner-block `BK`, and then the naive
+triple-loop inside each block. No scratchpads — `tmp` is still the
+only scratch slot.
+
+**Manual placement.** Identical to `naive_matmul` (same `tmp` + `C`
+layout). **Cost is also identical: 177,744.** Under the fixed-
+placement sqrt(addr) cost model, loop reordering is cost-
+invisible: the set of touched addresses and the number of touches
+per address is the same; only their temporal order changes. This
+row exists to make that explicit — tiling alone is worthless;
+the wins come from scratchpad caching (see `naive_matmul_cached`,
+`tiled_matmul`).
+
+![](traces/naive_tiled_matmul_n_16.png)
+
+**Working-set size over time** (peak = 512).
+
+![](traces/naive_tiled_matmul_n_16_liveset.png)
+
+**Reuse distance per load** (max = 512).
+
+![](traces/naive_tiled_matmul_n_16_reuse_distance.png)
+
+**Working-set size over a τ = 100-event window** (max = 100).
+
+![](traces/naive_tiled_matmul_n_16_wss.png)
 
 ---
 

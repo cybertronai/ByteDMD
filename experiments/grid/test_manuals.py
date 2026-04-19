@@ -22,6 +22,7 @@ import check_parity
 import manual as man
 from manual_dsl_examples import (
     manual_naive_matmul_dsl,
+    manual_naive_tiled_matmul_dsl,
     manual_naive_matmul_cached_dsl,
     manual_fft_iterative_dsl,
     manual_fft_recursive_dsl,
@@ -102,6 +103,15 @@ def test_parity() -> None:
 def test_dsl_matches_naive_matmul() -> None:
     dsl_cost = manual_naive_matmul_dsl(16)
     hand_cost = man.manual_naive_matmul(16)
+    ratio = dsl_cost / hand_cost
+    assert 0.95 <= ratio <= 1.05, (
+        f"dsl={dsl_cost}  hand={hand_cost}  ratio={ratio:.3f}"
+    )
+
+
+def test_dsl_matches_naive_tiled_matmul() -> None:
+    dsl_cost = manual_naive_tiled_matmul_dsl(16)
+    hand_cost = man.manual_naive_tiled_matmul(16)
     ratio = dsl_cost / hand_cost
     assert 0.95 <= ratio <= 1.05, (
         f"dsl={dsl_cost}  hand={hand_cost}  ratio={ratio:.3f}"
