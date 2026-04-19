@@ -141,3 +141,4 @@ Research notes on **ByteDMD** (Byte-level Data Movement Distance): a concrete me
 |--------|---------|
 | [bytedmd-upper-bound.md](bytedmd-upper-bound.md) | Companion upper bound to the Tarjan lower bound: OPT manual ≤ 4.0 × bytedmd_live via competitive DMA-managed scratchpad analysis |
 | [illustrative-matmul-tiled.md](illustrative-matmul-tiled.md) | Self-contained walkthrough + Python demo showing why manual scratchpad placement is mathematically optimal on a 2D spatial grid |
+| [demmel-householder-demo.md](demmel-householder-demo.md) | Classical Householder QR vs CAQR/TSQR with Oracle allocator: 1.93x energy reduction via communication avoidance |
