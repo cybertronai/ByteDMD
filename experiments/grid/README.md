@@ -60,7 +60,7 @@ DAGs are identical, so `bytedmd_live` / `bytedmd_classic` match — only
 | algorithm                                                            | space_dmd | bytedmd_live | manual      | bytedmd_classic |
 |-----------------------------------------------------------------------|----------:|-------------:|------------:|----------------:|
 | [naive_matmul(n=16)](#naive_matmul)                                   |    79,044 |      109,217 |     177,744 |         181,258 |
-| [naive_tiled_matmul(n=16)](#naive_tiled_matmul)                       |    79,044 |      109,217 |     153,690 |         181,258 |
+| [naive_tiled_matmul(n=16,k=2)](#naive_tiled_matmul)                   |    79,044 |      109,217 |     154,384 |         181,258 |
 | [naive_matmul_cached(n=16)](#naive_matmul_cached)                     |    79,044 |      109,217 |     114,838 |         181,258 |
 | [tiled_matmul(n=16)](#tiled_matmul)                                   |    93,369 |       78,708 |      68,270 |         143,812 |
 | [tiled_matmul_explicit(n=16,T=4)](#tiled_matmul_explicit)             |    73,927 |       99,006 |      68,270 |         201,547 |
@@ -186,26 +186,39 @@ with-scratchpad variant that drops 35 % off this baseline.
 ---
 
 ## naive_tiled_matmul [(code)](scripts/naive_tiled_matmul_n_16.py)
-`n=16, T=8` (four 8×8 blocks). **Algorithm.** Same matmul as
-`naive_matmul` but with 2×2 block iteration and the simplest
-possible scratchpad strategy: before each inner triple loop, load
-the current A block and current B block into two scratch tiles.
-C is accumulated in place (no C-block cache).
+`n=16, k=2`. **Algorithm.** Same matmul as `naive_matmul` but
+each block caches **k rows of A and k rows of B** (in the
+A·B^T formulation, B's "rows" are the transposed operand's
+columns — semantically one slab per side) and computes **k² output
+entries per block** as full n-wide dot products against those
+two scratch slabs.
 
 **Manual placement.**
 
-  `tmp` (addr 1)              — multiply intermediate
-  `sA`  (addrs 2..T²+1)       — current A block cache (T²=64)
-  `sB`  (addrs T²+2..2T²+1)   — current B block cache
-  `C`   (addrs 2T²+2..)       — output / accumulator in place
+  `tmp` (addr 1)                 — multiply intermediate
+  `sA`  (addrs 2..k·n+1)         — k rows of A (32 cells at k=2)
+  `sB`  (addrs k·n+2..2k·n+1)    — k rows of B
+  `C`   (above sB)               — output / accumulator in place
 
-Each A (or B) cell now pays one arg read at block-load time plus T
-cheap scratch reads inside the inner loop, vs n arg reads under
-`naive_matmul`. Drops manual **177,744 → 153,690** (−14 %) — a
-modest but real win from the minimal caching. Still above
-`naive_matmul_cached` (114,838) because the A-row hoist there
-keeps the whole of A[i][*] hot across all n values of j for fixed
-i (stronger reuse than a square tile), and well above
+**Choice of k.** A sweep of k ∈ {1, 2, 4, 8, 16} for n=16:
+
+| k | manual cost |
+|--:|-----------:|
+| 1 | 177,688 (≈ truly-naive) |
+| **2** | **154,384** ← sweet spot |
+| 4 | 161,084 |
+| 8 | 191,202 |
+| 16 | 245,693 |
+
+Larger k should amortize arg reloads over more scratch reads, but
+it also pushes the scratch footprint deeper — at k=16 both
+matrices sit fully in scratch and each sA/sB read pays
+`sqrt(512)`. Smaller k is near-no-op. k=2 balances the two.
+
+Drops manual **177,744 → 154,384** (−13 %) — modest but real.
+Still above `naive_matmul_cached` (114,838) because the A-row
+hoist there keeps all of A[i][*] hot across every j for fixed i
+(stronger reuse than a square tile), and well above
 `tiled_matmul` (68,270) which adds register-level stationary-
 operand scheduling on top.
 

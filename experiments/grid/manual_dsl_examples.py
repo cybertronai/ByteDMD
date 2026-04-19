@@ -36,41 +36,36 @@ def manual_naive_matmul_dsl(n: int) -> int:
     return s.finalize()
 
 
-def manual_naive_tiled_matmul_dsl(n: int, T: int = None) -> int:
-    """Naive 2x2-block matmul with A-block + B-block scratch tiles."""
-    if T is None:
-        T = n // 2
-    assert n % T == 0
-    nb = n // T
+def manual_naive_tiled_matmul_dsl(n: int, k: int = 2) -> int:
+    """Naive matmul: cache k rows of A + k rows of B, compute k² dot products."""
+    assert n % k == 0
+    nb = n // k
     s = Sched()
     A = s.arg_buffer(n * n)
     B = s.arg_buffer(n * n)
     tmp = s.scalar()
-    sA = s.buffer(T * T)
-    sB = s.buffer(T * T)
+    sA = s.buffer(k * n)
+    sB = s.buffer(k * n)
     C = s.output_buffer(n * n)
     for bi in range(nb):
+        for ii in range(k):
+            for l in range(n):
+                s.assign(A[(bi * k + ii) * n + l], sA[ii * n + l])
         for bj in range(nb):
-            for bk in range(nb):
-                for i in range(T):
-                    for k in range(T):
-                        s.assign(A[(bi * T + i) * n + (bk * T + k)],
-                                 sA[i * T + k])
-                for j in range(T):
-                    for k in range(T):
-                        s.assign(B[(bj * T + j) * n + (bk * T + k)],
-                                 sB[j * T + k])
-                for i in range(T):
-                    for j in range(T):
-                        ii = bi * T + i
-                        jj = bj * T + j
-                        for k in range(T):
-                            if bk == 0 and k == 0:
-                                s.mul(sA[i * T + k], sB[j * T + k],
-                                      C[ii * n + jj])
-                            else:
-                                s.mac(C[ii * n + jj],
-                                      sA[i * T + k], sB[j * T + k], tmp)
+            for jj in range(k):
+                for l in range(n):
+                    s.assign(B[(bj * k + jj) * n + l], sB[jj * n + l])
+            for ii in range(k):
+                for jj in range(k):
+                    i_out = bi * k + ii
+                    j_out = bj * k + jj
+                    for l in range(n):
+                        if l == 0:
+                            s.mul(sA[ii * n + l], sB[jj * n + l],
+                                  C[i_out * n + j_out])
+                        else:
+                            s.mac(C[i_out * n + j_out],
+                                  sA[ii * n + l], sB[jj * n + l], tmp)
     return s.finalize()
 
 

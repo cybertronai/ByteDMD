@@ -166,60 +166,60 @@ def manual_naive_matmul(n: int) -> int:
     return a.cost
 
 
-def manual_naive_tiled_matmul(n: int, T: int = None) -> int:
-    """Naive matmul with 2x2 block iteration order AND the simplest
-    possible scratchpad strategy: load the current A block and the
-    current B block into scratch once per (BI, BJ, BK) iteration,
-    then run the naive (i, j, k) triple loop against those two
-    scratch tiles. C is accumulated in place (no C-block cache).
+def manual_naive_tiled_matmul(n: int, k: int = 2) -> int:
+    """Naive matmul where each block caches k rows of A and k rows of
+    B (k·n cells each) and computes k² entries against those two
+    scratch slabs. Output block (bi, bj) covers k² C entries at
+    C[bi·k..bi·k+k-1, bj·k..bj·k+k-1]; each entry is a full n-wide
+    dot product against rows of sA and sB.
 
-      tmp (addr 1)           — multiply intermediate
-      sA  (addrs 2..T^2+1)   — current A block cache
-      sB  (addrs T^2+2..2T^2+1) — current B block cache
-      C   (above sB)         — output / accumulator in place
+      tmp (addr 1)               — multiply intermediate
+      sA  (addrs 2..k·n+1)       — k rows of A
+      sB  (addrs k·n+2..2k·n+1)  — k rows of B
+      C   (above sB)             — output / accumulator in place
 
-    Each A cell now pays one arg read (during block load) plus T
-    scratch reads (inside the inner loop), vs n arg reads under
-    `manual_naive_matmul`. For n=16 this drops manual 177,744 →
-    less."""
-    if T is None:
-        T = n // 2
-    assert n % T == 0, "T must divide n"
-    nb = n // T
+    For n=16, a sweep of k ∈ {1, 2, 4, 8, 16} picks k=2 (154,384)
+    as the sweet spot. Smaller k is a near-no-op (k=1: 177,688
+    essentially ties truly-naive); larger k bloats the scratch
+    footprint faster than it amortizes arg reloads (k=16 caches
+    both matrices entirely but pays ~246k because sA/sB reads then
+    cost sqrt(512) each). The chosen k balances fewer arg reloads
+    against keeping the scratch tail cheap."""
+    assert n % k == 0, "k must divide n"
+    nb = n // k
     a = _alloc()
     A = a.alloc_arg(n * n); B = a.alloc_arg(n * n)
     tmp = a.alloc(1)
-    sA = a.alloc(T * T)
-    sB = a.alloc(T * T)
+    sA = a.alloc(k * n)
+    sB = a.alloc(k * n)
     C = a.alloc(n * n)
     a.set_output_range(C, C + n * n)
     for bi in range(nb):
+        # Load k rows of A once per bi.
+        for ii in range(k):
+            for l in range(n):
+                a.touch_arg(A + (bi * k + ii) * n + l)
+                a.write(sA + ii * n + l)
         for bj in range(nb):
-            for bk in range(nb):
-                # Load A block (bi, bk) into sA.
-                for i in range(T):
-                    for k in range(T):
-                        a.touch_arg(A + (bi * T + i) * n + (bk * T + k))
-                        a.write(sA + i * T + k)
-                # Load B block (bj, bk) into sB.
-                for j in range(T):
-                    for k in range(T):
-                        a.touch_arg(B + (bj * T + j) * n + (bk * T + k))
-                        a.write(sB + j * T + k)
-                # Naive triple loop against the two scratch tiles.
-                for i in range(T):
-                    for j in range(T):
-                        for k in range(T):
-                            a.touch(sA + i * T + k)
-                            a.touch(sB + j * T + k)
-                            a.write(tmp)
-                            ii = bi * T + i
-                            jj = bj * T + j
-                            if bk == 0 and k == 0:
-                                a.touch(tmp); a.write(C + ii * n + jj)
-                            else:
-                                a.touch(C + ii * n + jj); a.touch(tmp)
-                                a.write(C + ii * n + jj)
+            # Load k rows of B once per (bi, bj).
+            for jj in range(k):
+                for l in range(n):
+                    a.touch_arg(B + (bj * k + jj) * n + l)
+                    a.write(sB + jj * n + l)
+            # k² full-length dot products against the two scratch slabs.
+            for ii in range(k):
+                for jj in range(k):
+                    i_out = bi * k + ii
+                    j_out = bj * k + jj
+                    for l in range(n):
+                        a.touch(sA + ii * n + l)
+                        a.touch(sB + jj * n + l)
+                        a.write(tmp)
+                        if l == 0:
+                            a.touch(tmp); a.write(C + i_out * n + j_out)
+                        else:
+                            a.touch(C + i_out * n + j_out); a.touch(tmp)
+                            a.write(C + i_out * n + j_out)
     a.read_output()
     return a.cost
 
