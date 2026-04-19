@@ -42,6 +42,10 @@ from manual_dsl_examples import (
     manual_spmv_csr_banded_dsl,
     manual_spmv_csr_random_dsl,
     manual_stencil_naive_dsl,
+    manual_fft_conv_dsl,
+    manual_matrix_powers_naive_dsl,
+    manual_matrix_powers_ca_dsl,
+    manual_regular_convolution_dsl,
 )
 
 
@@ -226,6 +230,30 @@ def test_dsl_matches_spmv_csr_random() -> None:
 def test_dsl_matches_stencil_naive() -> None:
     _within_tolerance(manual_stencil_naive_dsl(32),
                       man.manual_stencil_naive(32))
+
+
+def test_dsl_matches_fft_conv() -> None:
+    dsl_cost = manual_fft_conv_dsl(256)
+    hand_cost = man.manual_fft_conv(256)
+    ratio = dsl_cost / hand_cost
+    assert 0.95 <= ratio <= 1.05, (
+        f"dsl={dsl_cost}  hand={hand_cost}  ratio={ratio:.3f}"
+    )
+
+
+def test_dsl_matches_matrix_powers_naive() -> None:
+    _within_tolerance(manual_matrix_powers_naive_dsl(32, 4),
+                      man.manual_matrix_powers_naive(32, 4))
+
+
+def test_dsl_matches_matrix_powers_ca() -> None:
+    _within_tolerance(manual_matrix_powers_ca_dsl(32, 4, 4),
+                      man.manual_matrix_powers_ca(32, 4, 4))
+
+
+def test_dsl_matches_regular_convolution() -> None:
+    _within_tolerance(manual_regular_convolution_dsl(16, 16, 3, 2, 2),
+                      man.manual_regular_convolution(16, 16, 3, 2, 2))
 
 
 def test_dsl_matches_layernorm_fused() -> None:

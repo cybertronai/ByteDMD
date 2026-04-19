@@ -694,6 +694,141 @@ def manual_spmv_csr_random_dsl(n: int, nnz_per_row: int = 7,
 
 
 # ---------------------------------------------------------------------------
+# fft_conv — FFT-based convolution: forward FFT on X and Y, pointwise
+# multiply, inverse FFT (here just another forward, cost parity only).
+# ---------------------------------------------------------------------------
+
+def manual_fft_conv_dsl(N: int) -> int:
+    sch = Sched()
+    X_in = sch.arg_buffer(N); Y_in = sch.arg_buffer(N)
+    tmp = sch.scalar()
+    X = sch.buffer(N); Y = sch.buffer(N); Z = sch.output_buffer(N)
+    for i in range(N):
+        sch.assign(X_in[i], X[i])
+        sch.assign(Y_in[i], Y[i])
+
+    def fft_in_place(base):
+        j = 0
+        for i in range(1, N):
+            bit = N >> 1
+            while j & bit:
+                j ^= bit
+                bit >>= 1
+            j ^= bit
+            if i < j:
+                sch.swap(base[i], base[j], tmp)
+        m = 1
+        while m < N:
+            for k in range(0, N, m * 2):
+                for jj in range(m):
+                    sch.butterfly(base[k + jj], base[k + jj + m], tmp)
+            m *= 2
+
+    fft_in_place(X)
+    fft_in_place(Y)
+    for k in range(N):
+        # Z[k] = X[k] * Y[k] — single binary op, 2 reads + free write.
+        sch.mul(X[k], Y[k], Z[k])
+    fft_in_place(Z)
+    return sch.finalize()
+
+
+# ---------------------------------------------------------------------------
+# matrix_powers — naive vs. communication-avoiding. Both are just
+# repeated matvecs with A on arg + a scratch ping-pong buffer.
+# ---------------------------------------------------------------------------
+
+def manual_matrix_powers_naive_dsl(n: int, s: int = 4) -> int:
+    sch = Sched()
+    A = sch.arg_buffer(n * n); x0 = sch.arg_buffer(n)
+    cur = sch.buffer(n); nxt = sch.buffer(n)
+    acc = sch.scalar(); tmp = sch.scalar()
+    for i in range(n):
+        sch.assign(x0[i], cur[i])
+    for _step in range(s):
+        for i in range(n):
+            sch.mul(A[i * n + 0], cur[0], acc)
+            for j in range(1, n):
+                sch.mac(acc, A[i * n + j], cur[j], tmp)
+            sch.assign(acc, nxt[i])
+        for i in range(n):
+            sch.assign(nxt[i], cur[i])
+    # The hand-rolled calls set_output_range only on the final cur.
+    sch._a.set_output_range(cur[0].addr, cur[0].addr + n)
+    sch._output_cells = cur
+    return sch.finalize()
+
+
+def manual_matrix_powers_ca_dsl(n: int, s: int = 4, block: int = 4) -> int:
+    sch = Sched()
+    A = sch.arg_buffer(n * n); x0 = sch.arg_buffer(n)
+    cur = sch.buffer(n); nxt = sch.buffer(n)
+    acc = sch.scalar(); tmp = sch.scalar()
+    for i in range(n):
+        sch.assign(x0[i], cur[i])
+    for _step in range(s):
+        for bi in range(0, n, block):
+            for i in range(bi, min(bi + block, n)):
+                sch.mul(A[i * n + 0], cur[0], acc)
+                for j in range(1, n):
+                    sch.mac(acc, A[i * n + j], cur[j], tmp)
+                sch.assign(acc, nxt[i])
+        for i in range(n):
+            sch.assign(nxt[i], cur[i])
+    sch._a.set_output_range(cur[0].addr, cur[0].addr + n)
+    sch._output_cells = cur
+    return sch.finalize()
+
+
+# ---------------------------------------------------------------------------
+# regular_convolution — multi-channel CNN layer with rolling K-row img cache.
+# ---------------------------------------------------------------------------
+
+def manual_regular_convolution_dsl(H: int, W: int, K: int,
+                                   Cin: int, Cout: int) -> int:
+    sch = Sched()
+    Wk = sch.arg_buffer(K * K * Cin * Cout)
+    img = sch.arg_buffer(H * W * Cin)
+    tmp = sch.scalar(); s = sch.scalar()
+    row_stride = W * Cin
+    buf = sch.buffer(K * row_stride)
+    out_h = H - K + 1
+    out_w = W - K + 1
+    O = sch.output_buffer(out_h * out_w * Cout)
+
+    def load_row(r):
+        slot_off = (r % K) * row_stride
+        base_arg = r * row_stride
+        for x in range(row_stride):
+            sch.assign(img[base_arg + x], buf[slot_off + x])
+
+    for r in range(K):
+        load_row(r)
+
+    for i in range(out_h):
+        if i > 0:
+            load_row(i + K - 1)
+        for j in range(out_w):
+            for co in range(Cout):
+                first = True
+                for ki in range(K):
+                    slot_off = ((i + ki) % K) * row_stride
+                    for kj in range(K):
+                        col_off = (j + kj) * Cin
+                        wk_off = ((ki * K + kj) * Cin) * Cout + co
+                        for ci in range(Cin):
+                            if first:
+                                sch.mul(buf[slot_off + col_off + ci],
+                                        Wk[wk_off + ci * Cout], s)
+                                first = False
+                            else:
+                                sch.mac(s, buf[slot_off + col_off + ci],
+                                        Wk[wk_off + ci * Cout], tmp)
+                sch.assign(s, O[(i * out_w + j) * Cout + co])
+    return sch.finalize()
+
+
+# ---------------------------------------------------------------------------
 # stencil_naive — rolling 3-row buffer, 5-point Jacobi sweep.
 # ---------------------------------------------------------------------------
 
