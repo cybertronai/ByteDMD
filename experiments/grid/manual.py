@@ -987,58 +987,103 @@ def manual_heapsort(N: int) -> int:
 
 
 def manual_mergesort(N: int) -> int:
-    """Bottom-up iterative mergesort, two-buffer ping-pong.
+    """Perfect in-place oblivious mergesort with L1 scratchpad and
+    register hoisting (gemini/optimize-mergesort.md).
 
-    Two fixed scratch buffers occupy addrs 1..2N (buf_a, buf_b); each
-    merge pass reads from src and writes to dst, then the two swap.
-    This avoids the per-recursion-level temp allocation of the classic
-    recursive schedule (peak scratch was 2N there too, but merged into
-    a copy-back step that added a whole extra N-read per level). No
-    copy-back, no stack climb — just log₂N passes of 2-read-1-write
-    merges at low scratch addresses.
+    By strictly tracking the lifetimes of read variables, the merge
+    operates entirely in place — the c_A / c_B scalar registers hold
+    left[half-1] and right[0] (the two boundary values that the
+    oblivious merge repeatedly re-reads) before the k-sweep, so the
+    in-place write of left[k]→arr[k] never conflicts with the still-
+    needed boundary reads.
 
-    The initial pass fuses with the preload: instead of preloading
-    arg → buf_a as a separate phase, the first merge (width=1) reads
-    the singletons straight from the arg stack into buf_a. The final
-    output range is set dynamically to whichever buffer holds the
-    fully-merged result."""
+    Scratchpad layout:
+      c_A  (addr 1)       — left[half-1] boundary cache
+      c_B  (addr 2)       — right[0]     boundary cache
+      S    (addr 3..10)   — L1 scratchpad for subtrees of size ≤ 8
+      arr  (addr 11..N+10) — main output array
+
+    Subtrees up to S_size use the L1 scratchpad; at the first level
+    where a half equals S_size, we compute the left half in S, copy
+    it to arr, then compute the right half in S and merge directly
+    into arr. Above that level the merge runs fully in-place on arr.
+    """
     a = _alloc()
     arr_in = a.alloc_arg(N)
-    buf_a = a.alloc(N)
-    buf_b = a.alloc(N)
+    c_A = a.alloc(1)
+    c_B = a.alloc(1)
+    S_size = 8
+    S = a.alloc(S_size)
+    arr = a.alloc(N)
+    a.set_output_range(arr, arr + N)
 
-    # Width-1 pass: fused preload from arg stack. Each output cell is
-    # still produced by "2 reads" (the two singletons in the pair) to
-    # match the merge pattern and keep the trace shape stable.
-    for start in range(0, N, 2):
-        if start + 1 < N:
-            a.touch_arg(arr_in + start); a.touch_arg(arr_in + start + 1)
-            a.write(buf_a + start); a.write(buf_a + start + 1)
+    def rec(base: int, sz: int, dest: str) -> None:
+        if sz == 1:
+            a.touch_arg(arr_in + base)
+            if dest == 'S':
+                a.write(S + (base % S_size))
+            else:
+                a.write(arr + base)
+            return
+
+        half = sz // 2
+
+        if sz <= S_size and dest == 'S':
+            rec(base, half, 'S')
+            rec(base + half, sz - half, 'S')
+            a.touch(S + ((base + half - 1) % S_size)); a.write(c_A)
+            a.touch(S + ((base + half) % S_size));     a.write(c_B)
+            for k in range(sz):
+                li = k if k < half else half - 1
+                ri = k - half if k >= half else 0
+                if li == half - 1:
+                    a.touch(c_A)
+                else:
+                    a.touch(S + ((base + li) % S_size))
+                if ri == 0:
+                    a.touch(c_B)
+                else:
+                    a.touch(S + ((base + half + ri) % S_size))
+                a.write(S + ((base + k) % S_size))
+        elif half == S_size:
+            rec(base, half, 'S')
+            for i in range(half):
+                a.touch(S + ((base + i) % S_size))
+                a.write(arr + base + i)
+            rec(base + half, half, 'S')
+            a.touch(arr + base + half - 1); a.write(c_A)
+            a.touch(S + ((base + half) % S_size)); a.write(c_B)
+            for k in range(sz):
+                li = k if k < half else half - 1
+                ri = k - half if k >= half else 0
+                if li == half - 1:
+                    a.touch(c_A)
+                else:
+                    a.touch(arr + base + li)
+                if ri == 0:
+                    a.touch(c_B)
+                else:
+                    a.touch(S + ((base + half + ri) % S_size))
+                a.write(arr + base + k)
         else:
-            a.touch_arg(arr_in + start); a.write(buf_a + start)
+            rec(base, half, 'arr')
+            rec(base + half, sz - half, 'arr')
+            a.touch(arr + base + half - 1); a.write(c_A)
+            a.touch(arr + base + half);     a.write(c_B)
+            for k in range(sz):
+                li = k if k < half else half - 1
+                ri = k - half if k >= half else 0
+                if li == half - 1:
+                    a.touch(c_A)
+                else:
+                    a.touch(arr + base + li)
+                if ri == 0:
+                    a.touch(c_B)
+                else:
+                    a.touch(arr + base + half + ri)
+                a.write(arr + base + k)
 
-    src, dst = buf_a, buf_b
-    width = 2
-    while width < N:
-        for start in range(0, N, 2 * width):
-            half = min(width, N - start)
-            right_len = min(width, max(0, N - start - half))
-            if right_len == 0:
-                # Odd tail run — just copy src → dst.
-                for k in range(half):
-                    a.touch(src + start + k); a.write(dst + start + k)
-                continue
-            total = half + right_len
-            for k in range(total):
-                left_idx = min(k, half - 1)
-                right_idx = min(max(0, k - half), right_len - 1)
-                a.touch(src + start + left_idx)
-                a.touch(src + start + half + right_idx)
-                a.write(dst + start + k)
-        src, dst = dst, src
-        width *= 2
-
-    a.set_output_range(src, src + N)
+    rec(0, N, 'arr')
     a.read_output()
     return a.cost
 

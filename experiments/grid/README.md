@@ -79,7 +79,7 @@ DAGs are identical, so `bytedmd_live` / `bytedmd_classic` match — only
 | [fft_conv(N=256)](#fft_conv)                                          |   110,194 |      148,641 |     152,812 |         233,158 |
 | [quicksort(N=64)](#quicksort)                                         |     2,470 |        2,852 |       4,718 |           4,292 |
 | [heapsort(N=64)](#heapsort)                                           |     3,597 |        4,696 |       5,523 |           7,889 |
-| [mergesort(N=64)](#mergesort)                                         |     2,474 |        3,148 |       5,890 |           4,411 |
+| [mergesort(N=64)](#mergesort)                                         |     2,474 |        3,148 |       3,386 |           4,411 |
 | [lcs_dp(32x32)](#lcs_dp)                                              |    23,497 |       29,980 |      27,192 |          44,575 |
 | [lu_no_pivot(n=32)](#lu_no_pivot)                                     |   482,123 |      407,042 |     382,440 |         705,126 |
 | [blocked_lu(n=32,NB=8)](#blocked_lu)                                  |   365,960 |      283,294 |     236,290 |         515,134 |
@@ -761,14 +761,25 @@ data-oblivious stand-in (2 reads per output cell) since `_Tracked`
 doesn't implement `__lt__` — the access traffic matches a real
 comparison-based merge.
 
-**Manual placement.** Bottom-up iterative mergesort with two-buffer
-ping-pong: `buf_a` (addrs 1..N) and `buf_b` (addrs N+1..2N). Each
-merge pass reads from one, writes the other, then swaps — no
-per-level temp allocation and no separate copy-back pass. The first
-pass also fuses with the preload, reading singletons directly from
-the arg stack into `buf_a`. The final output range is set dynamically
-to whichever buffer finished with the sorted result. Manual drops
-from 9,160 to **5,890** (−36%) — analog of the recursive-FFT fix.
+**Manual placement.** Perfect in-place oblivious merge with register
+hoisting + an L1 scratchpad for the deep-subtree leaves (gemini's
+suggestion in `gemini/optimize-mergesort.md`):
+  `c_A` (addr 1) caches `left[half-1]` before the k-sweep;
+  `c_B` (addr 2) caches `right[0]` before the k-sweep;
+  `S` (addrs 3..10) is an 8-slot L1 scratchpad used for subtrees of
+  size ≤ 8 (leaves of the recursion tree);
+  `arr` (addrs 11..N+10) is the sole target array.
+Because the oblivious merge pattern only repeats left[half-1] and
+right[0] as clamped boundary reads, hoisting them into `c_A`/`c_B`
+makes every in-place write of `arr[base+k]` safe — no temp buffers
+at any level. Subtrees up to `S_size` compute in `S`; at the first
+level where a half equals `S_size` we compute the left half in S,
+copy to arr, then compute the right half in S and merge into arr.
+
+Trajectory: 9,160 (original recursive push/pop) → 5,890 (my
+ping-pong rewrite) → **3,386** (−63% from original). Now beats
+`bytedmd_classic` (4,411) outright and is just 7.5% above
+`bytedmd_live` (3,148).
 
 ![](traces/mergesort_n_64.png)
 
