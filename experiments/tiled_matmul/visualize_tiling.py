@@ -65,8 +65,8 @@ def trace_tiled_matmul(N, T):
 
 
 def main():
-    N = 64
-    T = 16
+    N = 8
+    T = 4
 
     print(f"Tracing Naive Matmul (N={N})...")
     A_n, B_n = trace_naive_matmul(N)
@@ -77,43 +77,44 @@ def main():
     time_t = np.arange(len(A_t))
 
     print("Rendering plots...")
-    fig, axes = plt.subplots(2, 1, figsize=(14, 10), sharex=True, sharey=True)
+    fig, axes = plt.subplots(2, 1, figsize=(12, 9), sharex=True, sharey=True)
 
     offset_B = N * N
-    scatter_kws = {'s': 0.1, 'alpha': 0.5, 'rasterized': True}
+    scatter_kws = {'s': 8, 'alpha': 0.7, 'rasterized': True, 'linewidths': 0}
 
     # --- TOP PANEL: NAIVE ---
-    axes[0].scatter(time_n, A_n, color='tab:blue', label='Matrix A', **scatter_kws)
-    axes[0].scatter(time_n, B_n + offset_B, color='tab:red', label='Matrix B', **scatter_kws)
+    axes[0].scatter(time_n, A_n, color='tab:blue', label='Matrix A reads', **scatter_kws)
+    axes[0].scatter(time_n, B_n + offset_B, color='tab:red', label='Matrix B reads', **scatter_kws)
     axes[0].set_title(
-        r"NAIVE Matrix Multiplication ($A \times B^T$)" "\n"
-        "Notice the massive, repeated sweeps through the entirety of Matrix B (Cache Thrashing)",
-        fontsize=14, fontweight='bold', pad=10)
-    axes[0].set_ylabel("1D Physical Memory Address", fontsize=12)
-    leg = axes[0].legend(loc='upper right', markerscale=20, framealpha=0.95, fontsize=11)
-    for lh in leg.legend_handles:
-        lh.set_alpha(1)
+        r"NAIVE Matrix Multiplication ($A \times B^T$), N=8" "\n"
+        "B is swept top-to-bottom for every output element (cache thrashing)",
+        fontsize=13, fontweight='bold', pad=10)
+    axes[0].set_ylabel("1D Physical Address", fontsize=11)
+    leg = axes[0].legend(loc='upper right', markerscale=3, framealpha=0.95, fontsize=10)
 
     # --- BOTTOM PANEL: TILED ---
-    axes[1].scatter(time_t, A_t, color='tab:blue', **scatter_kws)
-    axes[1].scatter(time_t, B_t + offset_B, color='tab:red', **scatter_kws)
+    axes[1].scatter(time_t, A_t, color='tab:blue', label='Matrix A reads', **scatter_kws)
+    axes[1].scatter(time_t, B_t + offset_B, color='tab:red', label='Matrix B reads', **scatter_kws)
     axes[1].set_title(
         f"TILED Matrix Multiplication (Tile = {T}x{T})\n"
-        f"Accesses are strictly locked into small blocks, maximizing Cache Hits",
-        fontsize=14, fontweight='bold', pad=10)
-    axes[1].set_xlabel("Time (Instruction Sequence / Access Index)", fontsize=12)
-    axes[1].set_ylabel("1D Physical Memory Address", fontsize=12)
+        f"Accesses locked into small blocks — each tile fits in cache",
+        fontsize=13, fontweight='bold', pad=10)
+    axes[1].set_xlabel("Time (Access Index)", fontsize=11)
+    axes[1].set_ylabel("1D Physical Address", fontsize=11)
+    axes[1].legend(loc='upper right', markerscale=3, framealpha=0.95, fontsize=10)
 
     for ax in axes:
         ax.axhline(offset_B, color='black', lw=1, ls='--', alpha=0.5)
-        ax.set_yticks([N * N // 2, offset_B + (N * N) // 2])
-        ax.set_yticklabels(['Matrix A Space', 'Matrix B Space'], fontsize=12, fontweight='bold')
+        ax.set_yticks([0, N*N//2, N*N, offset_B + N*N//2, 2*N*N])
+        ax.set_yticklabels(['0', f'{N*N//2}', f'{N*N}\nA|B boundary',
+                            f'{offset_B + N*N//2}', f'{2*N*N}'], fontsize=9)
         ax.grid(True, alpha=0.3)
 
     plt.tight_layout()
     out = os.path.join(os.path.dirname(__file__), 'matmul_access_pattern.png')
-    plt.savefig(out, dpi=200, bbox_inches='tight')
+    plt.savefig(out, dpi=150, bbox_inches='tight')
     print(f"Saved: {out}")
+    print(f"N={N}, T={T}: {len(A_n):,} accesses per matrix")
 
 
 if __name__ == "__main__":

@@ -230,7 +230,8 @@ def main() -> None:
         mx = max(rd_d) if rd_d else 0
         med = sorted(rd_d)[len(rd_d) // 2] if rd_d else 0
 
-        window = pick_wss_window(rd_d, len(events))
+        FIXED_TAU = 100
+        window = FIXED_TAU
         wss_t, wss_s = working_set_over_time(events, window)
         wss_max = max(wss_s) if wss_s else 0
 
