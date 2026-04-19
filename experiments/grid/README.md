@@ -161,67 +161,564 @@ Attention uses proxy `max`, `exp`, and reciprocal operators with the same read a
 
 ## Trace Diagnostics
 
-These follow the dev-branch style plots for the current `ByteDMD-live` path: each algorithm gets a reuse-distance-per-load scatter plot and a working-set-size-over-time step plot under [`diagnostics/`](./diagnostics/).
+These follow the dev-branch style plots for the current `ByteDMD-live` path: every algorithm gets an inline reuse-distance-per-load scatter plot and a working-set-size-over-time step plot on this page.
 
 A tab-separated summary is also saved as [`diagnostics/diagnostics_summary.tsv`](./diagnostics/diagnostics_summary.tsv).
 
-| Algorithm | Peak live | Max reuse | Median reuse | Working-set plot | Reuse-distance plot |
-| --- | --- | --- | --- | --- | --- |
-| Naive Matmul | 770 | 768 | 34 | [link](diagnostics/naive-matmul-16_liveset.png) | [link](diagnostics/naive-matmul-16_reuse_distance.png) |
-| Tiled Matmul | 771 | 768 | 11 | [link](diagnostics/tiled-matmul-16_liveset.png) | [link](diagnostics/tiled-matmul-16_reuse_distance.png) |
-| Recursive Matmul | 896 | 768 | 11 | [link](diagnostics/rmm-16_liveset.png) | [link](diagnostics/rmm-16_reuse_distance.png) |
-| Recursive In-Place (Lex) | 770 | 768 | 6 | [link](diagnostics/rmm-lex-16_liveset.png) | [link](diagnostics/rmm-lex-16_reuse_distance.png) |
-| Recursive In-Place (Gray) | 770 | 768 | 7 | [link](diagnostics/rmm-gray-16_liveset.png) | [link](diagnostics/rmm-gray-16_reuse_distance.png) |
-| Strassen | 1,194 | 1,023 | 13 | [link](diagnostics/strassen-16_liveset.png) | [link](diagnostics/strassen-16_reuse_distance.png) |
-| Fused Strassen | 774 | 773 | 8 | [link](diagnostics/fused-strassen-16_liveset.png) | [link](diagnostics/fused-strassen-16_reuse_distance.png) |
-| Naive Attention (d=2) | 2,309 | 2,082 | 4 | [link](diagnostics/naive-attention-32x2_liveset.png) | [link](diagnostics/naive-attention-32x2_reuse_distance.png) |
-| Flash Attention (Bk=8) | 409 | 343 | 4 | [link](diagnostics/flash-attention-32x2-b8_liveset.png) | [link](diagnostics/flash-attention-32x2-b8_reuse_distance.png) |
-| Naive Attention (d=4) | 2,565 | 2,146 | 4 | [link](diagnostics/regular-attention-32x4_liveset.png) | [link](diagnostics/regular-attention-32x4_reuse_distance.png) |
-| Flash Attention | 723 | 593 | 5 | [link](diagnostics/flash-attention-32x4_liveset.png) | [link](diagnostics/flash-attention-32x4_reuse_distance.png) |
-| LayerNorm (Unfused) | 2,057 | 2,054 | 4 | [link](diagnostics/layernorm-unfused-1024_liveset.png) | [link](diagnostics/layernorm-unfused-1024_reuse_distance.png) |
-| LayerNorm (Fused) | 2,058 | 2,055 | 4 | [link](diagnostics/layernorm-fused-1024_liveset.png) | [link](diagnostics/layernorm-fused-1024_reuse_distance.png) |
-| Matvec | 1,090 | 1,056 | 25 | [link](diagnostics/matvec-32_liveset.png) | [link](diagnostics/matvec-32_reuse_distance.png) |
-| Vecmat | 1,090 | 1,056 | 13 | [link](diagnostics/vecmat-32_liveset.png) | [link](diagnostics/vecmat-32_reuse_distance.png) |
-| Matvec Row | 4,226 | 4,160 | 49 | [link](diagnostics/matvec-row-64_liveset.png) | [link](diagnostics/matvec-row-64_reuse_distance.png) |
-| Matvec Column | 4,226 | 4,160 | 23 | [link](diagnostics/matvec-col-64_liveset.png) | [link](diagnostics/matvec-col-64_reuse_distance.png) |
-| Matrix Powers (Naive) | 1,122 | 1,088 | 65 | [link](diagnostics/matrix-powers-naive-32-s4_liveset.png) | [link](diagnostics/matrix-powers-naive-32-s4_reuse_distance.png) |
-| Matrix Powers (CA) | 1,473 | 1,024 | 66 | [link](diagnostics/matrix-powers-ca-32-s4_liveset.png) | [link](diagnostics/matrix-powers-ca-32-s4_reuse_distance.png) |
-| SpMV CSR (Banded) | 567 | 560 | 14 | [link](diagnostics/spmv-csr-banded-64_liveset.png) | [link](diagnostics/spmv-csr-banded-64_reuse_distance.png) |
-| SpMV CSR (Random) | 579 | 569 | 28 | [link](diagnostics/spmv-csr-random-64_liveset.png) | [link](diagnostics/spmv-csr-random-64_reuse_distance.png) |
-| Row Scan | 4,098 | 4,096 | 1 | [link](diagnostics/scan-row-64_liveset.png) | [link](diagnostics/scan-row-64_reuse_distance.png) |
-| Column Scan | 4,098 | 4,096 | 1 | [link](diagnostics/scan-column-64_liveset.png) | [link](diagnostics/scan-column-64_reuse_distance.png) |
-| Transpose (Naive) | 2,048 | 2,047 | 836 | [link](diagnostics/transpose-naive-32_liveset.png) | [link](diagnostics/transpose-naive-32_reuse_distance.png) |
-| Transpose (Blocked) | 2,048 | 2,047 | 821 | [link](diagnostics/transpose-blocked-32_liveset.png) | [link](diagnostics/transpose-blocked-32_reuse_distance.png) |
-| Transpose (Recursive) | 2,048 | 2,047 | 832 | [link](diagnostics/transpose-recursive-32_liveset.png) | [link](diagnostics/transpose-recursive-32_reuse_distance.png) |
-| FFT (Iterative) | 2,051 | 2,048 | 3 | [link](diagnostics/fft-iterative-1024_liveset.png) | [link](diagnostics/fft-iterative-1024_reuse_distance.png) |
-| FFT (Recursive) | 3,073 | 2,559 | 3 | [link](diagnostics/fft-recursive-1024_liveset.png) | [link](diagnostics/fft-recursive-1024_reuse_distance.png) |
-| Stencil (Naive) | 2,049 | 2,047 | 9 | [link](diagnostics/jacobi-naive-32_liveset.png) | [link](diagnostics/jacobi-naive-32_reuse_distance.png) |
-| Stencil (Recursive) | 2,049 | 2,047 | 9 | [link](diagnostics/jacobi-recursive-32_liveset.png) | [link](diagnostics/jacobi-recursive-32_reuse_distance.png) |
-| Stencil (Time-Naive) | 3,074 | 2,048 | 9 | [link](diagnostics/stencil-time-naive-32-t4_liveset.png) | [link](diagnostics/stencil-time-naive-32-t4_reuse_distance.png) |
-| Stencil (Time-Diamond) | 2,817 | 2,385 | 9 | [link](diagnostics/stencil-time-diamond-32-t4_liveset.png) | [link](diagnostics/stencil-time-diamond-32-t4_reuse_distance.png) |
-| Spatial Conv (2D, 16x16) | 539 | 537 | 33 | [link](diagnostics/conv2d-spatial-16x16-k5_liveset.png) | [link](diagnostics/conv2d-spatial-16x16-k5_reuse_distance.png) |
-| Spatial Conv (2D, 32x32) | 2,075 | 2,073 | 34 | [link](diagnostics/spatial-conv-32x32-k5_liveset.png) | [link](diagnostics/spatial-conv-32x32-k5_reuse_distance.png) |
-| Regular Conv | 2,194 | 2,192 | 51 | [link](diagnostics/regular-conv-16x16-k3-c4_liveset.png) | [link](diagnostics/regular-conv-16x16-k3-c4_reuse_distance.png) |
-| FFT Conv (1D) | 225 | 127 | 3 | [link](diagnostics/fft-conv-32_liveset.png) | [link](diagnostics/fft-conv-32_reuse_distance.png) |
-| FFT Conv (2D) | 5,715 | 3,096 | 3 | [link](diagnostics/conv2d-fft-16x16-k5_liveset.png) | [link](diagnostics/conv2d-fft-16x16-k5_reuse_distance.png) |
-| Mergesort | 192 | 159 | 3 | [link](diagnostics/mergesort-64_liveset.png) | [link](diagnostics/mergesort-64_reuse_distance.png) |
-| Bitonic Sort | 130 | 127 | 61 | [link](diagnostics/bitonic-sort-64_liveset.png) | [link](diagnostics/bitonic-sort-64_reuse_distance.png) |
-| LCS DP | 1,155 | 1,152 | 4 | [link](diagnostics/lcs-dp-32x32_liveset.png) | [link](diagnostics/lcs-dp-32x32_reuse_distance.png) |
-| Floyd-Warshall (Naive) | 2,050 | 2,047 | 4 | [link](diagnostics/floyd-warshall-naive-32_liveset.png) | [link](diagnostics/floyd-warshall-naive-32_reuse_distance.png) |
-| Floyd-Warshall (Recursive) | 2,050 | 2,047 | 4 | [link](diagnostics/floyd-warshall-recursive-32_liveset.png) | [link](diagnostics/floyd-warshall-recursive-32_reuse_distance.png) |
-| Gaussian Elimination | 1,228 | 1,200 | 25 | [link](diagnostics/gaussian-elimination-24_liveset.png) | [link](diagnostics/gaussian-elimination-24_reuse_distance.png) |
-| Gauss-Jordan Inverse | 772 | 767 | 44 | [link](diagnostics/gauss-jordan-inverse-16_liveset.png) | [link](diagnostics/gauss-jordan-inverse-16_reuse_distance.png) |
-| LU (No Pivot) | 1,431 | 1,152 | 29 | [link](diagnostics/lu-no-pivot-24_liveset.png) | [link](diagnostics/lu-no-pivot-24_reuse_distance.png) |
-| LU (Blocked) | 2,710 | 1,409 | 10 | [link](diagnostics/blocked-lu-24_liveset.png) | [link](diagnostics/blocked-lu-24_reuse_distance.png) |
-| LU (Recursive) | 2,115 | 1,325 | 15 | [link](diagnostics/recursive-lu-24_liveset.png) | [link](diagnostics/recursive-lu-24_reuse_distance.png) |
-| LU (Partial Pivot) | 1,431 | 1,151 | 37 | [link](diagnostics/lu-partial-pivot-24_liveset.png) | [link](diagnostics/lu-partial-pivot-24_reuse_distance.png) |
-| Cholesky | 604 | 599 | 4 | [link](diagnostics/cholesky-24_liveset.png) | [link](diagnostics/cholesky-24_reuse_distance.png) |
-| Cholesky (Blocked) | 1,266 | 1,151 | 9 | [link](diagnostics/blocked-cholesky-24_liveset.png) | [link](diagnostics/blocked-cholesky-24_reuse_distance.png) |
-| Cholesky (Recursive) | 1,467 | 905 | 13 | [link](diagnostics/recursive-cholesky-24_liveset.png) | [link](diagnostics/recursive-cholesky-24_reuse_distance.png) |
-| Cholesky (Right-Looking) | 1,454 | 1,151 | 13 | [link](diagnostics/cholesky-right-looking-24_liveset.png) | [link](diagnostics/cholesky-right-looking-24_reuse_distance.png) |
-| Householder QR | 1,256 | 1,201 | 4 | [link](diagnostics/householder-qr-48x12_liveset.png) | [link](diagnostics/householder-qr-48x12_reuse_distance.png) |
-| Blocked QR | 1,349 | 1,338 | 4 | [link](diagnostics/blocked-qr-48x12_liveset.png) | [link](diagnostics/blocked-qr-48x12_reuse_distance.png) |
-| TSQR | 1,208 | 719 | 4 | [link](diagnostics/tsqr-48x12_liveset.png) | [link](diagnostics/tsqr-48x12_reuse_distance.png) |
+| Algorithm | Peak live | Max reuse | Median reuse |
+| --- | --- | --- | --- |
+| Naive Matmul | 770 | 768 | 34 |
+| Tiled Matmul | 771 | 768 | 11 |
+| Recursive Matmul | 896 | 768 | 11 |
+| Recursive In-Place (Lex) | 770 | 768 | 6 |
+| Recursive In-Place (Gray) | 770 | 768 | 7 |
+| Strassen | 1,194 | 1,023 | 13 |
+| Fused Strassen | 774 | 773 | 8 |
+| Naive Attention (d=2) | 2,309 | 2,082 | 4 |
+| Flash Attention (Bk=8) | 409 | 343 | 4 |
+| Naive Attention (d=4) | 2,565 | 2,146 | 4 |
+| Flash Attention | 723 | 593 | 5 |
+| LayerNorm (Unfused) | 2,057 | 2,054 | 4 |
+| LayerNorm (Fused) | 2,058 | 2,055 | 4 |
+| Matvec | 1,090 | 1,056 | 25 |
+| Vecmat | 1,090 | 1,056 | 13 |
+| Matvec Row | 4,226 | 4,160 | 49 |
+| Matvec Column | 4,226 | 4,160 | 23 |
+| Matrix Powers (Naive) | 1,122 | 1,088 | 65 |
+| Matrix Powers (CA) | 1,473 | 1,024 | 66 |
+| SpMV CSR (Banded) | 567 | 560 | 14 |
+| SpMV CSR (Random) | 579 | 569 | 28 |
+| Row Scan | 4,098 | 4,096 | 1 |
+| Column Scan | 4,098 | 4,096 | 1 |
+| Transpose (Naive) | 2,048 | 2,047 | 836 |
+| Transpose (Blocked) | 2,048 | 2,047 | 821 |
+| Transpose (Recursive) | 2,048 | 2,047 | 832 |
+| FFT (Iterative) | 2,051 | 2,048 | 3 |
+| FFT (Recursive) | 3,073 | 2,559 | 3 |
+| Stencil (Naive) | 2,049 | 2,047 | 9 |
+| Stencil (Recursive) | 2,049 | 2,047 | 9 |
+| Stencil (Time-Naive) | 3,074 | 2,048 | 9 |
+| Stencil (Time-Diamond) | 2,817 | 2,385 | 9 |
+| Spatial Conv (2D, 16x16) | 539 | 537 | 33 |
+| Spatial Conv (2D, 32x32) | 2,075 | 2,073 | 34 |
+| Regular Conv | 2,194 | 2,192 | 51 |
+| FFT Conv (1D) | 225 | 127 | 3 |
+| FFT Conv (2D) | 5,715 | 3,096 | 3 |
+| Mergesort | 192 | 159 | 3 |
+| Bitonic Sort | 130 | 127 | 61 |
+| LCS DP | 1,155 | 1,152 | 4 |
+| Floyd-Warshall (Naive) | 2,050 | 2,047 | 4 |
+| Floyd-Warshall (Recursive) | 2,050 | 2,047 | 4 |
+| Gaussian Elimination | 1,228 | 1,200 | 25 |
+| Gauss-Jordan Inverse | 772 | 767 | 44 |
+| LU (No Pivot) | 1,431 | 1,152 | 29 |
+| LU (Blocked) | 2,710 | 1,409 | 10 |
+| LU (Recursive) | 2,115 | 1,325 | 15 |
+| LU (Partial Pivot) | 1,431 | 1,151 | 37 |
+| Cholesky | 604 | 599 | 4 |
+| Cholesky (Blocked) | 1,266 | 1,151 | 9 |
+| Cholesky (Recursive) | 1,467 | 905 | 13 |
+| Cholesky (Right-Looking) | 1,454 | 1,151 | 13 |
+| Householder QR | 1,256 | 1,201 | 4 |
+| Blocked QR | 1,349 | 1,338 | 4 |
+| TSQR | 1,208 | 719 | 4 |
+
+## Diagnostic Gallery
+
+### Naive Matmul
+
+Peak live = 770. Max reuse = 768. Median reuse = 34.
+
+<p align="center">
+  <img src="diagnostics/naive-matmul-16_liveset.png" alt="Naive Matmul working-set size over time" width="49%" />
+  <img src="diagnostics/naive-matmul-16_reuse_distance.png" alt="Naive Matmul reuse distance per load" width="49%" />
+</p>
+
+### Tiled Matmul
+
+Peak live = 771. Max reuse = 768. Median reuse = 11.
+
+<p align="center">
+  <img src="diagnostics/tiled-matmul-16_liveset.png" alt="Tiled Matmul working-set size over time" width="49%" />
+  <img src="diagnostics/tiled-matmul-16_reuse_distance.png" alt="Tiled Matmul reuse distance per load" width="49%" />
+</p>
+
+### Recursive Matmul
+
+Peak live = 896. Max reuse = 768. Median reuse = 11.
+
+<p align="center">
+  <img src="diagnostics/rmm-16_liveset.png" alt="Recursive Matmul working-set size over time" width="49%" />
+  <img src="diagnostics/rmm-16_reuse_distance.png" alt="Recursive Matmul reuse distance per load" width="49%" />
+</p>
+
+### Recursive In-Place (Lex)
+
+Peak live = 770. Max reuse = 768. Median reuse = 6.
+
+<p align="center">
+  <img src="diagnostics/rmm-lex-16_liveset.png" alt="Recursive In-Place (Lex) working-set size over time" width="49%" />
+  <img src="diagnostics/rmm-lex-16_reuse_distance.png" alt="Recursive In-Place (Lex) reuse distance per load" width="49%" />
+</p>
+
+### Recursive In-Place (Gray)
+
+Peak live = 770. Max reuse = 768. Median reuse = 7.
+
+<p align="center">
+  <img src="diagnostics/rmm-gray-16_liveset.png" alt="Recursive In-Place (Gray) working-set size over time" width="49%" />
+  <img src="diagnostics/rmm-gray-16_reuse_distance.png" alt="Recursive In-Place (Gray) reuse distance per load" width="49%" />
+</p>
+
+### Strassen
+
+Peak live = 1,194. Max reuse = 1,023. Median reuse = 13.
+
+<p align="center">
+  <img src="diagnostics/strassen-16_liveset.png" alt="Strassen working-set size over time" width="49%" />
+  <img src="diagnostics/strassen-16_reuse_distance.png" alt="Strassen reuse distance per load" width="49%" />
+</p>
+
+### Fused Strassen
+
+Peak live = 774. Max reuse = 773. Median reuse = 8.
+
+<p align="center">
+  <img src="diagnostics/fused-strassen-16_liveset.png" alt="Fused Strassen working-set size over time" width="49%" />
+  <img src="diagnostics/fused-strassen-16_reuse_distance.png" alt="Fused Strassen reuse distance per load" width="49%" />
+</p>
+
+### Naive Attention (d=2)
+
+Peak live = 2,309. Max reuse = 2,082. Median reuse = 4.
+
+<p align="center">
+  <img src="diagnostics/naive-attention-32x2_liveset.png" alt="Naive Attention (d=2) working-set size over time" width="49%" />
+  <img src="diagnostics/naive-attention-32x2_reuse_distance.png" alt="Naive Attention (d=2) reuse distance per load" width="49%" />
+</p>
+
+### Flash Attention (Bk=8)
+
+Peak live = 409. Max reuse = 343. Median reuse = 4.
+
+<p align="center">
+  <img src="diagnostics/flash-attention-32x2-b8_liveset.png" alt="Flash Attention (Bk=8) working-set size over time" width="49%" />
+  <img src="diagnostics/flash-attention-32x2-b8_reuse_distance.png" alt="Flash Attention (Bk=8) reuse distance per load" width="49%" />
+</p>
+
+### Naive Attention (d=4)
+
+Peak live = 2,565. Max reuse = 2,146. Median reuse = 4.
+
+<p align="center">
+  <img src="diagnostics/regular-attention-32x4_liveset.png" alt="Naive Attention (d=4) working-set size over time" width="49%" />
+  <img src="diagnostics/regular-attention-32x4_reuse_distance.png" alt="Naive Attention (d=4) reuse distance per load" width="49%" />
+</p>
+
+### Flash Attention
+
+Peak live = 723. Max reuse = 593. Median reuse = 5.
+
+<p align="center">
+  <img src="diagnostics/flash-attention-32x4_liveset.png" alt="Flash Attention working-set size over time" width="49%" />
+  <img src="diagnostics/flash-attention-32x4_reuse_distance.png" alt="Flash Attention reuse distance per load" width="49%" />
+</p>
+
+### LayerNorm (Unfused)
+
+Peak live = 2,057. Max reuse = 2,054. Median reuse = 4.
+
+<p align="center">
+  <img src="diagnostics/layernorm-unfused-1024_liveset.png" alt="LayerNorm (Unfused) working-set size over time" width="49%" />
+  <img src="diagnostics/layernorm-unfused-1024_reuse_distance.png" alt="LayerNorm (Unfused) reuse distance per load" width="49%" />
+</p>
+
+### LayerNorm (Fused)
+
+Peak live = 2,058. Max reuse = 2,055. Median reuse = 4.
+
+<p align="center">
+  <img src="diagnostics/layernorm-fused-1024_liveset.png" alt="LayerNorm (Fused) working-set size over time" width="49%" />
+  <img src="diagnostics/layernorm-fused-1024_reuse_distance.png" alt="LayerNorm (Fused) reuse distance per load" width="49%" />
+</p>
+
+### Matvec
+
+Peak live = 1,090. Max reuse = 1,056. Median reuse = 25.
+
+<p align="center">
+  <img src="diagnostics/matvec-32_liveset.png" alt="Matvec working-set size over time" width="49%" />
+  <img src="diagnostics/matvec-32_reuse_distance.png" alt="Matvec reuse distance per load" width="49%" />
+</p>
+
+### Vecmat
+
+Peak live = 1,090. Max reuse = 1,056. Median reuse = 13.
+
+<p align="center">
+  <img src="diagnostics/vecmat-32_liveset.png" alt="Vecmat working-set size over time" width="49%" />
+  <img src="diagnostics/vecmat-32_reuse_distance.png" alt="Vecmat reuse distance per load" width="49%" />
+</p>
+
+### Matvec Row
+
+Peak live = 4,226. Max reuse = 4,160. Median reuse = 49.
+
+<p align="center">
+  <img src="diagnostics/matvec-row-64_liveset.png" alt="Matvec Row working-set size over time" width="49%" />
+  <img src="diagnostics/matvec-row-64_reuse_distance.png" alt="Matvec Row reuse distance per load" width="49%" />
+</p>
+
+### Matvec Column
+
+Peak live = 4,226. Max reuse = 4,160. Median reuse = 23.
+
+<p align="center">
+  <img src="diagnostics/matvec-col-64_liveset.png" alt="Matvec Column working-set size over time" width="49%" />
+  <img src="diagnostics/matvec-col-64_reuse_distance.png" alt="Matvec Column reuse distance per load" width="49%" />
+</p>
+
+### Matrix Powers (Naive)
+
+Peak live = 1,122. Max reuse = 1,088. Median reuse = 65.
+
+<p align="center">
+  <img src="diagnostics/matrix-powers-naive-32-s4_liveset.png" alt="Matrix Powers (Naive) working-set size over time" width="49%" />
+  <img src="diagnostics/matrix-powers-naive-32-s4_reuse_distance.png" alt="Matrix Powers (Naive) reuse distance per load" width="49%" />
+</p>
+
+### Matrix Powers (CA)
+
+Peak live = 1,473. Max reuse = 1,024. Median reuse = 66.
+
+<p align="center">
+  <img src="diagnostics/matrix-powers-ca-32-s4_liveset.png" alt="Matrix Powers (CA) working-set size over time" width="49%" />
+  <img src="diagnostics/matrix-powers-ca-32-s4_reuse_distance.png" alt="Matrix Powers (CA) reuse distance per load" width="49%" />
+</p>
+
+### SpMV CSR (Banded)
+
+Peak live = 567. Max reuse = 560. Median reuse = 14.
+
+<p align="center">
+  <img src="diagnostics/spmv-csr-banded-64_liveset.png" alt="SpMV CSR (Banded) working-set size over time" width="49%" />
+  <img src="diagnostics/spmv-csr-banded-64_reuse_distance.png" alt="SpMV CSR (Banded) reuse distance per load" width="49%" />
+</p>
+
+### SpMV CSR (Random)
+
+Peak live = 579. Max reuse = 569. Median reuse = 28.
+
+<p align="center">
+  <img src="diagnostics/spmv-csr-random-64_liveset.png" alt="SpMV CSR (Random) working-set size over time" width="49%" />
+  <img src="diagnostics/spmv-csr-random-64_reuse_distance.png" alt="SpMV CSR (Random) reuse distance per load" width="49%" />
+</p>
+
+### Row Scan
+
+Peak live = 4,098. Max reuse = 4,096. Median reuse = 1.
+
+<p align="center">
+  <img src="diagnostics/scan-row-64_liveset.png" alt="Row Scan working-set size over time" width="49%" />
+  <img src="diagnostics/scan-row-64_reuse_distance.png" alt="Row Scan reuse distance per load" width="49%" />
+</p>
+
+### Column Scan
+
+Peak live = 4,098. Max reuse = 4,096. Median reuse = 1.
+
+<p align="center">
+  <img src="diagnostics/scan-column-64_liveset.png" alt="Column Scan working-set size over time" width="49%" />
+  <img src="diagnostics/scan-column-64_reuse_distance.png" alt="Column Scan reuse distance per load" width="49%" />
+</p>
+
+### Transpose (Naive)
+
+Peak live = 2,048. Max reuse = 2,047. Median reuse = 836.
+
+<p align="center">
+  <img src="diagnostics/transpose-naive-32_liveset.png" alt="Transpose (Naive) working-set size over time" width="49%" />
+  <img src="diagnostics/transpose-naive-32_reuse_distance.png" alt="Transpose (Naive) reuse distance per load" width="49%" />
+</p>
+
+### Transpose (Blocked)
+
+Peak live = 2,048. Max reuse = 2,047. Median reuse = 821.
+
+<p align="center">
+  <img src="diagnostics/transpose-blocked-32_liveset.png" alt="Transpose (Blocked) working-set size over time" width="49%" />
+  <img src="diagnostics/transpose-blocked-32_reuse_distance.png" alt="Transpose (Blocked) reuse distance per load" width="49%" />
+</p>
+
+### Transpose (Recursive)
+
+Peak live = 2,048. Max reuse = 2,047. Median reuse = 832.
+
+<p align="center">
+  <img src="diagnostics/transpose-recursive-32_liveset.png" alt="Transpose (Recursive) working-set size over time" width="49%" />
+  <img src="diagnostics/transpose-recursive-32_reuse_distance.png" alt="Transpose (Recursive) reuse distance per load" width="49%" />
+</p>
+
+### FFT (Iterative)
+
+Peak live = 2,051. Max reuse = 2,048. Median reuse = 3.
+
+<p align="center">
+  <img src="diagnostics/fft-iterative-1024_liveset.png" alt="FFT (Iterative) working-set size over time" width="49%" />
+  <img src="diagnostics/fft-iterative-1024_reuse_distance.png" alt="FFT (Iterative) reuse distance per load" width="49%" />
+</p>
+
+### FFT (Recursive)
+
+Peak live = 3,073. Max reuse = 2,559. Median reuse = 3.
+
+<p align="center">
+  <img src="diagnostics/fft-recursive-1024_liveset.png" alt="FFT (Recursive) working-set size over time" width="49%" />
+  <img src="diagnostics/fft-recursive-1024_reuse_distance.png" alt="FFT (Recursive) reuse distance per load" width="49%" />
+</p>
+
+### Stencil (Naive)
+
+Peak live = 2,049. Max reuse = 2,047. Median reuse = 9.
+
+<p align="center">
+  <img src="diagnostics/jacobi-naive-32_liveset.png" alt="Stencil (Naive) working-set size over time" width="49%" />
+  <img src="diagnostics/jacobi-naive-32_reuse_distance.png" alt="Stencil (Naive) reuse distance per load" width="49%" />
+</p>
+
+### Stencil (Recursive)
+
+Peak live = 2,049. Max reuse = 2,047. Median reuse = 9.
+
+<p align="center">
+  <img src="diagnostics/jacobi-recursive-32_liveset.png" alt="Stencil (Recursive) working-set size over time" width="49%" />
+  <img src="diagnostics/jacobi-recursive-32_reuse_distance.png" alt="Stencil (Recursive) reuse distance per load" width="49%" />
+</p>
+
+### Stencil (Time-Naive)
+
+Peak live = 3,074. Max reuse = 2,048. Median reuse = 9.
+
+<p align="center">
+  <img src="diagnostics/stencil-time-naive-32-t4_liveset.png" alt="Stencil (Time-Naive) working-set size over time" width="49%" />
+  <img src="diagnostics/stencil-time-naive-32-t4_reuse_distance.png" alt="Stencil (Time-Naive) reuse distance per load" width="49%" />
+</p>
+
+### Stencil (Time-Diamond)
+
+Peak live = 2,817. Max reuse = 2,385. Median reuse = 9.
+
+<p align="center">
+  <img src="diagnostics/stencil-time-diamond-32-t4_liveset.png" alt="Stencil (Time-Diamond) working-set size over time" width="49%" />
+  <img src="diagnostics/stencil-time-diamond-32-t4_reuse_distance.png" alt="Stencil (Time-Diamond) reuse distance per load" width="49%" />
+</p>
+
+### Spatial Conv (2D, 16x16)
+
+Peak live = 539. Max reuse = 537. Median reuse = 33.
+
+<p align="center">
+  <img src="diagnostics/conv2d-spatial-16x16-k5_liveset.png" alt="Spatial Conv (2D, 16x16) working-set size over time" width="49%" />
+  <img src="diagnostics/conv2d-spatial-16x16-k5_reuse_distance.png" alt="Spatial Conv (2D, 16x16) reuse distance per load" width="49%" />
+</p>
+
+### Spatial Conv (2D, 32x32)
+
+Peak live = 2,075. Max reuse = 2,073. Median reuse = 34.
+
+<p align="center">
+  <img src="diagnostics/spatial-conv-32x32-k5_liveset.png" alt="Spatial Conv (2D, 32x32) working-set size over time" width="49%" />
+  <img src="diagnostics/spatial-conv-32x32-k5_reuse_distance.png" alt="Spatial Conv (2D, 32x32) reuse distance per load" width="49%" />
+</p>
+
+### Regular Conv
+
+Peak live = 2,194. Max reuse = 2,192. Median reuse = 51.
+
+<p align="center">
+  <img src="diagnostics/regular-conv-16x16-k3-c4_liveset.png" alt="Regular Conv working-set size over time" width="49%" />
+  <img src="diagnostics/regular-conv-16x16-k3-c4_reuse_distance.png" alt="Regular Conv reuse distance per load" width="49%" />
+</p>
+
+### FFT Conv (1D)
+
+Peak live = 225. Max reuse = 127. Median reuse = 3.
+
+<p align="center">
+  <img src="diagnostics/fft-conv-32_liveset.png" alt="FFT Conv (1D) working-set size over time" width="49%" />
+  <img src="diagnostics/fft-conv-32_reuse_distance.png" alt="FFT Conv (1D) reuse distance per load" width="49%" />
+</p>
+
+### FFT Conv (2D)
+
+Peak live = 5,715. Max reuse = 3,096. Median reuse = 3.
+
+<p align="center">
+  <img src="diagnostics/conv2d-fft-16x16-k5_liveset.png" alt="FFT Conv (2D) working-set size over time" width="49%" />
+  <img src="diagnostics/conv2d-fft-16x16-k5_reuse_distance.png" alt="FFT Conv (2D) reuse distance per load" width="49%" />
+</p>
+
+### Mergesort
+
+Peak live = 192. Max reuse = 159. Median reuse = 3.
+
+<p align="center">
+  <img src="diagnostics/mergesort-64_liveset.png" alt="Mergesort working-set size over time" width="49%" />
+  <img src="diagnostics/mergesort-64_reuse_distance.png" alt="Mergesort reuse distance per load" width="49%" />
+</p>
+
+### Bitonic Sort
+
+Peak live = 130. Max reuse = 127. Median reuse = 61.
+
+<p align="center">
+  <img src="diagnostics/bitonic-sort-64_liveset.png" alt="Bitonic Sort working-set size over time" width="49%" />
+  <img src="diagnostics/bitonic-sort-64_reuse_distance.png" alt="Bitonic Sort reuse distance per load" width="49%" />
+</p>
+
+### LCS DP
+
+Peak live = 1,155. Max reuse = 1,152. Median reuse = 4.
+
+<p align="center">
+  <img src="diagnostics/lcs-dp-32x32_liveset.png" alt="LCS DP working-set size over time" width="49%" />
+  <img src="diagnostics/lcs-dp-32x32_reuse_distance.png" alt="LCS DP reuse distance per load" width="49%" />
+</p>
+
+### Floyd-Warshall (Naive)
+
+Peak live = 2,050. Max reuse = 2,047. Median reuse = 4.
+
+<p align="center">
+  <img src="diagnostics/floyd-warshall-naive-32_liveset.png" alt="Floyd-Warshall (Naive) working-set size over time" width="49%" />
+  <img src="diagnostics/floyd-warshall-naive-32_reuse_distance.png" alt="Floyd-Warshall (Naive) reuse distance per load" width="49%" />
+</p>
+
+### Floyd-Warshall (Recursive)
+
+Peak live = 2,050. Max reuse = 2,047. Median reuse = 4.
+
+<p align="center">
+  <img src="diagnostics/floyd-warshall-recursive-32_liveset.png" alt="Floyd-Warshall (Recursive) working-set size over time" width="49%" />
+  <img src="diagnostics/floyd-warshall-recursive-32_reuse_distance.png" alt="Floyd-Warshall (Recursive) reuse distance per load" width="49%" />
+</p>
+
+### Gaussian Elimination
+
+Peak live = 1,228. Max reuse = 1,200. Median reuse = 25.
+
+<p align="center">
+  <img src="diagnostics/gaussian-elimination-24_liveset.png" alt="Gaussian Elimination working-set size over time" width="49%" />
+  <img src="diagnostics/gaussian-elimination-24_reuse_distance.png" alt="Gaussian Elimination reuse distance per load" width="49%" />
+</p>
+
+### Gauss-Jordan Inverse
+
+Peak live = 772. Max reuse = 767. Median reuse = 44.
+
+<p align="center">
+  <img src="diagnostics/gauss-jordan-inverse-16_liveset.png" alt="Gauss-Jordan Inverse working-set size over time" width="49%" />
+  <img src="diagnostics/gauss-jordan-inverse-16_reuse_distance.png" alt="Gauss-Jordan Inverse reuse distance per load" width="49%" />
+</p>
+
+### LU (No Pivot)
+
+Peak live = 1,431. Max reuse = 1,152. Median reuse = 29.
+
+<p align="center">
+  <img src="diagnostics/lu-no-pivot-24_liveset.png" alt="LU (No Pivot) working-set size over time" width="49%" />
+  <img src="diagnostics/lu-no-pivot-24_reuse_distance.png" alt="LU (No Pivot) reuse distance per load" width="49%" />
+</p>
+
+### LU (Blocked)
+
+Peak live = 2,710. Max reuse = 1,409. Median reuse = 10.
+
+<p align="center">
+  <img src="diagnostics/blocked-lu-24_liveset.png" alt="LU (Blocked) working-set size over time" width="49%" />
+  <img src="diagnostics/blocked-lu-24_reuse_distance.png" alt="LU (Blocked) reuse distance per load" width="49%" />
+</p>
+
+### LU (Recursive)
+
+Peak live = 2,115. Max reuse = 1,325. Median reuse = 15.
+
+<p align="center">
+  <img src="diagnostics/recursive-lu-24_liveset.png" alt="LU (Recursive) working-set size over time" width="49%" />
+  <img src="diagnostics/recursive-lu-24_reuse_distance.png" alt="LU (Recursive) reuse distance per load" width="49%" />
+</p>
+
+### LU (Partial Pivot)
+
+Peak live = 1,431. Max reuse = 1,151. Median reuse = 37.
+
+<p align="center">
+  <img src="diagnostics/lu-partial-pivot-24_liveset.png" alt="LU (Partial Pivot) working-set size over time" width="49%" />
+  <img src="diagnostics/lu-partial-pivot-24_reuse_distance.png" alt="LU (Partial Pivot) reuse distance per load" width="49%" />
+</p>
+
+### Cholesky
+
+Peak live = 604. Max reuse = 599. Median reuse = 4.
+
+<p align="center">
+  <img src="diagnostics/cholesky-24_liveset.png" alt="Cholesky working-set size over time" width="49%" />
+  <img src="diagnostics/cholesky-24_reuse_distance.png" alt="Cholesky reuse distance per load" width="49%" />
+</p>
+
+### Cholesky (Blocked)
+
+Peak live = 1,266. Max reuse = 1,151. Median reuse = 9.
+
+<p align="center">
+  <img src="diagnostics/blocked-cholesky-24_liveset.png" alt="Cholesky (Blocked) working-set size over time" width="49%" />
+  <img src="diagnostics/blocked-cholesky-24_reuse_distance.png" alt="Cholesky (Blocked) reuse distance per load" width="49%" />
+</p>
+
+### Cholesky (Recursive)
+
+Peak live = 1,467. Max reuse = 905. Median reuse = 13.
+
+<p align="center">
+  <img src="diagnostics/recursive-cholesky-24_liveset.png" alt="Cholesky (Recursive) working-set size over time" width="49%" />
+  <img src="diagnostics/recursive-cholesky-24_reuse_distance.png" alt="Cholesky (Recursive) reuse distance per load" width="49%" />
+</p>
+
+### Cholesky (Right-Looking)
+
+Peak live = 1,454. Max reuse = 1,151. Median reuse = 13.
+
+<p align="center">
+  <img src="diagnostics/cholesky-right-looking-24_liveset.png" alt="Cholesky (Right-Looking) working-set size over time" width="49%" />
+  <img src="diagnostics/cholesky-right-looking-24_reuse_distance.png" alt="Cholesky (Right-Looking) reuse distance per load" width="49%" />
+</p>
+
+### Householder QR
+
+Peak live = 1,256. Max reuse = 1,201. Median reuse = 4.
+
+<p align="center">
+  <img src="diagnostics/householder-qr-48x12_liveset.png" alt="Householder QR working-set size over time" width="49%" />
+  <img src="diagnostics/householder-qr-48x12_reuse_distance.png" alt="Householder QR reuse distance per load" width="49%" />
+</p>
+
+### Blocked QR
+
+Peak live = 1,349. Max reuse = 1,338. Median reuse = 4.
+
+<p align="center">
+  <img src="diagnostics/blocked-qr-48x12_liveset.png" alt="Blocked QR working-set size over time" width="49%" />
+  <img src="diagnostics/blocked-qr-48x12_reuse_distance.png" alt="Blocked QR reuse distance per load" width="49%" />
+</p>
+
+### TSQR
+
+Peak live = 1,208. Max reuse = 719. Median reuse = 4.
+
+<p align="center">
+  <img src="diagnostics/tsqr-48x12_liveset.png" alt="TSQR working-set size over time" width="49%" />
+  <img src="diagnostics/tsqr-48x12_reuse_distance.png" alt="TSQR reuse distance per load" width="49%" />
+</p>
 
 ## Runtime
 

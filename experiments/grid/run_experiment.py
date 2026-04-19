@@ -228,7 +228,49 @@ def _markdown_table(rows: list[dict[str, object]], columns: list[str]) -> str:
     return "\n".join([header, divider] + body)
 
 
-def render_report(results: dict[str, object]) -> str:
+def _prefixed_path(path: str, prefix: str) -> str:
+    if not prefix:
+        return path
+    return f"{prefix.rstrip('/')}/{path.lstrip('./')}"
+
+
+def _diagnostic_gallery(
+    rows: list[dict[str, object]],
+    *,
+    asset_prefix: str = "",
+    heading_level: int = 3,
+) -> str:
+    blocks: list[str] = []
+    item_heading = "#" * max(1, heading_level)
+    for row in rows:
+        algorithm = str(row["algorithm"])
+        liveset_plot = _prefixed_path(str(row["liveset_plot"]), asset_prefix)
+        reuse_plot = _prefixed_path(str(row["reuse_distance_plot"]), asset_prefix)
+        peak_live = int(row["peak_live"])
+        max_reuse = int(row["max_reuse"])
+        median_reuse = int(row["median_reuse"])
+        blocks.extend(
+            [
+                f"{item_heading} {algorithm}",
+                "",
+                f"Peak live = {peak_live:,}. Max reuse = {max_reuse:,}. Median reuse = {median_reuse:,}.",
+                "",
+                '<p align="center">',
+                f'  <img src="{liveset_plot}" alt="{algorithm} working-set size over time" width="49%" />',
+                f'  <img src="{reuse_plot}" alt="{algorithm} reuse distance per load" width="49%" />',
+                "</p>",
+                "",
+            ]
+        )
+    return "\n".join(blocks).rstrip()
+
+
+def render_report(
+    results: dict[str, object],
+    *,
+    title_level: int = 1,
+    asset_prefix: str = "",
+) -> str:
     algorithms = list(results["algorithms"])
     ranking = list(results["ranking"])
     overall_max_cell = results["overall_max_cell_seconds"]
@@ -263,8 +305,6 @@ def render_report(results: dict[str, object]) -> str:
             "Peak live": int(row["peak_live"]),
             "Max reuse": int(row["max_reuse"]),
             "Median reuse": int(row["median_reuse"]),
-            "Working-set plot": f"[link]({row['liveset_plot']})",
-            "Reuse-distance plot": f"[link]({row['reuse_distance_plot']})",
         }
         for row in diagnostics
     ]
@@ -276,21 +316,25 @@ def render_report(results: dict[str, object]) -> str:
         }
         for row in algorithms
     ]
+    heading = "#" * max(1, title_level)
+    subheading = "#" * max(2, title_level + 1)
+    gallery_heading = max(1, title_level + 2)
+    diagnostics_link = _prefixed_path(diagnostics_summary, asset_prefix) if diagnostics_summary else ""
 
     lines = [
-        "# Heuristic Grid for ByteDMD-Style Metrics",
+        f"{heading} Heuristic Grid for ByteDMD-Style Metrics",
         "",
         "This experiment compares a concrete no-free-compaction 2D cost against SpaceDMD and the two abstract ByteDMD heuristics on a small suite of workloads.",
         "",
         f"Every traced metric cell finished under {overall_max_cell:.3f} seconds on this run.",
         "",
-        "## Algorithms",
+        f"{subheading} Algorithms",
         "",
         "Rows are grouped to follow the dev-branch-style ordering: matmul, attention/vector fusion, matvec/traversal/sparse, FFT, stencil, convolution, sorting/DP/APSP, dense solve, LU, Cholesky, and QR.",
         "",
         _markdown_table(algorithm_rows, ["Algorithm", "Workload", "Implementation"]),
         "",
-        "## Measures",
+        f"{subheading} Measures",
         "",
         f"- `{SPACE}`: density-ranked spatial liveness, now with inputs first read from a separate argument stack and only later re-read from the geometric stack.",
         f"- `{LIVE}`: aggressive live-only compaction on the geometric stack, with the same separate argument-stack first-touch rule.",
@@ -301,7 +345,7 @@ def render_report(results: dict[str, object]) -> str:
         "",
         "SpaceDMD globally ranks geometric-stack variables by access density (`access_count / lifespan`) and then charges each read by that variable's rank among the currently live variables; untouched inputs are priced separately on the argument stack until their first promotion.",
         "",
-        "## Interpretation Notes",
+        f"{subheading} Interpretation Notes",
         "",
         "- The trace models now have an explicit first-touch boundary: inputs are priced on an argument stack on first use, then promoted into the geometric stack for later re-use. Manual kernels mirror this with separate scratch and argument/output regions.",
         "- SpaceDMD is intentionally order-blind once data is in the geometric stack: pure permutations with the same multiset of reads, such as `Matvec` vs `Vecmat` or `Row Scan` vs `Column Scan`, can collapse to identical SpaceDMD costs even when `Manual-2D` separates them strongly.",
@@ -315,26 +359,34 @@ def render_report(results: dict[str, object]) -> str:
         "",
         "Attention uses proxy `max`, `exp`, and reciprocal operators with the same read arity as the real kernels, so the table focuses on data movement rather than numerical fidelity.",
         "",
-        "## Results Grid",
+        f"{subheading} Results Grid",
         "",
         _markdown_table(grid_rows, ["Algorithm"] + METRIC_COLUMNS),
         "",
-        "## Heuristic Ranking Against Manual-2D",
+        f"{subheading} Heuristic Ranking Against Manual-2D",
         "",
         _markdown_table(ranking_rows, ["Heuristic", "Spearman rho", "Scaled MAPE"]),
         "",
-        "## Trace Diagnostics",
+        f"{subheading} Trace Diagnostics",
         "",
-        "These follow the dev-branch style plots for the current `ByteDMD-live` path: each algorithm gets a reuse-distance-per-load scatter plot and a working-set-size-over-time step plot under [`diagnostics/`](./diagnostics/).",
+        "These follow the dev-branch style plots for the current `ByteDMD-live` path: every algorithm gets an inline reuse-distance-per-load scatter plot and a working-set-size-over-time step plot on this page.",
         "",
-        f"A tab-separated summary is also saved as [`{diagnostics_summary}`](./{diagnostics_summary})." if diagnostics_summary else "",
+        f"A tab-separated summary is also saved as [`{diagnostics_summary}`](./{diagnostics_link})." if diagnostics_summary else "",
         "",
         _markdown_table(
             diagnostic_rows,
-            ["Algorithm", "Peak live", "Max reuse", "Median reuse", "Working-set plot", "Reuse-distance plot"],
+            ["Algorithm", "Peak live", "Max reuse", "Median reuse"],
         ) if diagnostic_rows else "",
         "",
-        "## Runtime",
+        f"{subheading} Diagnostic Gallery",
+        "",
+        _diagnostic_gallery(
+            diagnostics,
+            asset_prefix=asset_prefix,
+            heading_level=gallery_heading,
+        ) if diagnostics else "",
+        "",
+        f"{subheading} Runtime",
         "",
         _markdown_table(runtime_rows, ["Algorithm", "Max traced cell (s)", "Total traced time (s)"]),
         "",
@@ -345,6 +397,20 @@ def render_report(results: dict[str, object]) -> str:
         "```",
     ]
     return "\n".join(lines)
+
+
+def _update_root_readme(report: str, *, root_readme_path: Path) -> None:
+    start_marker = "<!-- GRID-REPORT-START -->"
+    end_marker = "<!-- GRID-REPORT-END -->"
+    readme_text = root_readme_path.read_text()
+    if start_marker not in readme_text or end_marker not in readme_text:
+        raise RuntimeError(
+            f"Expected {start_marker} and {end_marker} markers in {root_readme_path}"
+        )
+    before, remainder = readme_text.split(start_marker, 1)
+    _, after = remainder.split(end_marker, 1)
+    replacement = f"{start_marker}\n\n{report}\n\n{end_marker}"
+    root_readme_path.write_text(before + replacement + after)
 
 
 def main() -> None:
@@ -365,8 +431,16 @@ def main() -> None:
     report_path = out_dir / "README.md"
     report_path.write_text(render_report(results))
 
+    root_report = render_report(
+        results,
+        title_level=2,
+        asset_prefix="experiments/grid",
+    )
+    _update_root_readme(root_report, root_readme_path=ROOT / "README.md")
+
     print(f"Saved {results_path}")
     print(f"Saved {report_path}")
+    print(f"Updated {ROOT / 'README.md'}")
 
 
 if __name__ == "__main__":
