@@ -80,12 +80,12 @@ DAGs are identical, so `bytedmd_live` / `bytedmd_classic` match — only
 | [quicksort(N=64)](#quicksort)                                         |     2,470 |        2,852 |       4,718 |           4,292 |
 | [heapsort(N=64)](#heapsort)                                           |     3,597 |        4,696 |       5,523 |           7,889 |
 | [mergesort(N=64)](#mergesort)                                         |     2,474 |        3,148 |       9,160 |           4,411 |
-| [lcs_dp(32x32)](#lcs_dp)                                              |    23,497 |       29,980 |      80,940 |          44,575 |
-| [lu_no_pivot(n=32)](#lu_no_pivot)                                     |   482,123 |      407,042 |     751,252 |         705,126 |
+| [lcs_dp(32x32)](#lcs_dp)                                              |    23,497 |       29,980 |      27,192 |          44,575 |
+| [lu_no_pivot(n=32)](#lu_no_pivot)                                     |   482,123 |      407,042 |     382,440 |         705,126 |
 | [blocked_lu(n=32,NB=8)](#blocked_lu)                                  |   365,960 |      283,294 |     236,290 |         515,134 |
-| [recursive_lu(n=32)](#recursive_lu)                                   |   398,310 |      304,365 |     750,560 |         546,679 |
-| [lu_partial_pivot(n=32)](#lu_partial_pivot)                           |   510,278 |      420,780 |     793,416 |         730,673 |
-| [cholesky(n=32)](#cholesky)                                           |   176,488 |      176,313 |     494,000 |         293,328 |
+| [recursive_lu(n=32)](#recursive_lu)                                   |   398,310 |      304,365 |     440,803 |         546,679 |
+| [lu_partial_pivot(n=32)](#lu_partial_pivot)                           |   510,278 |      420,780 |     427,384 |         730,673 |
+| [cholesky(n=32)](#cholesky)                                           |   176,488 |      176,313 |     238,688 |         293,328 |
 | [householder_qr(32x32)](#householder_qr)                              |   781,325 |      605,876 |   1,146,072 |       1,131,740 |
 | [blocked_qr(32x32,NB=8)](#blocked_qr)                                 |   549,811 |      610,248 |   1,175,373 |       1,068,832 |
 | [tsqr(64x16,br=8)](#tsqr)                                             |   380,689 |      267,962 |     729,566 |         546,266 |
@@ -100,7 +100,7 @@ DAGs are identical, so `bytedmd_live` / `bytedmd_classic` match — only
 | [layernorm_fused(N=256)](#layernorm_fused)                            |    13,485 |       15,172 |      15,329 |          24,400 |
 | [matrix_powers_naive(n=16,s=4)](#matrix_powers_naive)                 |    17,249 |       24,085 |      27,198 |          37,513 |
 | [matrix_powers_ca(n=16,s=4)](#matrix_powers_ca)                       |    17,467 |       24,377 |      27,198 |          38,702 |
-| [cholesky_left_looking(n=32)](#cholesky_left_looking)                 |   212,125 |      190,103 |     494,000 |         352,335 |
+| [cholesky_left_looking(n=32)](#cholesky_left_looking)                 |   212,125 |      190,103 |     244,300 |         352,335 |
 | [spmv_csr_banded(n=32,bw=3)](#spmv_csr_banded)                        |     2,318 |        4,219 |       6,190 |           7,164 |
 | [spmv_csr_random(n=32,nnz=7)](#spmv_csr_random)                       |     3,158 |        4,984 |       6,676 |           8,649 |
 | [bitonic_sort(N=64)](#bitonic_sort)                                   |     8,512 |       13,418 |       8,556 |          20,363 |
@@ -790,13 +790,14 @@ on an (m+1)×(n+1) table, row-major fill. Branch-free sum replaces the
 max/equality recurrence; access pattern matches canonical LCS:
 3 table reads + 2 string reads per cell.
 
-**Manual placement.** Strings `x` (m slots) and `y` (n slots) at addrs
-1..m+n — hot and touched every cell. DP table `D` at addrs m+n+1..
-(m+1)(n+1) tail — this is the main bulk region. Every `D[i][j]` fill
-reads 3 neighbors that span 2 rows of the table, so each touch pays
-`⌈√addr⌉` on a large bulk array. Manual (85,929) exceeds both
-heuristics — a clean case where fixed-placement is a *pessimistic*
-upper envelope.
+**Manual placement.** Since the algorithm only returns `D[m][n]`, the
+full `(m+1)(n+1)` table is unnecessary — use a rolling 2-row buffer
+with a pivot scalar at the bottom of the stack:
+  `c_A` (addr 1) holds `x[i-1]` as the hot pivot for the j-sweep;
+  `row_a`, `row_b` (addrs 2..2n+3) ping-pong as previous/current rows.
+All three DP neighbour reads hit these low-address buffers. Drops
+manual from 80,940 to **27,192** (−66%), just above `space_dmd`
+(23,497) and now below `bytedmd_live` (29,980).
 
 ![](traces/lcs_dp_32x32.png)
 
@@ -821,12 +822,16 @@ column `A[k+1:,k]`, then rank-1 update the trailing submatrix
 `A[k+1:, k+1:] -= A[k+1:, k] · A[k, k+1:]`. Classical `O(n³/3)`
 triple loop.
 
-**Manual placement.** A at addrs 1..n² — everything in-place, no
-scratch (rank-1 updates touch each A cell directly). Per step k the
-pivot address `A + k·n + k` sits at depth proportional to `k·n + k`,
-and every MAC reads three A cells — one fixed (pivot-column), one
-shared per-row, and one shared per-column — so the dominant
-contribution is the trailing submatrix rank-1 loop.
+**Manual placement.** Two hoisted scratchpads at the bottom of the
+stack replace the bulk-only schedule:
+  `c_A` (addr 1) pins the pivot and then `A[i][k]` during the Schur
+  rank-1 update;
+  `c_C` (addrs 2..n+1) caches row `k`'s trailing tail `A[k][k+1..]`.
+Combined with lazy arg-stack reads (no upfront n² preload — each A
+cell is touched from the arg stack on its first visit at k=0), the
+Schur inner loop reads exactly one bulk A cell (the destination)
+plus two hot scratchpad cells. Drops manual from 751,252 to
+**382,440** (−49%), now below `space_dmd` (482,123).
 
 ![](traces/lu_no_pivot_n_32.png)
 
@@ -887,11 +892,19 @@ into 2×2 quadrants, factor A11 recursively, triangular-solve A12/A21,
 Schur-complement A22, recurse on A22. Equivalent FLOP count to the
 triple-loop version but with a block-decomposed access pattern.
 
-**Manual placement.** In-place on A — the recursion works on address
-ranges, no temp allocation. Manual (705,856) is essentially tied
-with `lu_no_pivot` — in the fixed-placement Manhattan model, the
-touched-cell set and multiplicities are identical; only the LRU-based
-heuristics spread them differently.
+**Manual placement.** Three hoisted scratchpads cover all three
+Schur-style inner loops:
+  `c_A` (addr 1) pivot scalar,
+  `c_B` (addr 2) column-k scalar (A[i][k]),
+  `c_C` (addrs 3..n+2) row-k trailing buffer.
+Each inner `A[i][j] -= A[i][k] * A[k][j]` body now reads one bulk
+cell and two hot scratchpads instead of three bulk reads (lazy
+loading is skipped because "first touch" under the recursion is
+hard to define statically, so we keep the upfront preload). Drops
+manual from 750,560 to **440,803** (−41%) — recursive_lu still
+edges above `space_dmd` (398,310) because some of the lower-panel
+traffic can't be amortized into the scratchpads across recursion
+levels.
 
 ![](traces/recursive_lu_n_32.png)
 
@@ -915,11 +928,12 @@ step first scans column k for the max-magnitude pivot and swaps that
 row into position. Data-oblivious stand-in: pretend the pivot is
 always row k+1 and perform the swap unconditionally.
 
-**Manual placement.** Same A-only layout. The column scan adds `n-k`
-extra reads per step (≈ n²/2 extra touches total) and the row swap
-adds 2(n-k) reads per step (another n² touches). Manual cost
-(748,712) is ~6% above `lu_no_pivot` — the pivoting overhead is
-real but modest, since the dominant cost remains the rank-1 update.
+**Manual placement.** Same hoisted scratchpads as `lu_no_pivot`
+(`c_A` + `c_C`) plus lazy arg-stack reads. The column scan and
+row swap run before the scratchpads are primed, so they pay bulk-A
+cost; the expensive part (Schur rank-1 update) uses the hot
+scratchpads the same way. Drops manual from 793,416 to **427,384**
+(−46%), below `space_dmd` (510,278).
 
 ![](traces/lu_partial_pivot_n_32.png)
 
@@ -943,11 +957,13 @@ factor `A = L·Lᵀ` in place, reading only the lower triangle. For
 each k: stand-in-sqrt on `A[k][k]`, scale `A[k+1:, k]`, rank-1
 update `A[i][j] -= A[i][k]·A[j][k]` for `i ≥ j > k`.
 
-**Manual placement.** Just A at 1..n². Because the rank-1 update
-runs only over `i ≥ j`, the total touch count is **half** of LU's
-— manual cost 449,296 vs lu_no_pivot's 706,548. The clean
-triangular-only access pattern is exactly why Cholesky is the
-textbook "locality isolate" benchmark.
+**Manual placement.** `c_A` (addr 1) pins the pivot then `A[j][k]`
+during the Schur inner i-sweep; `c_C` (addrs 2..n+1) caches column
+k below the diagonal for the full Schur update. Lazy arg-stack
+reads replace the n² preload. Inner `A[i][j] -= A[i][k] * A[j][k]`
+body reads one bulk cell plus two hot scratchpads. Drops manual
+from 494,000 to **238,688** (−52%), still above `space_dmd`
+(176,488) but well below `bytedmd_classic` (293,328).
 
 ![](traces/cholesky_n_32.png)
 
@@ -1285,7 +1301,13 @@ the tall-skinny shape makes each local QR dominate less.
 ## cholesky_left_looking [(code)](scripts/cholesky_left_looking_n_32.py)
 `n=32`. **Algorithm.** Complement of the default right-looking Cholesky: for column k pull data from all previously-factored columns 0..k-1 (far-flung reads), then finalize column k locally (concentrated writes).
 
-**Manual.** Under `⌈√d⌉` pricing with free writes, left-looking's read-heavy profile produces the same manual total as right-looking — the cost asymmetry lives entirely in the heuristic-scheduled columns.
+**Manual.** Two hoisted scratchpads with lazy arg-stack reads: `c_A`
+(addr 1) pins the accumulator `L[i][k]` during the past-factor
+sweep; `c_C` (addrs 2..n+1) caches row k's previously-factored tail
+`L[k][0..k-1]`. Inner `L[i][k] += L[i][j] * L[k][j]` body reads one
+bulk cell (the past factor `L[i][j]`) and two hot scratchpads.
+Drops manual from 494,000 to **244,300** (−51%), still above
+`space_dmd` (212,125) but well below `bytedmd_classic` (352,335).
 
 ![](traces/cholesky_left_looking_n_32.png)
 

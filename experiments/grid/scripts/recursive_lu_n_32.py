@@ -551,10 +551,19 @@ def recursive_lu(A):
 # ===========================================================================
 
 def manual_recursive_lu(n: int) -> int:
-    """Recursive LU. Input A preloaded from arg stack to scratch; sub-blocks
-    processed in place on scratch."""
+    """Recursive LU with hoisted scratchpads. Each of the three Schur-
+    style inner loops caches one operand of its `A[i][j] -= A[i][k] *
+    A[k][j]` body into a low-address scratchpad, cutting the inner-loop
+    read traffic from 3 bulk A reads to 1 bulk + 2 hot.
+
+      c_A   (addr 1)      — pivot / row-k scalar
+      c_B   (addr 2)      — column-k scalar (A[i][k] after divide)
+      c_C   (addr 3..n+2) — row-k trailing buffer"""
     a = _alloc()
     A_in = a.alloc_arg(n * n)
+    c_A = a.alloc(1)
+    c_B = a.alloc(1)
+    c_C = a.alloc(n)
     A = a.alloc(n * n)
     a.set_output_range(A, A + n * n)
     for i in range(n * n):
@@ -565,37 +574,53 @@ def manual_recursive_lu(n: int) -> int:
             return
         h = sz // 2
         rec(r0, c0, h)
-        for i in range(r0 + h, r0 + sz):
-            for k in range(c0, c0 + h):
-                a.touch(A + i * n + k)
-                a.touch(A + k * n + k)
-                a.write(A + i * n + k)
+
+        # --- Column panel update A[r0+h..r0+sz, c0..c0+h] ---
+        for k in range(c0, c0 + h):
+            a.touch(A + k * n + k); a.write(c_A)                 # pivot
+            for j in range(k + 1, c0 + h):
+                a.touch(A + k * n + j); a.write(c_C + (j - k - 1))
+            for i in range(r0 + h, r0 + sz):
+                a.touch(A + i * n + k); a.touch(c_A)
+                a.write(A + i * n + k)                            # divide
+                a.touch(A + i * n + k); a.write(c_B)              # hot row-k
                 for j in range(k + 1, c0 + h):
                     a.touch(A + i * n + j)
-                    a.touch(A + i * n + k)
-                    a.touch(A + k * n + j)
+                    a.touch(c_B)
+                    a.touch(c_C + (j - k - 1))
                     a.write(A + i * n + j)
+
+        # --- Row-strip update A[r0..r0+h, c0+h..c0+sz] ---
         for k in range(r0, r0 + h):
+            # cache A[k][c0+h..c0+sz-1] into c_C
             for j in range(c0 + h, c0 + sz):
-                for i in range(k + 1, r0 + h):
+                a.touch(A + k * n + j); a.write(c_C + (j - (c0 + h)))
+            for i in range(k + 1, r0 + h):
+                a.touch(A + i * n + k); a.write(c_B)              # hot col-k
+                for j in range(c0 + h, c0 + sz):
                     a.touch(A + i * n + j)
-                    a.touch(A + i * n + k)
-                    a.touch(A + k * n + j)
+                    a.touch(c_B)
+                    a.touch(c_C + (j - (c0 + h)))
                     a.write(A + i * n + j)
-        for i in range(r0 + h, r0 + sz):
+
+        # --- Trailing submatrix update A[r0+h.., c0+h..] ---
+        for k in range(c0, c0 + h):
+            # cache A[k][c0+h..c0+sz-1] into c_C
             for j in range(c0 + h, c0 + sz):
-                for k in range(c0, c0 + h):
+                a.touch(A + k * n + j); a.write(c_C + (j - (c0 + h)))
+            for i in range(r0 + h, r0 + sz):
+                a.touch(A + i * n + k); a.write(c_B)              # hot col-k
+                for j in range(c0 + h, c0 + sz):
                     a.touch(A + i * n + j)
-                    a.touch(A + i * n + k)
-                    a.touch(A + k * n + j)
+                    a.touch(c_B)
+                    a.touch(c_C + (j - (c0 + h)))
                     a.write(A + i * n + j)
+
         rec(r0 + h, c0 + h, sz - h)
 
     rec(0, 0, n)
     a.read_output()
     return a.cost
-
-
 # ===========================================================================
 # Driver — run under this script's specific algorithm.
 # ===========================================================================

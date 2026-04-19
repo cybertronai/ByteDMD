@@ -522,27 +522,39 @@ def lcs_dp(x, y):
 # ===========================================================================
 
 def manual_lcs_dp(m: int, n: int) -> int:
-    """Row-major LCS DP. Input strings x, y on arg stack; DP table D on
-    scratch. The Python algorithm returns only D[m][n] (the LCS length),
-    so the output epilogue reads just that one cell."""
+    """Row-major LCS DP with a rolling 2-row buffer (only D[m][n] is
+    returned, so the full (m+1)(n+1) table is unnecessary).
+
+    Hoisted scratchpads:
+      c_A    (addr 1)          — hot scalar x[i-1], constant in j-sweep
+      row_a  (addr 2..n+2)     — one DP row
+      row_b  (addr n+3..2n+3)  — the other DP row
+    row_a / row_b ping-pong each outer i; the inner-j reads (D[i-1][j-1],
+    D[i-1][j], D[i][j-1]) all hit these low-address buffers. A single
+    `answer` cell just above holds the final D[m][n] for the output
+    epilogue."""
     a = _alloc()
     x = a.alloc_arg(m); y = a.alloc_arg(n)
-    D = a.alloc((m + 1) * (n + 1))
-    stride = n + 1
-    answer = D + m * stride + n
+    c_A = a.alloc(1)
+    row_a = a.alloc(n + 1)
+    row_b = a.alloc(n + 1)
+    answer = a.alloc(1)
     a.set_output_range(answer, answer + 1)
+
+    row_prev, row_cur = row_a, row_b
     for i in range(1, m + 1):
+        a.touch_arg(x + i - 1); a.write(c_A)
         for j in range(1, n + 1):
-            a.touch(D + (i - 1) * stride + (j - 1))
-            a.touch(D + (i - 1) * stride + j)
-            a.touch(D + i * stride + (j - 1))
-            a.touch_arg(x + i - 1)
-            a.touch_arg(y + j - 1)
-            a.write(D + i * stride + j)
+            a.touch(row_prev + (j - 1))   # D[i-1][j-1]
+            a.touch(row_prev + j)         # D[i-1][j]
+            a.touch(row_cur + (j - 1))    # D[i][j-1]
+            a.touch(c_A)                  # x[i-1]
+            a.touch_arg(y + j - 1)        # y[j-1]
+            a.write(row_cur + j)
+        row_prev, row_cur = row_cur, row_prev
+    a.touch(row_prev + n); a.write(answer)
     a.read_output()
     return a.cost
-
-
 # ===========================================================================
 # Driver — run under this script's specific algorithm.
 # ===========================================================================

@@ -520,32 +520,49 @@ def cholesky(A):
 # ===========================================================================
 
 def manual_cholesky(n: int) -> int:
-    """Right-looking Cholesky. Input A preloaded from arg stack to scratch.
-    Lower triangle only — reads span i >= j (~half full LU)."""
+    """Right-looking Cholesky with hoisted scratchpads and lazy loading.
+    Two tight scratchpads at the bottom of the stack:
+      c_A  (addr 1)         — hot scalar for pivot / A[j][k] reuse
+      c_C  (addr 2..n+1)    — column buffer caching A[k+1..n-1][k]
+    The Schur update reuses A[j][k] as a constant across its inner
+    i-loop (held in c_A) and the column-k values A[i][k] across both
+    indices (held in c_C). Lower triangle only, so ~half the Schur
+    traffic of a full LU."""
     a = _alloc()
     A_in = a.alloc_arg(n * n)
+    c_A = a.alloc(1)
+    c_C = a.alloc(n)
     A = a.alloc(n * n)
     a.set_output_range(A, A + n * n)
-    for i in range(n * n):
-        a.touch_arg(A_in + i); a.write(A + i)
+
+    def _read(i, j, k):
+        if k == 0:
+            a.touch_arg(A_in + i * n + j)
+        else:
+            a.touch(A + i * n + j)
+
     for k in range(n):
-        pivot_addr = A + k * n + k
-        a.touch(pivot_addr)
-        a.write(pivot_addr)   # A[k][k] = sqrt(A[k][k])
+        # Pivot: A[k][k] = sqrt(A[k][k]). Hoist pivot into c_A.
+        _read(k, k, k); a.write(A + k * n + k)
+        a.touch(A + k * n + k); a.write(c_A)
+        # Divide column k: A[i][k] /= pivot.
+        for i in range(k + 1, n):
+            _read(i, k, k); a.touch(c_A)
+            a.write(A + i * n + k)
+        # Cache column k (below diagonal) into c_C.
         for i in range(k + 1, n):
             a.touch(A + i * n + k)
-            a.touch(pivot_addr)
-            a.write(A + i * n + k)
+            a.write(c_C + (i - k - 1))
+        # Schur update — for each j, pin A[j][k] into c_A and sweep i.
         for j in range(k + 1, n):
+            a.touch(c_C + (j - k - 1)); a.write(c_A)
             for i in range(j, n):
-                a.touch(A + i * n + j)
-                a.touch(A + i * n + k)
-                a.touch(A + j * n + k)
+                _read(i, j, k)
+                a.touch(c_C + (i - k - 1))
+                a.touch(c_A)
                 a.write(A + i * n + j)
     a.read_output()
     return a.cost
-
-
 # ===========================================================================
 # Driver — run under this script's specific algorithm.
 # ===========================================================================

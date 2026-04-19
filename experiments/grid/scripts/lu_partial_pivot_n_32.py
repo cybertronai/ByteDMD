@@ -530,38 +530,53 @@ def lu_partial_pivot(A):
 # ===========================================================================
 
 def manual_lu_partial_pivot(n: int) -> int:
-    """LU with partial pivoting. Input A preloaded from arg stack to scratch."""
+    """LU with partial pivoting. Hoisted c_A + c_C scratchpads and lazy
+    loading, same pattern as manual_lu_no_pivot, plus a column-scan
+    pivot-selection phase and a row-swap pass each outer step."""
     a = _alloc()
     A_in = a.alloc_arg(n * n)
+    c_A = a.alloc(1)
+    c_C = a.alloc(n)
     A = a.alloc(n * n)
     a.set_output_range(A, A + n * n)
-    for i in range(n * n):
-        a.touch_arg(A_in + i); a.write(A + i)
+
+    def _read(i, j, k):
+        if k == 0:
+            a.touch_arg(A_in + i * n + j)
+        else:
+            a.touch(A + i * n + j)
+
     for k in range(n):
+        # Pivot selection — scan column k below & including diagonal.
         for i in range(k, n):
-            a.touch(A + i * n + k)
-            a.touch(A + k * n + k)
+            _read(i, k, k); a.touch(A + k * n + k) if k > 0 else a.touch_arg(
+                A_in + k * n + k)
+        # Row swap: rows k and p across columns [k, n).
         p = k + 1 if k + 1 < n else k
         for j in range(k, n):
-            a.touch(A + k * n + j)
-            a.touch(A + p * n + j)
-            a.write(A + k * n + j)
-            a.write(A + p * n + j)
-        pivot_addr = A + k * n + k
-        a.touch(pivot_addr)
+            _read(k, j, k); _read(p, j, k)
+            a.write(A + k * n + j); a.write(A + p * n + j)
+
+        # Cache pivot into c_A (now in scratch post-swap).
+        a.touch(A + k * n + k); a.write(c_A)
+        # Divide column k.
         for i in range(k + 1, n):
-            a.touch(A + i * n + k); a.touch(pivot_addr)
+            a.touch(A + i * n + k); a.touch(c_A)
             a.write(A + i * n + k)
+        # Cache row k's trailing tail into c_C.
+        for j in range(k + 1, n):
+            a.touch(A + k * n + j)
+            a.write(c_C + (j - k - 1))
+        # Schur update — hot A[i][k] in c_A, row in c_C.
         for i in range(k + 1, n):
+            a.touch(A + i * n + k); a.write(c_A)
             for j in range(k + 1, n):
                 a.touch(A + i * n + j)
-                a.touch(A + i * n + k)
-                a.touch(A + k * n + j)
+                a.touch(c_A)
+                a.touch(c_C + (j - k - 1))
                 a.write(A + i * n + j)
     a.read_output()
     return a.cost
-
-
 # ===========================================================================
 # Driver — run under this script's specific algorithm.
 # ===========================================================================

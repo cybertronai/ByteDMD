@@ -527,30 +527,54 @@ def cholesky_left_looking(A):
 # ===========================================================================
 
 def manual_cholesky_left_looking(n: int) -> int:
-    """Left-looking Cholesky: for column k, pull data from all previously-
-    factored columns 0..k-1 (far-flung reads into L[i][k]), then finalize
-    column k locally (concentrated writes). Input A preloaded to scratch."""
+    """Left-looking Cholesky with hoisted scratchpads and lazy loading.
+    For column k, pulls from all previously factored columns 0..k-1.
+    Two tight scratchpads at the bottom of the stack:
+      c_A  (addr 1)       — accumulator pinned to L[i][k] during the
+                             inner past-factor sweep
+      c_C  (addr 2..n+1)  — row buffer caching L[k][0..k-1]
+
+    Inner loop per (i, j): reads L[i][j] (bulk), c_C[j] (hot), c_A (hot)
+    → writes c_A. Only one bulk read per inner op, versus two in the
+    naive version. Lazy arg-stack reads replace the n² preload."""
     a = _alloc()
     A_in = a.alloc_arg(n * n)
+    c_A = a.alloc(1)
+    c_C = a.alloc(n)
     L = a.alloc(n * n)
     a.set_output_range(L, L + n * n)
-    for i in range(n * n):
-        a.touch_arg(A_in + i); a.write(L + i)
+
     for k in range(n):
-        for i in range(k, n):
+        # Accumulation (empty at k=0). Cache row k's past values into c_C.
+        if k > 0:
             for j in range(k):
-                a.touch(L + i * n + k)
-                a.touch(L + i * n + j)
-                a.touch(L + k * n + j)
-                a.write(L + i * n + k)
-        a.touch(L + k * n + k); a.write(L + k * n + k)
+                a.touch(L + k * n + j); a.write(c_C + j)
+            for i in range(k, n):
+                a.touch(L + i * n + k); a.write(c_A)
+                for j in range(k):
+                    a.touch(L + i * n + j)
+                    a.touch(c_C + j)
+                    a.touch(c_A)
+                    a.write(c_A)
+                a.touch(c_A); a.write(L + i * n + k)
+        # Diagonal sqrt. Lazy-load A[k][k] at k=0.
+        if k == 0:
+            a.touch_arg(A_in + k * n + k)
+        else:
+            a.touch(L + k * n + k)
+        a.write(L + k * n + k)
+        # Pin pivot into c_A.
+        a.touch(L + k * n + k); a.write(c_A)
+        # Divide column k — lazy-load column 0 at k=0.
         for i in range(k + 1, n):
-            a.touch(L + i * n + k); a.touch(L + k * n + k)
+            if k == 0:
+                a.touch_arg(A_in + i * n + k)
+            else:
+                a.touch(L + i * n + k)
+            a.touch(c_A)
             a.write(L + i * n + k)
     a.read_output()
     return a.cost
-
-
 # ===========================================================================
 # Driver — run under this script's specific algorithm.
 # ===========================================================================

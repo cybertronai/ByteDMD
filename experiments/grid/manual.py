@@ -1029,27 +1029,44 @@ def manual_mergesort(N: int) -> int:
 # ============================================================================
 
 def manual_lu_no_pivot(n: int) -> int:
-    """In-place no-pivot LU. Input A preloaded from arg stack to scratch;
-    elimination runs in place on scratch A."""
+    """In-place no-pivot LU with hoisted scratchpads and lazy loading.
+    Two tight scratchpads occupy addresses 1..n+1:
+      c_A  (addr 1)         — hot scalar for pivot / A[i][k]
+      c_C  (addr 2..n+1)    — row buffer caching A[k][k+1..n-1]
+    The n² upfront preload is replaced with lazy reads from the arg
+    stack on the first outer-k pass; every subsequent access comes
+    from scratch A just above c_C."""
     a = _alloc()
     A_in = a.alloc_arg(n * n)
+    c_A = a.alloc(1)
+    c_C = a.alloc(n)
     A = a.alloc(n * n)
     a.set_output_range(A, A + n * n)
-    for i in range(n * n):
-        a.touch_arg(A_in + i); a.write(A + i)
+
+    def _read_A(i, j, k):
+        if k == 0:
+            a.touch_arg(A_in + i * n + j)
+        else:
+            a.touch(A + i * n + j)
+
     for k in range(n):
-        pivot_addr = A + k * n + k
-        a.touch(pivot_addr)
+        # Cache pivot A[k][k] into c_A.
+        _read_A(k, k, k); a.write(c_A)
+        # Divide column k by pivot.
         for i in range(k + 1, n):
-            a.touch(A + i * n + k)
-            a.touch(pivot_addr)
-            a.write(A + i * n + k)   # A[i][k] /= pivot
+            _read_A(i, k, k); a.touch(c_A)
+            a.write(A + i * n + k)
+        # Cache row k's trailing tail A[k][k+1..n-1] into c_C.
+        for j in range(k + 1, n):
+            _read_A(k, j, k); a.write(c_C + (j - k - 1))
+        # Schur update — for each i, cache A[i][k] into c_A then sweep j.
         for i in range(k + 1, n):
+            a.touch(A + i * n + k); a.write(c_A)
             for j in range(k + 1, n):
-                a.touch(A + i * n + j)
-                a.touch(A + i * n + k)
-                a.touch(A + k * n + j)
-                a.write(A + i * n + j)   # rank-1 update
+                _read_A(i, j, k)
+                a.touch(c_A)
+                a.touch(c_C + (j - k - 1))
+                a.write(A + i * n + j)
     a.read_output()
     return a.cost
 
@@ -1203,10 +1220,19 @@ def manual_blocked_lu(n: int, NB: int = 8) -> int:
 
 
 def manual_recursive_lu(n: int) -> int:
-    """Recursive LU. Input A preloaded from arg stack to scratch; sub-blocks
-    processed in place on scratch."""
+    """Recursive LU with hoisted scratchpads. Each of the three Schur-
+    style inner loops caches one operand of its `A[i][j] -= A[i][k] *
+    A[k][j]` body into a low-address scratchpad, cutting the inner-loop
+    read traffic from 3 bulk A reads to 1 bulk + 2 hot.
+
+      c_A   (addr 1)      — pivot / row-k scalar
+      c_B   (addr 2)      — column-k scalar (A[i][k] after divide)
+      c_C   (addr 3..n+2) — row-k trailing buffer"""
     a = _alloc()
     A_in = a.alloc_arg(n * n)
+    c_A = a.alloc(1)
+    c_B = a.alloc(1)
+    c_C = a.alloc(n)
     A = a.alloc(n * n)
     a.set_output_range(A, A + n * n)
     for i in range(n * n):
@@ -1217,30 +1243,48 @@ def manual_recursive_lu(n: int) -> int:
             return
         h = sz // 2
         rec(r0, c0, h)
-        for i in range(r0 + h, r0 + sz):
-            for k in range(c0, c0 + h):
-                a.touch(A + i * n + k)
-                a.touch(A + k * n + k)
-                a.write(A + i * n + k)
+
+        # --- Column panel update A[r0+h..r0+sz, c0..c0+h] ---
+        for k in range(c0, c0 + h):
+            a.touch(A + k * n + k); a.write(c_A)                 # pivot
+            for j in range(k + 1, c0 + h):
+                a.touch(A + k * n + j); a.write(c_C + (j - k - 1))
+            for i in range(r0 + h, r0 + sz):
+                a.touch(A + i * n + k); a.touch(c_A)
+                a.write(A + i * n + k)                            # divide
+                a.touch(A + i * n + k); a.write(c_B)              # hot row-k
                 for j in range(k + 1, c0 + h):
                     a.touch(A + i * n + j)
-                    a.touch(A + i * n + k)
-                    a.touch(A + k * n + j)
+                    a.touch(c_B)
+                    a.touch(c_C + (j - k - 1))
                     a.write(A + i * n + j)
+
+        # --- Row-strip update A[r0..r0+h, c0+h..c0+sz] ---
         for k in range(r0, r0 + h):
+            # cache A[k][c0+h..c0+sz-1] into c_C
             for j in range(c0 + h, c0 + sz):
-                for i in range(k + 1, r0 + h):
+                a.touch(A + k * n + j); a.write(c_C + (j - (c0 + h)))
+            for i in range(k + 1, r0 + h):
+                a.touch(A + i * n + k); a.write(c_B)              # hot col-k
+                for j in range(c0 + h, c0 + sz):
                     a.touch(A + i * n + j)
-                    a.touch(A + i * n + k)
-                    a.touch(A + k * n + j)
+                    a.touch(c_B)
+                    a.touch(c_C + (j - (c0 + h)))
                     a.write(A + i * n + j)
-        for i in range(r0 + h, r0 + sz):
+
+        # --- Trailing submatrix update A[r0+h.., c0+h..] ---
+        for k in range(c0, c0 + h):
+            # cache A[k][c0+h..c0+sz-1] into c_C
             for j in range(c0 + h, c0 + sz):
-                for k in range(c0, c0 + h):
+                a.touch(A + k * n + j); a.write(c_C + (j - (c0 + h)))
+            for i in range(r0 + h, r0 + sz):
+                a.touch(A + i * n + k); a.write(c_B)              # hot col-k
+                for j in range(c0 + h, c0 + sz):
                     a.touch(A + i * n + j)
-                    a.touch(A + i * n + k)
-                    a.touch(A + k * n + j)
+                    a.touch(c_B)
+                    a.touch(c_C + (j - (c0 + h)))
                     a.write(A + i * n + j)
+
         rec(r0 + h, c0 + h, sz - h)
 
     rec(0, 0, n)
@@ -1249,33 +1293,50 @@ def manual_recursive_lu(n: int) -> int:
 
 
 def manual_lu_partial_pivot(n: int) -> int:
-    """LU with partial pivoting. Input A preloaded from arg stack to scratch."""
+    """LU with partial pivoting. Hoisted c_A + c_C scratchpads and lazy
+    loading, same pattern as manual_lu_no_pivot, plus a column-scan
+    pivot-selection phase and a row-swap pass each outer step."""
     a = _alloc()
     A_in = a.alloc_arg(n * n)
+    c_A = a.alloc(1)
+    c_C = a.alloc(n)
     A = a.alloc(n * n)
     a.set_output_range(A, A + n * n)
-    for i in range(n * n):
-        a.touch_arg(A_in + i); a.write(A + i)
+
+    def _read(i, j, k):
+        if k == 0:
+            a.touch_arg(A_in + i * n + j)
+        else:
+            a.touch(A + i * n + j)
+
     for k in range(n):
+        # Pivot selection — scan column k below & including diagonal.
         for i in range(k, n):
-            a.touch(A + i * n + k)
-            a.touch(A + k * n + k)
+            _read(i, k, k); a.touch(A + k * n + k) if k > 0 else a.touch_arg(
+                A_in + k * n + k)
+        # Row swap: rows k and p across columns [k, n).
         p = k + 1 if k + 1 < n else k
         for j in range(k, n):
-            a.touch(A + k * n + j)
-            a.touch(A + p * n + j)
-            a.write(A + k * n + j)
-            a.write(A + p * n + j)
-        pivot_addr = A + k * n + k
-        a.touch(pivot_addr)
+            _read(k, j, k); _read(p, j, k)
+            a.write(A + k * n + j); a.write(A + p * n + j)
+
+        # Cache pivot into c_A (now in scratch post-swap).
+        a.touch(A + k * n + k); a.write(c_A)
+        # Divide column k.
         for i in range(k + 1, n):
-            a.touch(A + i * n + k); a.touch(pivot_addr)
+            a.touch(A + i * n + k); a.touch(c_A)
             a.write(A + i * n + k)
+        # Cache row k's trailing tail into c_C.
+        for j in range(k + 1, n):
+            a.touch(A + k * n + j)
+            a.write(c_C + (j - k - 1))
+        # Schur update — hot A[i][k] in c_A, row in c_C.
         for i in range(k + 1, n):
+            a.touch(A + i * n + k); a.write(c_A)
             for j in range(k + 1, n):
                 a.touch(A + i * n + j)
-                a.touch(A + i * n + k)
-                a.touch(A + k * n + j)
+                a.touch(c_A)
+                a.touch(c_C + (j - k - 1))
                 a.write(A + i * n + j)
     a.read_output()
     return a.cost
@@ -1286,27 +1347,46 @@ def manual_lu_partial_pivot(n: int) -> int:
 # ============================================================================
 
 def manual_cholesky(n: int) -> int:
-    """Right-looking Cholesky. Input A preloaded from arg stack to scratch.
-    Lower triangle only — reads span i >= j (~half full LU)."""
+    """Right-looking Cholesky with hoisted scratchpads and lazy loading.
+    Two tight scratchpads at the bottom of the stack:
+      c_A  (addr 1)         — hot scalar for pivot / A[j][k] reuse
+      c_C  (addr 2..n+1)    — column buffer caching A[k+1..n-1][k]
+    The Schur update reuses A[j][k] as a constant across its inner
+    i-loop (held in c_A) and the column-k values A[i][k] across both
+    indices (held in c_C). Lower triangle only, so ~half the Schur
+    traffic of a full LU."""
     a = _alloc()
     A_in = a.alloc_arg(n * n)
+    c_A = a.alloc(1)
+    c_C = a.alloc(n)
     A = a.alloc(n * n)
     a.set_output_range(A, A + n * n)
-    for i in range(n * n):
-        a.touch_arg(A_in + i); a.write(A + i)
+
+    def _read(i, j, k):
+        if k == 0:
+            a.touch_arg(A_in + i * n + j)
+        else:
+            a.touch(A + i * n + j)
+
     for k in range(n):
-        pivot_addr = A + k * n + k
-        a.touch(pivot_addr)
-        a.write(pivot_addr)   # A[k][k] = sqrt(A[k][k])
+        # Pivot: A[k][k] = sqrt(A[k][k]). Hoist pivot into c_A.
+        _read(k, k, k); a.write(A + k * n + k)
+        a.touch(A + k * n + k); a.write(c_A)
+        # Divide column k: A[i][k] /= pivot.
+        for i in range(k + 1, n):
+            _read(i, k, k); a.touch(c_A)
+            a.write(A + i * n + k)
+        # Cache column k (below diagonal) into c_C.
         for i in range(k + 1, n):
             a.touch(A + i * n + k)
-            a.touch(pivot_addr)
-            a.write(A + i * n + k)
+            a.write(c_C + (i - k - 1))
+        # Schur update — for each j, pin A[j][k] into c_A and sweep i.
         for j in range(k + 1, n):
+            a.touch(c_C + (j - k - 1)); a.write(c_A)
             for i in range(j, n):
-                a.touch(A + i * n + j)
-                a.touch(A + i * n + k)
-                a.touch(A + j * n + k)
+                _read(i, j, k)
+                a.touch(c_C + (i - k - 1))
+                a.touch(c_A)
                 a.write(A + i * n + j)
     a.read_output()
     return a.cost
@@ -1449,23 +1529,37 @@ def manual_tsqr(m: int, n: int, block_rows: int = 8) -> int:
 # ============================================================================
 
 def manual_lcs_dp(m: int, n: int) -> int:
-    """Row-major LCS DP. Input strings x, y on arg stack; DP table D on
-    scratch. The Python algorithm returns only D[m][n] (the LCS length),
-    so the output epilogue reads just that one cell."""
+    """Row-major LCS DP with a rolling 2-row buffer (only D[m][n] is
+    returned, so the full (m+1)(n+1) table is unnecessary).
+
+    Hoisted scratchpads:
+      c_A    (addr 1)          — hot scalar x[i-1], constant in j-sweep
+      row_a  (addr 2..n+2)     — one DP row
+      row_b  (addr n+3..2n+3)  — the other DP row
+    row_a / row_b ping-pong each outer i; the inner-j reads (D[i-1][j-1],
+    D[i-1][j], D[i][j-1]) all hit these low-address buffers. A single
+    `answer` cell just above holds the final D[m][n] for the output
+    epilogue."""
     a = _alloc()
     x = a.alloc_arg(m); y = a.alloc_arg(n)
-    D = a.alloc((m + 1) * (n + 1))
-    stride = n + 1
-    answer = D + m * stride + n
+    c_A = a.alloc(1)
+    row_a = a.alloc(n + 1)
+    row_b = a.alloc(n + 1)
+    answer = a.alloc(1)
     a.set_output_range(answer, answer + 1)
+
+    row_prev, row_cur = row_a, row_b
     for i in range(1, m + 1):
+        a.touch_arg(x + i - 1); a.write(c_A)
         for j in range(1, n + 1):
-            a.touch(D + (i - 1) * stride + (j - 1))
-            a.touch(D + (i - 1) * stride + j)
-            a.touch(D + i * stride + (j - 1))
-            a.touch_arg(x + i - 1)
-            a.touch_arg(y + j - 1)
-            a.write(D + i * stride + j)
+            a.touch(row_prev + (j - 1))   # D[i-1][j-1]
+            a.touch(row_prev + j)         # D[i-1][j]
+            a.touch(row_cur + (j - 1))    # D[i][j-1]
+            a.touch(c_A)                  # x[i-1]
+            a.touch_arg(y + j - 1)        # y[j-1]
+            a.write(row_cur + j)
+        row_prev, row_cur = row_cur, row_prev
+    a.touch(row_prev + n); a.write(answer)
     a.read_output()
     return a.cost
 
@@ -1721,25 +1815,51 @@ def manual_matrix_powers_ca(n: int, s: int = 4, block: int = 4) -> int:
 # ============================================================================
 
 def manual_cholesky_left_looking(n: int) -> int:
-    """Left-looking Cholesky: for column k, pull data from all previously-
-    factored columns 0..k-1 (far-flung reads into L[i][k]), then finalize
-    column k locally (concentrated writes). Input A preloaded to scratch."""
+    """Left-looking Cholesky with hoisted scratchpads and lazy loading.
+    For column k, pulls from all previously factored columns 0..k-1.
+    Two tight scratchpads at the bottom of the stack:
+      c_A  (addr 1)       — accumulator pinned to L[i][k] during the
+                             inner past-factor sweep
+      c_C  (addr 2..n+1)  — row buffer caching L[k][0..k-1]
+
+    Inner loop per (i, j): reads L[i][j] (bulk), c_C[j] (hot), c_A (hot)
+    → writes c_A. Only one bulk read per inner op, versus two in the
+    naive version. Lazy arg-stack reads replace the n² preload."""
     a = _alloc()
     A_in = a.alloc_arg(n * n)
+    c_A = a.alloc(1)
+    c_C = a.alloc(n)
     L = a.alloc(n * n)
     a.set_output_range(L, L + n * n)
-    for i in range(n * n):
-        a.touch_arg(A_in + i); a.write(L + i)
+
     for k in range(n):
-        for i in range(k, n):
+        # Accumulation (empty at k=0). Cache row k's past values into c_C.
+        if k > 0:
             for j in range(k):
-                a.touch(L + i * n + k)
-                a.touch(L + i * n + j)
-                a.touch(L + k * n + j)
-                a.write(L + i * n + k)
-        a.touch(L + k * n + k); a.write(L + k * n + k)
+                a.touch(L + k * n + j); a.write(c_C + j)
+            for i in range(k, n):
+                a.touch(L + i * n + k); a.write(c_A)
+                for j in range(k):
+                    a.touch(L + i * n + j)
+                    a.touch(c_C + j)
+                    a.touch(c_A)
+                    a.write(c_A)
+                a.touch(c_A); a.write(L + i * n + k)
+        # Diagonal sqrt. Lazy-load A[k][k] at k=0.
+        if k == 0:
+            a.touch_arg(A_in + k * n + k)
+        else:
+            a.touch(L + k * n + k)
+        a.write(L + k * n + k)
+        # Pin pivot into c_A.
+        a.touch(L + k * n + k); a.write(c_A)
+        # Divide column k — lazy-load column 0 at k=0.
         for i in range(k + 1, n):
-            a.touch(L + i * n + k); a.touch(L + k * n + k)
+            if k == 0:
+                a.touch_arg(A_in + i * n + k)
+            else:
+                a.touch(L + i * n + k)
+            a.touch(c_A)
             a.write(L + i * n + k)
     a.read_output()
     return a.cost

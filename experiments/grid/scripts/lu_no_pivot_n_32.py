@@ -521,31 +521,46 @@ def lu_no_pivot(A):
 # ===========================================================================
 
 def manual_lu_no_pivot(n: int) -> int:
-    """In-place no-pivot LU. Input A preloaded from arg stack to scratch;
-    elimination runs in place on scratch A."""
+    """In-place no-pivot LU with hoisted scratchpads and lazy loading.
+    Two tight scratchpads occupy addresses 1..n+1:
+      c_A  (addr 1)         — hot scalar for pivot / A[i][k]
+      c_C  (addr 2..n+1)    — row buffer caching A[k][k+1..n-1]
+    The n² upfront preload is replaced with lazy reads from the arg
+    stack on the first outer-k pass; every subsequent access comes
+    from scratch A just above c_C."""
     a = _alloc()
     A_in = a.alloc_arg(n * n)
+    c_A = a.alloc(1)
+    c_C = a.alloc(n)
     A = a.alloc(n * n)
     a.set_output_range(A, A + n * n)
-    for i in range(n * n):
-        a.touch_arg(A_in + i); a.write(A + i)
+
+    def _read_A(i, j, k):
+        if k == 0:
+            a.touch_arg(A_in + i * n + j)
+        else:
+            a.touch(A + i * n + j)
+
     for k in range(n):
-        pivot_addr = A + k * n + k
-        a.touch(pivot_addr)
+        # Cache pivot A[k][k] into c_A.
+        _read_A(k, k, k); a.write(c_A)
+        # Divide column k by pivot.
         for i in range(k + 1, n):
-            a.touch(A + i * n + k)
-            a.touch(pivot_addr)
-            a.write(A + i * n + k)   # A[i][k] /= pivot
+            _read_A(i, k, k); a.touch(c_A)
+            a.write(A + i * n + k)
+        # Cache row k's trailing tail A[k][k+1..n-1] into c_C.
+        for j in range(k + 1, n):
+            _read_A(k, j, k); a.write(c_C + (j - k - 1))
+        # Schur update — for each i, cache A[i][k] into c_A then sweep j.
         for i in range(k + 1, n):
+            a.touch(A + i * n + k); a.write(c_A)
             for j in range(k + 1, n):
-                a.touch(A + i * n + j)
-                a.touch(A + i * n + k)
-                a.touch(A + k * n + j)
-                a.write(A + i * n + j)   # rank-1 update
+                _read_A(i, j, k)
+                a.touch(c_A)
+                a.touch(c_C + (j - k - 1))
+                a.write(A + i * n + j)
     a.read_output()
     return a.cost
-
-
 # ===========================================================================
 # Driver — run under this script's specific algorithm.
 # ===========================================================================
