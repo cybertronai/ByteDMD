@@ -109,3 +109,14 @@ Research notes on **ByteDMD** (Byte-level Data Movement Distance): a concrete me
 | [mattson-trap.md](mattson-trap.md) | Three algorithms (Karatsuba, BPTT, out-of-place FFT) where Mattson's LRU stack hallucinates bottlenecks that Live-Bytes correctly resolves |
 | [debug-spacedmd-scratchpad.md](debug-spacedmd-scratchpad.md) | Why SpaceDMD diverges from manual: implicit vs explicit scratchpad in traced code, fix via materialized DMA copies |
 | [beyond-mattson-prior-work.md](beyond-mattson-prior-work.md) | Prior work on liveness-aware cache models: Belady OPT, Ideal Cache, Dead-Block Pollution, Live Distance, HMM connection |
+
+## April 18, 2026
+
+| Report | Summary |
+|--------|---------|
+| [strassen-loophole.md](strassen-loophole.md) | Why Fused Strassen and FFT beat bytedmd_live: static spatial pinning vs temporal LRU stack |
+| [optimized-tiled-matmul.md](optimized-tiled-matmul.md) | Eliminating 2D scratchpad buffers and hoisting loop orders to minimize geometric stack cost |
+| [strassen-cheating-macc.md](strassen-cheating-macc.md) | Audit of manual_fused_strassen: three discrepancies in MAC accumulator and intermediate pricing |
+| [naive-attention-surprise.md](naive-attention-surprise.md) | Why Flash Attention manual cost exceeds naive at small N: algorithmic mismatch + arithmetic overhead |
+| [efficient-matvec.md](efficient-matvec.md) | Why SpaceDMD beats manual matvec: streaming registers vs static bulk array placement |
+| [manual-vs-traced-mismatch.md](manual-vs-traced-mismatch.md) | Manual schedule beats automated bounds by executing an optimized algorithm, not just better layout |
