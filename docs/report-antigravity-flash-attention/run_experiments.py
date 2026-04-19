@@ -2,7 +2,7 @@
 """
 Run ByteDMD vs FLOP experiments for naive vs flash attention.
 Uses traced_eval directly (skips assert_noescape) for speed.
-Generates results.json and report.md.
+Generates results.json and README.md.
 """
 import sys, os, time, json
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
@@ -84,7 +84,7 @@ def run_all():
 
     # Generate report
     generate_report(results)
-    print(f"\nSaved results.json and report.md to {DIR}")
+    print(f"\nSaved results.json and README.md to {DIR}")
 
 
 def generate_report(results):
@@ -152,7 +152,7 @@ def generate_report(results):
     lines.append("- This aligns with empirical GPU benchmarks where flash attention achieves 2-4x")
     lines.append("  wall-clock speedup despite identical FLOP counts\n")
 
-    with open(os.path.join(DIR, 'report.md'), 'w') as f:
+    with open(os.path.join(DIR, 'README.md'), 'w') as f:
         f.write('\n'.join(lines) + '\n')
 
 

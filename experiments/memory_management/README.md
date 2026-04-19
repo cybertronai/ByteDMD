@@ -258,7 +258,7 @@ experiments/memory_management/
 ├── analyze.py                  # empirical exponents, two-term fits, ratios
 ├── compare_to_formulas.py      # side-by-side comparison vs Gemini's formulas
 ├── results.json                # raw measurements (discrete + continuous)
-└── report.md                   # this file
+└── README.md                   # this file
 ```
 
 ## Reproducing

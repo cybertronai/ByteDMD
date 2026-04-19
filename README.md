@@ -204,9 +204,9 @@ Based on [Karpathy's microGPT](https://gist.github.com/karpathy/8627fe009c40f575
 
 In-depth reports applying ByteDMD to specific algorithms and design questions:
 
-- [Strassen vs naive matmul](docs/report-strassen-benchmarks/report.md) — at what matrix size does Strassen's recursive algorithm beat naive matmul under ByteDMD? Includes a crossover-point experiment.
-- [Modern flash attention vs naive attention](docs/report-modern-flash-attention/report.md) — full sweep across sequence length, head dim, and block size showing flash attention's advantage growing as O(sqrt(N/Bk)) under ByteDMD while FLOPs see no benefit. Uses an optimised tracer (`bytedmd_fast.py`).
-- [Antigravity flash attention experiments](docs/report-antigravity-flash-attention/report.md) — alternative flash attention implementations and their ByteDMD costs.
+- [Strassen vs naive matmul](docs/report-strassen-benchmarks/) — at what matrix size does Strassen's recursive algorithm beat naive matmul under ByteDMD? Includes a crossover-point experiment.
+- [Modern flash attention vs naive attention](docs/report-modern-flash-attention/) — full sweep across sequence length, head dim, and block size showing flash attention's advantage growing as O(sqrt(N/Bk)) under ByteDMD while FLOPs see no benefit. Uses an optimised tracer (`bytedmd_fast.py`).
+- [Antigravity flash attention experiments](docs/report-antigravity-flash-attention/) — alternative flash attention implementations and their ByteDMD costs.
 - [Attention benchmark notes](benchmarks/attention_report.md) — the small-scale flash vs naive results that motivated the modern-attention deep dive.
 
 # Python Gotcha's
