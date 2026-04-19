@@ -60,8 +60,8 @@ DAGs are identical, so `bytedmd_live` / `bytedmd_classic` match — only
 | algorithm                                                            | space_dmd | bytedmd_live | manual      | bytedmd_classic |
 |-----------------------------------------------------------------------|----------:|-------------:|------------:|----------------:|
 | [naive_matmul(n=16)](#naive_matmul)                                   |    79,044 |      109,217 |     102,026 |         181,258 |
-| [tiled_matmul(n=16)](#tiled_matmul)                                   |    93,369 |       78,708 |      82,520 |         143,812 |
-| [tiled_matmul_explicit(n=16,T=4)](#tiled_matmul_explicit)             |    73,927 |       99,006 |      82,520 |         201,547 |
+| [tiled_matmul(n=16)](#tiled_matmul)                                   |    93,369 |       78,708 |      58,531 |         143,812 |
+| [tiled_matmul_explicit(n=16,T=4)](#tiled_matmul_explicit)             |    73,927 |       99,006 |      58,531 |         201,547 |
 | [rmm(n=16)](#rmm)                                                     |   107,058 |       83,196 |      93,291 |         151,375 |
 | [naive_strassen(n=16)](#naive_strassen)                               |   135,273 |      175,157 |     231,112 |         343,737 |
 | [fused_strassen(n=16)](#fused_strassen)                               |   135,273 |      175,157 |     121,612 |         343,737 |
@@ -201,10 +201,18 @@ Median depth is 25, max is 512.
 `(bi, bj, bk)` tiles of size T×T, compute each inner tile with the triple
 loop. Same arithmetic as naive but in block-major order for locality.
 
-**Manual placement.** Scratchpads `sA, sB, sC` at addrs 1..T², T²+1..2T²,
-2T²+1..3T² (hot). Bulk `A, B, C` at higher addrs. For each (bi, bj):
-load C tile into sC; for each bk: load A/B tiles into sA/sB; MAC into sC
-(accumulator read once per (ii,jj) outside kk-loop); flush sC back.
+**Manual placement.** Register-blocked outer product with a B-row
+stationary schedule (gemini/optimized-tiled-matmul.md):
+  `c_A` (addr 1) — scalar register for the current A element;
+  `c_B` (addrs 2..T+1) — L1 vector holding the current row of B;
+  `sC` (addrs T+2..T+1+blocks·T²) — 2D accumulator for TWO vertical
+  C tiles simultaneously so each B-row fetch is amortized.
+
+The inner MAC loop reads `c_A` + `c_B[jj]` + `sC[…]` — all within the
+bottom 37 scratch addresses — instead of touching the large bulk A/B
+tile scratchpads used before. Drops manual from 82,520 to **58,531**
+(−29%), now below all three heuristics (`space_dmd` 93,369,
+`bytedmd_live` 78,708, `bytedmd_classic` 143,812).
 
 ![](traces/tiled_matmul_n_16.png)
 

@@ -1,7 +1,7 @@
 algorithm,space_dmd,bytedmd_live,manual,bytedmd_classic
 naive_matmul(n=16),79044,109217,102026,181258
-tiled_matmul(n=16),93369,78708,82520,143812
-"tiled_matmul_explicit(n=16,T=4)",73927,99006,82520,201547
+tiled_matmul(n=16),93369,78708,58531,143812
+"tiled_matmul_explicit(n=16,T=4)",73927,99006,58531,201547
 rmm(n=16),107058,83196,93291,151375
 naive_strassen(n=16),135273,175157,231112,343737
 fused_strassen(n=16),135273,175157,121612,343737
