@@ -14,8 +14,8 @@ This is a simplified implementation of this model for a single processor, design
 - Only price reads, writes and arithmetic is free.
 
 
-## Dealing with arguments
+## Function semantics
 
 - Arguments are pre-loaded on the read-only part of the memory (negative indices)
 - Outputs and temporaries are in the writeable part of the memory (positive indices)
-- At the end of the function call, every output value is read (This is to make sure that there are no free reads when chaining function calls)
+- Return value is assembled at the end by reading every output
