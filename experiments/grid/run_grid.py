@@ -424,7 +424,6 @@ METRICS: List[Tuple[str, Callable[[Sequence[L2Event]], int] | None]] = [
     ("space_dmd",       space_dmd),
     ("copy_space_dmd",  copy_space_dmd),
     ("bytedmd_live",    bytedmd_live),
-    ("belady",          belady),
     ("manual",          None),
     ("bytedmd_classic", bytedmd_classic),
 ]
