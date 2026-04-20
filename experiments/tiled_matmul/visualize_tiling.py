@@ -65,7 +65,7 @@ def trace_tiled_matmul(N, T):
 
 
 def main():
-    N = 8
+    N = 16
     T = 4
 
     print(f"Tracing Naive Matmul (N={N})...")

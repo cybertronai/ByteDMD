@@ -255,8 +255,8 @@ def plot_panel(ax, addrs_list, is_write_list, regions, title, cost, y_min, y_max
 
 
 def main():
-    N = 4
-    T = 2
+    N = 16
+    T = 4
 
     naive_addrs, naive_ws, naive_ann, naive_reg, naive_cost = trace_naive(N)
     tiled_addrs, tiled_ws, tiled_ann, tiled_reg, tiled_cost = trace_tiled(N, T)
