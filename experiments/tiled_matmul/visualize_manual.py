@@ -198,6 +198,73 @@ def trace_tiled(N, T):
     return addrs, writes, annotations, regions, cost
 
 
+def trace_tiled_no_dma(N, T):
+    """Tiled loop order, NO scratchpad / DMA. Reads A and B directly
+    from the deep argument arena and accumulates C in scratch. Shows
+    the cost of loop-reordering alone, absent any DMA copy.
+
+    AB^T format: C[i][j] += A[i][k] * B[j][k].
+    """
+    addrs = []
+    writes = []
+    annotations = []
+    cost = 0
+
+    def addr_A(i, j): return -(1 + i * N + j)
+    def addr_B(i, j): return -(N * N + 1 + i * N + j)
+    s = 1
+    C = 2
+
+    def addr_C(i, j): return C + i * N + j
+
+    def read(addr, desc):
+        nonlocal cost
+        c = read_cost(addr)
+        addrs.append(addr); writes.append(False)
+        annotations.append((addr, c, 'R', desc))
+        cost += c
+
+    def write(addr, desc):
+        addrs.append(addr); writes.append(True)
+        annotations.append((addr, 0, 'W', desc))
+
+    for bi in range(0, N, T):
+        for bj in range(0, N, T):
+            for bk in range(0, N, T):
+                for ii in range(T):
+                    for jj in range(T):
+                        first = (bk == 0)
+                        i, j = bi + ii, bj + jj
+                        if first:
+                            read(addr_A(i, bk), f"A[{i}][{bk}]")
+                            read(addr_B(j, bk), f"B[{j}][{bk}]")
+                            write(s, f"s = A[{i}][{bk}]*B[{j}][{bk}]")
+                            for kk in range(1, T):
+                                read(addr_A(i, bk + kk), f"A[{i}][{bk+kk}]")
+                                read(addr_B(j, bk + kk), f"B[{j}][{bk+kk}]")
+                                read(s, f"s (acc)")
+                                write(s, f"s += A[{i}][{bk+kk}]*B[{j}][{bk+kk}]")
+                            write(addr_C(i, j), f"C[{i}][{j}] = s (first bk)")
+                        else:
+                            read(addr_C(i, j), f"C[{i}][{j}] (acc load)")
+                            write(s, f"s = C[{i}][{j}]")
+                            for kk in range(T):
+                                read(addr_A(i, bk + kk), f"A[{i}][{bk+kk}]")
+                                read(addr_B(j, bk + kk), f"B[{j}][{bk+kk}]")
+                                read(s, f"s (acc)")
+                                write(s, f"s += A[{i}][{bk+kk}]*B[{j}][{bk+kk}]")
+                            read(s, f"s final")
+                            write(addr_C(i, j), f"C[{i}][{j}] = s")
+
+    regions = {
+        'accum': (s, s),
+        'out_C': (C, C + N * N - 1),
+        'arg_A': (addr_A(N - 1, N - 1), addr_A(0, 0)),
+        'arg_B': (addr_B(N - 1, N - 1), addr_B(0, 0)),
+    }
+    return addrs, writes, annotations, regions, cost
+
+
 def print_trace(name, annotations, max_lines=None):
     """Print a human-readable trace of every memory access."""
     print(f"\n{'='*76}")
@@ -261,10 +328,12 @@ def main():
     T = 4
 
     naive_addrs, naive_ws, naive_ann, naive_reg, naive_cost = trace_naive(N)
+    nodma_addrs, nodma_ws, nodma_ann, nodma_reg, nodma_cost = trace_tiled_no_dma(N, T)
     tiled_addrs, tiled_ws, tiled_ann, tiled_reg, tiled_cost = trace_tiled(N, T)
 
     # Print detailed traces
     print_trace(f"Naive Matmul (N={N})", naive_ann)
+    print_trace(f"Tiled loop order, NO DMA (N={N}, T={T})", nodma_ann)
     print_trace(f"Tiled Matmul with Scratchpad (N={N}, T={T})", tiled_ann)
 
     # Summary
@@ -276,32 +345,38 @@ def main():
     print(f'{"="*76}')
     nr = sum(1 for w in naive_ws if not w)
     nw = sum(1 for w in naive_ws if w)
+    nodma_r = sum(1 for w in nodma_ws if not w)
+    nodma_w = sum(1 for w in nodma_ws if w)
     tr = sum(1 for w in tiled_ws if not w)
     tw = sum(1 for w in tiled_ws if w)
-    print(f'  Naive:  {nr} reads + {nw} writes   read cost = {naive_cost:>6,}')
-    print(f'  Tiled:  {tr} reads + {tw} writes   read cost = {tiled_cost:>6,}')
+    print(f'  Naive:       {nr} reads + {nw} writes   read cost = {naive_cost:>7,}')
+    print(f'  Tiled (no DMA): {nodma_r} reads + {nodma_w} writes   read cost = {nodma_cost:>7,}')
+    print(f'  Tiled (DMA):    {tr} reads + {tw} writes   read cost = {tiled_cost:>7,}')
     if tiled_cost > 0:
-        print(f'  Speedup: {naive_cost/tiled_cost:.2f}x')
+        print(f'  Speedup (naive -> tiled DMA): {naive_cost/tiled_cost:.2f}x')
 
-    # Plot
-    all_addrs = naive_addrs + tiled_addrs
+    # Plot — three panels: naive, tiled (no DMA), tiled (with DMA)
+    all_addrs = naive_addrs + nodma_addrs + tiled_addrs
     y_min = min(all_addrs) - 2
     y_max = max(all_addrs) + 2
 
-    fig, axes = plt.subplots(2, 1, figsize=(12, 9), sharex=False)
+    fig, axes = plt.subplots(3, 1, figsize=(12, 12), sharex=False)
     plot_panel(axes[0], naive_addrs, naive_ws, naive_reg,
               f'Naive Matmul (N={N}) — args above, scratch below',
               naive_cost, y_min, y_max)
-    plot_panel(axes[1], tiled_addrs, tiled_ws, tiled_reg,
-              f'Tiled with Scratchpad (N={N}, T={T}) — MAC loop in low scratch',
+    plot_panel(axes[1], nodma_addrs, nodma_ws, nodma_reg,
+              f'Tiled LOOP ORDER only (no DMA, N={N}, T={T}) — reads still hit args',
+              nodma_cost, y_min, y_max)
+    plot_panel(axes[2], tiled_addrs, tiled_ws, tiled_reg,
+              f'Tiled with DMA scratchpad (N={N}, T={T}) — MAC loop in low scratch',
               tiled_cost, y_min, y_max)
-    axes[1].set_xlabel('Access index', fontsize=11)
+    axes[2].set_xlabel('Access index', fontsize=11)
 
     fig.suptitle(
-        f'Manhattan Diamond: Naive vs Tiled (N={N})  '
+        f'Manhattan Diamond: Naive vs Tiled-no-DMA vs Tiled-with-DMA (N={N})  '
         f'[neg = arguments, pos = scratch]\n'
-        f'Naive cost={naive_cost:,}  |  Tiled cost={tiled_cost:,}  |  '
-        f'Ratio={naive_cost/tiled_cost:.2f}x',
+        f'Naive={naive_cost:,}  |  Tiled no-DMA={nodma_cost:,}  |  '
+        f'Tiled DMA={tiled_cost:,}  |  Ratio (naive:DMA)={naive_cost/tiled_cost:.2f}x',
         fontsize=12, y=0.99)
     plt.tight_layout()
     out = os.path.join(os.path.dirname(__file__), 'manual_access_pattern.svg')
