@@ -136,7 +136,8 @@ def trace_tiled(N, T):
     C = 1 + 3 * T * T  # C[i][j] at C + i*N + j
 
     def addr_sA(ii, kk): return sA + ii * T + kk
-    def addr_sB(kk, jj): return sB + kk * T + jj
+    # AB^T: sB holds a T-by-T tile of B indexed row-major by [jj][kk].
+    def addr_sB(jj, kk): return sB + jj * T + kk
     def addr_sC(ii, jj): return sC + ii * T + jj
     def addr_C(i, j): return C + i * N + j
 
@@ -167,18 +168,19 @@ def trace_tiled(N, T):
                     for kk in range(T):
                         read(addr_A(bi+ii, bk+kk), f"DMA A[{bi+ii}][{bk+kk}]->sA")
                         write(addr_sA(ii, kk), f"sA[{ii}][{kk}]")
-                # DMA: load B tile from args into sB
-                for kk in range(T):
-                    for jj in range(T):
-                        read(addr_B(bk+kk, bj+jj), f"DMA B[{bk+kk}][{bj+jj}]->sB")
-                        write(addr_sB(kk, jj), f"sB[{kk}][{jj}]")
+                # DMA: load B tile from args into sB (AB^T layout:
+                # rows of B stream contiguously, indexed by [jj][kk]).
+                for jj in range(T):
+                    for kk in range(T):
+                        read(addr_B(bj+jj, bk+kk), f"DMA B[{bj+jj}][{bk+kk}]->sB")
+                        write(addr_sB(jj, kk), f"sB[{jj}][{kk}]")
                 # MAC loop: all reads from scratchpad (low positive addresses)
                 for ii in range(T):
                     for jj in range(T):
                         read(addr_sC(ii, jj), f"sC[{ii}][{jj}] (acc)")
                         for kk in range(T):
                             read(addr_sA(ii, kk), f"sA[{ii}][{kk}]")
-                            read(addr_sB(kk, jj), f"sB[{kk}][{jj}]")
+                            read(addr_sB(jj, kk), f"sB[{jj}][{kk}]")
                         write(addr_sC(ii, jj), f"sC[{ii}][{jj}] += ...")
 
             # Flush: read sC, write back to C

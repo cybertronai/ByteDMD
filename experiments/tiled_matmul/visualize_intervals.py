@@ -21,7 +21,7 @@ Strategies visualized (both from gemini/illustrative-matmul-tiled.md):
 
 Color convention:
   A[i][k] -> viridis(i*N + k)
-  B[k][j] -> plasma(k*N + j)
+  B[j][k] -> plasma(j*N + k)  (AB^T: C[i][j] = sum_k A[i][k] * B[j][k])
   C[i][j] -> inferno(i*N + j)
 
 Within each matrix the 256 cells get a unique shade from the colormap
@@ -107,6 +107,7 @@ class IntervalTracer:
 # ---------------------------------------------------------------------------
 
 def trace_naive(N):
+    """Naive triple loop for C = A @ B^T: C[i][j] += A[i][k] * B[j][k]."""
     tr = IntervalTracer()
     base_A, base_B, base_C = 1, 1 + N * N, 1 + 2 * N * N
     for idx in range(N * N):
@@ -119,7 +120,7 @@ def trace_naive(N):
         for j in range(N):
             for k in range(N):
                 tr.read(base_A + i * N + k)
-                tr.read(base_B + k * N + j)
+                tr.read(base_B + j * N + k)  # B[j][k] -> AB^T
                 tr.read(base_C + i * N + j)
     tr.finalize()
     return tr, (base_A, base_B, base_C), None
@@ -152,17 +153,17 @@ def trace_tiled(N, T):
                     for kk in range(T):
                         tr.bind(fA + ii * T + kk, 'A', bi + ii, bk + kk)
                         tr.read(base_A + (bi + ii) * N + (bk + kk))
-                # DMA: fast_B <- B[bk:bk+T, bj:bj+T].
-                for kk in range(T):
-                    for jj in range(T):
-                        tr.bind(fB + kk * T + jj, 'B', bk + kk, bj + jj)
-                        tr.read(base_B + (bk + kk) * N + (bj + jj))
+                # DMA: fast_B <- B[bj:bj+T, bk:bk+T]  (AB^T: B rows stream).
+                for jj in range(T):
+                    for kk in range(T):
+                        tr.bind(fB + jj * T + kk, 'B', bj + jj, bk + kk)
+                        tr.read(base_B + (bj + jj) * N + (bk + kk))
                 # Compute reads (strictly inside the scratchpad).
                 for ii in range(T):
                     for jj in range(T):
                         for kk in range(T):
                             tr.read(fA + ii * T + kk)
-                            tr.read(fB + kk * T + jj)
+                            tr.read(fB + jj * T + kk)
                             tr.read(fC + ii * T + jj)
     tr.finalize()
     return tr, (base_A, base_B, base_C), (fA, fB, fC)
