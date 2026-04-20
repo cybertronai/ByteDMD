@@ -20,8 +20,7 @@ assert myfunc(1, 2, 3, 4, 5) == 19
 assert bytedmd(myfunc, (1, 2, 3, 4, 5)) == 15
 ```
 
-(2D [walk-through](https://yaroslavvb.github.io/ByteDMD-vis/myfunc_stack.html))
-(1D [walk-through](https://yaroslavvb.github.io/ByteDMD-vis/dotproduct_stack-live-linear.html))
+(2D [walk-through](https://yaroslavvb.github.io/ByteDMD-vis/myfunc_stack.html), 1D [walk-through](https://yaroslavvb.github.io/ByteDMD-vis/dotproduct_stack-live-linear.html))
 
 ## Motivation
 
