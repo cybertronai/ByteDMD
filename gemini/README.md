@@ -156,3 +156,9 @@ Research notes on **ByteDMD** (Byte-level Data Movement Distance): a concrete me
 |--------|---------|
 | [tarjan-detailed-part1.md](tarjan-detailed-part1.md) | Rigorous step-by-step Sleator–Tarjan lower bound proof: 2D spatial axioms, calculus transform to infinite cache hierarchy, capacity-scaling theorem |
 | [tarjan-detailed-part2.md](tarjan-detailed-part2.md) | ByteDMD-live as LRU+GC: why perfect garbage collection is only half of optimal, and the gap to Belady OPT |
+
+## April 23, 2026
+
+| Report | Summary |
+|--------|---------|
+| [capacity-envelope.md](capacity-envelope.md) | Sleator–Tarjan Capacity Envelope: trace-specific O(N) lower bound from the live reuse distance histogram (MRC → MaxForward → 2D radial integral), recovering 70–90% of Live-DMD vs the loose 0.3849 constant |
