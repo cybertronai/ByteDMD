@@ -37,16 +37,6 @@ from bytedmd_ir import L2Load, L2Store, opt_reuse_distances, trace
 import run_grid as rg
 
 
-# Matmul family — the subset we emit OPT-reuse-distance plots for. Other
-# algorithms get plots on request; matmul is where loop-order / tiling
-# effects on the Bélády lower bound are most illustrative.
-MATMUL_NAMES = {
-    "naive_matmul", "naive_2d_tiled_matmul", "naive_tiled_matmul",
-    "naive_matmul_cached", "tiled_matmul", "tiled_matmul_explicit",
-    "rmm", "naive_strassen", "fused_strassen",
-}
-
-
 def slugify(name: str) -> str:
     return re.sub(r"[^a-zA-Z0-9]+", "_", name).strip("_").lower()
 
@@ -274,18 +264,15 @@ def main() -> None:
             f"{name} — WSS over time (τ = {window:,}, max = {wss_max:,})",
             os.path.join(traces_dir, f"{slug}_wss.png"))
 
-        # Matmul-family only: Bélády OPT reuse distance per load.
-        # Other algorithms skip this pass — see MATMUL_NAMES above.
-        root_name = name.split("(", 1)[0]
-        if root_name in MATMUL_NAMES:
-            iidx = {v: i + 1 for i, v in enumerate(input_vars)}
-            opt_t, opt_d = opt_reuse_distances(events, iidx)
-            opt_mx = max(opt_d) if opt_d else 0
-            plot_opt_reuse_distance(
-                opt_t, opt_d,
-                f"{name} — Bélády OPT reuse distance per load "
-                f"(max = {opt_mx:,})",
-                os.path.join(traces_dir, f"{slug}_opt_reuse_distance.png"))
+        # Bélády OPT reuse distance per load for every algorithm.
+        iidx = {v: i + 1 for i, v in enumerate(input_vars)}
+        opt_t, opt_d = opt_reuse_distances(events, iidx)
+        opt_mx = max(opt_d) if opt_d else 0
+        plot_opt_reuse_distance(
+            opt_t, opt_d,
+            f"{name} — Bélády OPT reuse distance per load "
+            f"(max = {opt_mx:,})",
+            os.path.join(traces_dir, f"{slug}_opt_reuse_distance.png"))
         summary.append((name, slug, peak, mx, med, window, wss_max))
         print(f"{name:<42} {len(events):>8,} {peak:>10,} "
               f"{mx:>8,} {med:>8,} {window:>8,} {wss_max:>8,}")
