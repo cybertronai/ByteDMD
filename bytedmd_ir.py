@@ -776,21 +776,29 @@ def static_opt_lb(
     *exceed* bytedmd_opt and is informative exactly for traces where
     static allocation is the constraint (large overlapping lifetimes).
 
-    Includes input vars (first L2Load starts the interval) so the
-    floor accounts for every read in the trace.
+    Input vars (those whose first trace appearance is an L2Load) occupy
+    a physical slot from t=0 until their last use — they are pre-placed
+    by the caller and compete for addresses throughout their entire
+    "in-scope" window, even before their first read. Temporaries are
+    scoped [first L2Store, last L2Load] as usual.
     """
     starts: Dict[int, int] = {}
     ends: Dict[int, int] = {}
     reads: Dict[int, int] = {}
+    stored: set = set()
     for i, ev in enumerate(events):
         if isinstance(ev, L2Store):
+            stored.add(ev.var)
             if ev.var not in starts:
                 starts[ev.var] = i
             if ev.var not in ends:
                 ends[ev.var] = i
         elif isinstance(ev, L2Load):
             if ev.var not in starts:
-                starts[ev.var] = i
+                # First mention is a Load → input: slot occupied from t=0.
+                # (Non-input would have been stored first; safety-fallback
+                # uses current time i.)
+                starts[ev.var] = 0 if ev.var not in stored else i
             ends[ev.var] = i
             reads[ev.var] = reads.get(ev.var, 0) + 1
 
