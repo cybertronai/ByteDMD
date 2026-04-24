@@ -246,6 +246,20 @@ loop nest alone do?", isolated from the caching/scratchpad effects
 of `naive_tiled_matmul` (which actually cuts arg traffic) and
 `naive_matmul_cached` (which hoists an A row into a hot buffer).
 
+![](traces/naive_2d_tiled_matmul_n_16_t_4.png)
+
+**Working-set size over time** (peak = 510).
+
+![](traces/naive_2d_tiled_matmul_n_16_t_4_liveset.png)
+
+**Reuse distance per load** (max = 512).
+
+![](traces/naive_2d_tiled_matmul_n_16_t_4_reuse_distance.png)
+
+**Working-set size over a τ = 100-event window** (max = 100).
+
+![](traces/naive_2d_tiled_matmul_n_16_t_4_wss.png)
+
 ---
 
 ## naive_tiled_matmul [(code)](scripts/naive_tiled_matmul_n_16.py)
