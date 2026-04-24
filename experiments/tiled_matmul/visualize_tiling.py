@@ -46,11 +46,12 @@ def trace_naive_matmul(N):
 
 
 def trace_tiled_matmul(N, T):
-    """Trace memory reads for Tiled C = A @ B.T with T×T blocks.
+    """Trace memory reads for 3D-tiled C = A @ B.T with T×T×T blocks.
 
-    Outer loops iterate over blocks; inner loops compute the math strictly
-    inside the block. Both A and B tiles fit in cache simultaneously,
-    so reads hit L1 instead of RAM.
+    Blocks all three loop indices (i, j, k) by T. Each (bi, bj, bk)
+    block touches a T×T tile of A and B (2T² addresses) and performs
+    T³ FMAs inside. The full T×T tile of C is assembled by iterating
+    over N/T values of bk.
     """
     addr_A, addr_B = [], []
     for bi in range(0, N, T):
@@ -64,57 +65,78 @@ def trace_tiled_matmul(N, T):
     return np.array(addr_A), np.array(addr_B)
 
 
+def trace_tiled_2d_matmul(N, T):
+    """Trace memory reads for 2D-tiled (output-stationary) C = A @ B.T.
+
+    Blocks only (i, j) by T; the contraction index k runs over the full
+    N dimension per (bi, bj) tile. The T×T tile of C stays pinned as
+    an accumulator while one row of A and one row of B stream in per k.
+    Each (bi, bj) iteration is a full rank-N update to its output tile.
+
+    Footprint inside a tile: T² C accumulators + 2T panel values per k
+    step → 2NT distinct input addresses touched before moving on.
+    """
+    addr_A, addr_B = [], []
+    for bi in range(0, N, T):
+        for bj in range(0, N, T):
+            for k in range(N):
+                for i in range(bi, min(bi + T, N)):
+                    for j in range(bj, min(bj + T, N)):
+                        addr_A.append(i * N + k)
+                        addr_B.append(j * N + k)
+    return np.array(addr_A), np.array(addr_B)
+
+
 def main():
-    N = 16
+    N = 8
     T = 4
 
     print(f"Tracing Naive Matmul (N={N})...")
     A_n, B_n = trace_naive_matmul(N)
-    time_n = np.arange(len(A_n))
-
-    print(f"Tracing Tiled Matmul (N={N}, T={T})...")
-    A_t, B_t = trace_tiled_matmul(N, T)
-    time_t = np.arange(len(A_t))
-
-    print("Rendering plots...")
-    fig, axes = plt.subplots(2, 1, figsize=(12, 9), sharex=True, sharey=True)
+    print(f"Tracing 2D-Tiled / output-stationary Matmul (N={N}, T={T})...")
+    A_2d, B_2d = trace_tiled_2d_matmul(N, T)
+    print(f"Tracing 3D-Tiled Matmul (N={N}, T={T})...")
+    A_3d, B_3d = trace_tiled_matmul(N, T)
 
     offset_B = N * N
-    scatter_kws = {'s': 5, 'alpha': 0.7, 'rasterized': True, 'linewidths': 0}
+    scatter_kws = {'s': 4, 'alpha': 0.9, 'rasterized': False, 'linewidths': 0}
 
-    # --- TOP PANEL: NAIVE ---
-    axes[0].scatter(time_n, A_n, color='tab:blue', label='Matrix A reads', **scatter_kws)
-    axes[0].scatter(time_n, B_n + offset_B, color='tab:red', label='Matrix B reads', **scatter_kws)
-    axes[0].set_title(
-        r"NAIVE Matrix Multiplication ($A \times B^T$), N=8" "\n"
-        "B is swept top-to-bottom for every output element (cache thrashing)",
-        fontsize=13, fontweight='bold', pad=10)
-    axes[0].set_ylabel("1D Physical Address", fontsize=11)
-    leg = axes[0].legend(loc='upper right', markerscale=3, framealpha=0.95, fontsize=10)
+    print("Rendering plots...")
+    fig, axes = plt.subplots(3, 1, figsize=(12, 12), sharex=True, sharey=True)
 
-    # --- BOTTOM PANEL: TILED ---
-    axes[1].scatter(time_t, A_t, color='tab:blue', label='Matrix A reads', **scatter_kws)
-    axes[1].scatter(time_t, B_t + offset_B, color='tab:red', label='Matrix B reads', **scatter_kws)
-    axes[1].set_title(
-        f"TILED Matrix Multiplication (Tile = {T}x{T})\n"
-        f"Accesses locked into small blocks — each tile fits in cache",
-        fontsize=13, fontweight='bold', pad=10)
-    axes[1].set_xlabel("Time (Access Index)", fontsize=11)
-    axes[1].set_ylabel("1D Physical Address", fontsize=11)
-    axes[1].legend(loc='upper right', markerscale=3, framealpha=0.95, fontsize=10)
+    panels = [
+        (axes[0], A_n, B_n,
+         rf"NAIVE Matrix Multiplication ($A \times B^T$), N={N}" "\n"
+         "B is swept top-to-bottom for every output element (cache thrashing)"),
+        (axes[1], A_2d, B_2d,
+         rf"2D-TILED / output-stationary (N={N}, T={T}) — blocks $i, j$ only" "\n"
+         f"T$\\times$T=$\\mathbf{{{T*T}}}$ accumulators pinned; k sweeps full N per tile, A and B panels stream"),
+        (axes[2], A_3d, B_3d,
+         rf"3D-TILED (N={N}, T={T}) — blocks $i, j, k$" "\n"
+         f"each inner (bi, bj, bk) block reuses a {T}$\\times${T} tile of both A and B"),
+    ]
 
-    for ax in axes:
+    for ax, A, B, title in panels:
+        t = np.arange(len(A))
+        ax.scatter(t, A, color='tab:blue', label='Matrix A reads', **scatter_kws)
+        ax.scatter(t, B + offset_B, color='tab:red', label='Matrix B reads',
+                   **scatter_kws)
+        ax.set_title(title, fontsize=12, fontweight='bold', pad=8)
+        ax.set_ylabel("1D Physical Address", fontsize=10)
+        ax.legend(loc='upper right', markerscale=3, framealpha=0.95, fontsize=9)
         ax.axhline(offset_B, color='black', lw=1, ls='--', alpha=0.5)
         ax.set_yticks([0, N*N//2, N*N, offset_B + N*N//2, 2*N*N])
         ax.set_yticklabels(['0', f'{N*N//2}', f'{N*N}\nA|B boundary',
                             f'{offset_B + N*N//2}', f'{2*N*N}'], fontsize=9)
         ax.grid(True, alpha=0.3)
 
+    axes[-1].set_xlabel("Time (Access Index)", fontsize=11)
+
     plt.tight_layout()
     out = os.path.join(os.path.dirname(__file__), 'matmul_access_pattern.svg')
-    plt.savefig(out, bbox_inches='tight', dpi=360)
+    plt.savefig(out, bbox_inches='tight', dpi=720)
     print(f"Saved: {out}")
-    print(f"N={N}, T={T}: {len(A_n):,} accesses per matrix")
+    print(f"N={N}, T={T}: {len(A_n):,} accesses per matrix per variant")
 
 
 if __name__ == "__main__":
