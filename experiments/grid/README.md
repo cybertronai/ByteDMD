@@ -38,7 +38,7 @@ placement strategies:
 
 | family       | variants                                                          |
 |--------------|-------------------------------------------------------------------|
-| matmul       | naive (AB^T), tiled, rmm (cache-oblivious), naive_strassen, fused_strassen (ZAFS) |
+| matmul       | naive (AB^T), naive_2d_tiled (output-partitioned, no caching), tiled, rmm (cache-oblivious), naive_strassen, fused_strassen (ZAFS) |
 | attention    | naive, flash (Bk-block online softmax)                            |
 | matvec       | row-major, column-major, blocked (B×B tiles + x-tile scratchpad)  |
 | FFT          | iterative (in-place), recursive (out-of-place), N=256             |
@@ -61,6 +61,7 @@ DAGs are identical, so `bytedmd_live` / `bytedmd_classic` match — only
 | algorithm                                                             | space_dmd | copy_space_dmd | bytedmd_live | manual      | bytedmd_classic |
 |----------------------------------------------------------------------|----------:|---------------:|-------------:|------------:|----------------:|
 | [naive_matmul(n=16)](#naive_matmul)                                   |    79,044 |         79,044 |      109,217 |     177,744 |         181,258 |
+| [naive_2d_tiled_matmul(n=16,T=4)](#naive_2d_tiled_matmul)             |    89,358 |         77,547 |       95,634 |     177,744 |         163,817 |
 | [naive_tiled_matmul(n=16)](#naive_tiled_matmul)                       |    79,044 |         79,044 |      109,217 |     161,084 |         181,258 |
 | [naive_matmul_cached(n=16)](#naive_matmul_cached)                     |    79,044 |         79,044 |      109,217 |     114,838 |         181,258 |
 | [tiled_matmul(n=16)](#tiled_matmul)                                   |    93,369 |         61,918 |       78,708 |      67,758 |         143,812 |
@@ -199,6 +200,51 @@ with-scratchpad variant that drops 35 % off this baseline.
 **Working-set size over a τ = 100-event window** (max = 100).
 
 ![](traces/naive_matmul_n_16_wss.png)
+
+---
+
+## naive_2d_tiled_matmul
+`n=16, T=4`. **Algorithm.** Same triple-nested matmul as `naive_matmul`
+— $C = A \cdot B^{\mathsf T}$ with $C[i][j] = \Sigma_k A[i][k] \cdot
+B[j][k]$ — but with `(i, j)` iterated in tile-blocked order
+$b_i \to b_j \to i_i \to j_j \to k$ instead of row-major. Each
+$C[i][j]$ is still fully accumulated over all $k$ before moving on
+and **no scratchpad caching** of A or B rows is introduced;
+semantically identical to `naive_matmul`, only the visit order of
+$(i, j)$ changes. This is pure output-only ("partitioned") tiling.
+
+**Manual placement.** Identical layout to `naive_matmul`:
+
+  `tmp` (addr 1)          — multiply intermediate
+  `C`   (addrs 2..n²+1)   — output, accumulated in place
+
+Because the multiset of accesses (which addresses, how many times) is
+unchanged, the fixed-placement cost is identical: `manual` = **177,744**
+= `naive_matmul`'s. Reordering a loop can't move addresses, so it can't
+change a `⌈√addr⌉`-priced static schedule.
+
+**What tile-ordering alone buys.** The recency-based heuristics do
+see the reordering:
+
+| metric            | naive_matmul | naive_2d_tiled | Δ |
+|-------------------|-------------:|---------------:|---:|
+| `bytedmd_live`    | 109,217      | **95,634**     | −12 % |
+| `bytedmd_classic` | 181,258      | **163,817**    | −10 % |
+| `copy_space_dmd`  | 79,044       | **77,547**     | −2 % |
+| `space_dmd`       | 79,044       | 89,358         | +13 % |
+| `manual`          | 177,744      | 177,744        | 0 |
+
+Tile blocking reuses the same T rows of A across T values of $j_j$
+(and the same T rows of B across T values of $i_i$) inside each
+$(b_i, b_j)$ block, so LRU reuse distances for those rows collapse
+from ≈ N² (naive's full sweep) to ≈ N·T. `space_dmd` gets *worse*
+because many A/B cells are now touched in more-clustered bursts
+separated by quiet stretches — their density rank (accesses /
+lifespan) drops, pushing them to larger radii. Consequently, this
+row is useful as a clean baseline: "what does tile-blocking the
+loop nest alone do?", isolated from the caching/scratchpad effects
+of `naive_tiled_matmul` (which actually cuts arg traffic) and
+`naive_matmul_cached` (which hoists an A row into a hot buffer).
 
 ---
 

@@ -1,5 +1,6 @@
 algorithm,space_dmd,copy_space_dmd,bytedmd_live,manual,bytedmd_classic
 naive_matmul(n=16),79044,79044,109217,177744,181258
+"naive_2d_tiled_matmul(n=16,T=4)",89358,77547,95634,177744,163817
 naive_tiled_matmul(n=16),79044,79044,109217,161084,181258
 naive_matmul_cached(n=16),79044,79044,109217,114838,181258
 tiled_matmul(n=16),93369,61918,78708,67758,143812

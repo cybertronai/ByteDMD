@@ -76,6 +76,36 @@ def matmul_naive_abt(A, B):
     return C
 
 
+def matmul_naive_2d_tiled(A, B, tile=4):
+    """Naive triple loop for C = A @ B^T with output-only 2D tiling.
+
+    Partitions C into tile×tile output blocks and iterates (i, j) in
+    tile-blocked order (bi → bj → ii → jj), keeping the inner k-loop
+    fully over N. Semantically identical to `matmul_naive_abt` — same
+    multiset of (i, j, k) triples, same C — only the visit order of
+    (i, j) changes. Each C[i][j] is still fully accumulated over all k
+    before moving on, and no scratchpad caching of A or B rows is
+    introduced, so every A/B fetch still goes through the arg stack.
+
+    The effect shows up in LRU-based heuristics: rows of A and B are
+    revisited within each tile instead of sweeping the full matrix
+    per (i, j), so `bytedmd_live` / `bytedmd_classic` see shorter
+    reuse distances. Under fixed-placement manual the total cost is
+    unchanged (addresses and multiplicities are identical).
+    """
+    n = len(A)
+    C = [[None] * n for _ in range(n)]
+    for bi in range(0, n, tile):
+        for bj in range(0, n, tile):
+            for i in range(bi, min(bi + tile, n)):
+                for j in range(bj, min(bj + tile, n)):
+                    s = A[i][0] * B[j][0]
+                    for k in range(1, n):
+                        s = s + A[i][k] * B[j][k]
+                    C[i][j] = s
+    return C
+
+
 def matmul_strassen(A, B):
     n = len(A)
     if n == 1:

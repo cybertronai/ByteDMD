@@ -166,6 +166,49 @@ def manual_naive_matmul(n: int) -> int:
     return a.cost
 
 
+def manual_naive_2d_tiled_matmul(n: int, T: int = 4) -> int:
+    """Naive matmul with output-only 2D tiling — partitioned matrix
+    tiling, no scratchpad caching. The (i, j) loop is tile-blocked
+    (bi → bj → ii → jj → k) but each C[i][j] is still fully accumulated
+    over all k before moving on, and A/B rows stay on the arg stack
+    for every MAC.
+
+      tmp (addr 1)            — multiply intermediate (only scratchpad)
+      C   (addrs 2..n²+1)     — output, accumulated in place
+
+    Address multiplicities are identical to `manual_naive_matmul`, so
+    the fixed-placement cost is the same (177,744 at n=16). The point
+    of this variant is to isolate the effect of loop reordering on
+    recency-based heuristics: LRU-style `bytedmd_live` /
+    `bytedmd_classic` see shorter A/B reuse distances inside each
+    (bi, bj) tile than in the row-major naive sweep. Contrast with
+    `manual_naive_tiled_matmul` (same tiling but with sA/sB scratchpad
+    slabs that actually cut arg traffic)."""
+    assert n % T == 0, "T must divide n"
+    a = _alloc()
+    A = a.alloc_arg(n * n); B = a.alloc_arg(n * n)
+    tmp = a.alloc(1)
+    C = a.alloc(n * n)
+    a.set_output_range(C, C + n * n)
+    for bi in range(0, n, T):
+        for bj in range(0, n, T):
+            for ii in range(T):
+                for jj in range(T):
+                    i = bi + ii
+                    j = bj + jj
+                    for k in range(n):
+                        a.touch_arg(A + i * n + k)
+                        a.touch_arg(B + j * n + k)
+                        a.write(tmp)
+                        if k == 0:
+                            a.touch(tmp); a.write(C + i * n + j)
+                        else:
+                            a.touch(C + i * n + j); a.touch(tmp)
+                            a.write(C + i * n + j)
+    a.read_output()
+    return a.cost
+
+
 def manual_naive_tiled_matmul(n: int, k: int = 4) -> int:
     """Naive matmul where each block caches k rows of A and k rows of
     B (k·n cells each) and computes k² entries against those two
