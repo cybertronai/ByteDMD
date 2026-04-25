@@ -165,6 +165,37 @@ the per-tick TU floor and OPT pass).
   (140,526 vs 173,919). A tight in-place layout that parks everything
   in the hot region short-circuits what any recency heuristic can
   model on the abstract trace.
+- **Manual can fall below `static_opt_lb`** on 15 of 48 rows. Worst
+  cases (gap as % of `static_opt_lb`): `blocked_lu` 40 %,
+  `naive_attn` 39 %, `stencil_time_diamond` 34 %, `lu_no_pivot` /
+  `lu_partial_pivot` 30 %+, `tiled_matmul` 28 %, `fft_conv` 25 %,
+  `recursive_lu` / `tsqr` 14 %. In every one of these the manual
+  schedule implements a **fused / streaming / in-place** variant that
+  the abstract trace does not — same arithmetic DAG semantically, but
+  vastly fewer materialized intermediates:
+    - `naive_attn`: trace materializes the full `N×N` S and P matrices
+      (≈ 8,000 vars at N=64); manual streams row-by-row through one
+      `N`-cell `c_S_row` buffer.
+    - LU family (`lu_no_pivot`, `blocked_lu`, `lu_partial_pivot`,
+      `recursive_lu`): trace creates fresh vars for every Schur-
+      complement update; manual updates the trailing matrix in place
+      (`A[i][j] = A[i][j] − L_ik·U_kj`).
+    - `fused_strassen`: trace materializes M₁..M₇; manual ZAFS folds
+      the sub-additions into the L1 tile loads, so the M_k vars never
+      exist on any stack.
+    - `tiled_matmul` / `tiled_matmul_explicit`: trace from
+      `matmul_tiled` materializes per-iteration tile-copy vars; manual
+      uses register-blocked outer products against virtual tiles.
+    - `stencil_time_diamond`: trace creates a fresh var for every
+      `(t, i, j)` write; manual rolling buffer overwrites in place.
+    - `fft_conv`, `regular_conv`: manual fuses transform / channel
+      accumulation into the same scratch slot.
+  `static_opt_lb` is a true lower bound on **the optimal static
+  allocator for the traced DAG** — but the manual schedules in this
+  list are not implementing the traced DAG, they are implementing
+  algorithmically equivalent in-place / fused variants whose effective
+  trace is much smaller. The LP/Pigeonhole argument is unaffected; it
+  just doesn't apply to the algorithm `manual` is actually executing.
 - **`space_dmd` is often below `manual`.** Density-ranked spatial
   liveness finds pinnings the hand-placed schedule misses:
   `fft_recursive` 22,876 vs manual 103,290 (the temp even/odd arrays
