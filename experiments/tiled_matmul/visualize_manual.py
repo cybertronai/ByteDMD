@@ -22,6 +22,7 @@ import os
 import matplotlib
 matplotlib.use('Agg')
 import matplotlib.pyplot as plt
+from matplotlib.ticker import MultipleLocator
 import numpy as np
 
 
@@ -318,7 +319,9 @@ def plot_panel(ax, addrs_list, is_write_list, regions, title, cost, y_min, y_max
     ax.set_ylim(y_min, y_max)
     ax.set_title(f'{title}\n{n_reads} reads + {n_writes} writes, '
                  f'read cost = {cost:,}', fontsize=11)
-    ax.grid(True, alpha=0.3)
+    ax.yaxis.set_major_locator(MultipleLocator(64))
+    ax.grid(True, axis='y', which='major', alpha=0.5)
+    ax.grid(True, axis='x', alpha=0.3)
     ax.legend(fontsize=7, loc='center left', bbox_to_anchor=(1.01, 0.5),
               framealpha=0.95)
 
@@ -379,10 +382,11 @@ def main():
         f'Tiled DMA={tiled_cost:,}  |  Ratio (naive:DMA)={naive_cost/tiled_cost:.2f}x',
         fontsize=12, y=0.99)
     plt.tight_layout()
-    out = os.path.join(os.path.dirname(__file__), 'manual_access_pattern.svg')
-    plt.savefig(out, bbox_inches='tight')
+    base = os.path.join(os.path.dirname(__file__), 'manual_access_pattern')
+    plt.savefig(base + '.svg', bbox_inches='tight')
+    plt.savefig(base + '.png', bbox_inches='tight', dpi=200)
     plt.close()
-    print(f'\nSaved: {out}')
+    print(f'\nSaved: {base}.svg and {base}.png')
 
 
 if __name__ == '__main__':
