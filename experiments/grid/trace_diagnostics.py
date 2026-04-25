@@ -33,7 +33,14 @@ import matplotlib
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 
-from bytedmd_ir import L2Load, L2Store, opt_reuse_distances, trace
+from bytedmd_ir import (
+    L2Load,
+    L2Store,
+    opt_reuse_distances,
+    static_opt_floor_curve,
+    static_opt_lb,
+    trace,
+)
 import run_grid as rg
 
 
@@ -252,6 +259,35 @@ def _miss_curve(distances, max_cap):
     return misses
 
 
+def plot_static_opt_floor(times, floors, total, n_events, title, out_path):
+    """Step plot of the per-tick TU LP floor Σ_i ρ_{(i)} · √i over live
+    vars (gemini/optimal-static-floor.md). The shaded area equals
+    static_opt_lb. A dashed horizontal line marks the time-average
+    floor — multiplying it by the trace length recovers the bound.
+    """
+    fig, ax = plt.subplots(figsize=(11, 3.4))
+    if not times:
+        plt.close(fig)
+        return
+    ax.plot(times, floors, drawstyle="steps-post", color="tab:orange",
+            linewidth=1.0, rasterized=True, label="Σ ρ_(i) · √i")
+    ax.fill_between(times, 0, floors, step="post", color="tab:orange",
+                    alpha=0.15, linewidth=0, rasterized=True)
+    avg = total / n_events if n_events else 0
+    ax.axhline(avg, color="tab:red", linestyle="--", linewidth=0.8,
+               alpha=0.7, label=f"average = {avg:,.2f}")
+    ax.set_xlabel("Access index (time)")
+    ax.set_ylabel("Per-tick floor: Σ ρ_(i) · √i")
+    ax.set_title(title)
+    ax.grid(True, alpha=0.3)
+    ax.set_xlim(0, n_events if n_events else times[-1])
+    ax.set_ylim(bottom=0)
+    ax.legend(loc="upper right", fontsize=8, framealpha=0.85)
+    fig.tight_layout()
+    fig.savefig(out_path, dpi=200, bbox_inches="tight")
+    plt.close(fig)
+
+
 def plot_mrc_combined(lru_d, opt_d, title, out_path):
     """Miss-ratio curves for LRU and Bélády OPT on the same axes.
 
@@ -359,6 +395,15 @@ def main() -> None:
             rd_d, opt_d,
             f"{name} — miss-ratio curve (LRU vs Bélády OPT)",
             os.path.join(traces_dir, f"{slug}_mrc.png"))
+
+        # Per-tick TU LP floor: integrand of static_opt_lb.
+        sof_t, sof_v = static_opt_floor_curve(events, iidx)
+        sof_total = static_opt_lb(events, iidx)
+        plot_static_opt_floor(
+            sof_t, sof_v, sof_total, len(events),
+            f"{name} — per-tick TU LP floor "
+            f"(static_opt_lb = {sof_total:,.0f})",
+            os.path.join(traces_dir, f"{slug}_static_opt_floor.png"))
 
         plot_wss(
             wss_t, wss_s, window,

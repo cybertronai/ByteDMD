@@ -747,6 +747,98 @@ def lp_lower_bound(events: Sequence[L2Event]) -> float:
     return lb
 
 
+def _static_opt_intervals(events: Sequence[L2Event]):
+    """Yield (t_start, t_end, floor) for each stable interval where the
+    set of live vars and their density ranking is constant. floor =
+    Σ_i ρ_{(i)} · sqrt(i) over currently-live vars. Both static_opt_lb
+    (sum (t_end - t_start) * floor) and the per-tick step curve consume
+    this stream."""
+    starts: Dict[int, int] = {}
+    ends: Dict[int, int] = {}
+    reads: Dict[int, int] = {}
+    stored: set = set()
+    for i, ev in enumerate(events):
+        if isinstance(ev, L2Store):
+            stored.add(ev.var)
+            if ev.var not in starts:
+                starts[ev.var] = i
+            if ev.var not in ends:
+                ends[ev.var] = i
+        elif isinstance(ev, L2Load):
+            if ev.var not in starts:
+                starts[ev.var] = 0 if ev.var not in stored else i
+            ends[ev.var] = i
+            reads[ev.var] = reads.get(ev.var, 0) + 1
+
+    densities: Dict[int, float] = {}
+    for v, r in reads.items():
+        if r == 0:
+            continue
+        lifespan = max(1, ends[v] - starts[v] + 1)
+        densities[v] = r / lifespan
+    if not densities:
+        return
+
+    births = sorted((starts[v], densities[v], v) for v in densities)
+    deaths = sorted((ends[v] + 1, densities[v], v) for v in densities)
+
+    active: List[Tuple[float, int]] = []
+    t_prev = 0
+    bi = di = 0
+    n = len(births)
+
+    while bi < n or di < n:
+        t_b = births[bi][0] if bi < n else float("inf")
+        t_d = deaths[di][0] if di < n else float("inf")
+        t_next = t_b if t_b <= t_d else t_d
+
+        if t_next > t_prev:
+            s = 0.0
+            for rank, (rho, _v) in enumerate(reversed(active), start=1):
+                s += rho * math.sqrt(rank)
+            yield (t_prev, t_next, s)
+
+        while bi < n and births[bi][0] == t_next:
+            _, rho, v = births[bi]
+            bisect.insort(active, (rho, v))
+            bi += 1
+        while di < n and deaths[di][0] == t_next:
+            _, rho, v = deaths[di]
+            pos = bisect.bisect_left(active, (rho, v))
+            active.pop(pos)
+            di += 1
+
+        t_prev = t_next
+
+
+def static_opt_floor_curve(
+    events: Sequence[L2Event],
+    input_arg_idx: Optional[Dict[int, int]] = None,
+) -> Tuple[List[int], List[float]]:
+    """Per-tick amortized read-cost floor (the integrand of static_opt_lb).
+
+    Returns (times, floors) suitable for a `drawstyle="steps-post"` plot:
+    floors[k] is held over [times[k], times[k+1]) so the area under the
+    curve equals static_opt_lb. See gemini/optimal-static-floor.md.
+    """
+    times: List[int] = []
+    floors: List[float] = []
+    last_end = 0
+    for t_start, t_end, s in _static_opt_intervals(events):
+        if not times:
+            times.append(t_start)
+            floors.append(s)
+        elif s != floors[-1]:
+            times.append(t_start)
+            floors.append(s)
+        last_end = t_end
+    if times and last_end > times[-1]:
+        # Right-edge marker so steps-post draws the final segment.
+        times.append(last_end)
+        floors.append(floors[-1])
+    return times, floors
+
+
 def static_opt_lb(
     events: Sequence[L2Event],
     input_arg_idx: Optional[Dict[int, int]] = None,
@@ -782,72 +874,8 @@ def static_opt_lb(
     "in-scope" window, even before their first read. Temporaries are
     scoped [first L2Store, last L2Load] as usual.
     """
-    starts: Dict[int, int] = {}
-    ends: Dict[int, int] = {}
-    reads: Dict[int, int] = {}
-    stored: set = set()
-    for i, ev in enumerate(events):
-        if isinstance(ev, L2Store):
-            stored.add(ev.var)
-            if ev.var not in starts:
-                starts[ev.var] = i
-            if ev.var not in ends:
-                ends[ev.var] = i
-        elif isinstance(ev, L2Load):
-            if ev.var not in starts:
-                # First mention is a Load → input: slot occupied from t=0.
-                # (Non-input would have been stored first; safety-fallback
-                # uses current time i.)
-                starts[ev.var] = 0 if ev.var not in stored else i
-            ends[ev.var] = i
-            reads[ev.var] = reads.get(ev.var, 0) + 1
-
-    densities: Dict[int, float] = {}
-    for v, r in reads.items():
-        if r == 0:
-            continue
-        lifespan = max(1, ends[v] - starts[v] + 1)
-        densities[v] = r / lifespan
-    if not densities:
-        return 0.0
-
-    # Birth/death events as (time, rho, var_id) so ties on rho break
-    # by var_id — keeps the sorted list lookup unambiguous on removal.
-    births = sorted((starts[v], densities[v], v) for v in densities)
-    deaths = sorted((ends[v] + 1, densities[v], v) for v in densities)
-
-    # `active` sorted ascending by (rho, var_id); iterate reversed for
-    # descending ranks.
-    active: List[Tuple[float, int]] = []
-    total = 0.0
-    t_prev = 0
-    bi = di = 0
-    n = len(births)
-
-    while bi < n or di < n:
-        t_b = births[bi][0] if bi < n else float("inf")
-        t_d = deaths[di][0] if di < n else float("inf")
-        t_next = t_b if t_b <= t_d else t_d
-
-        if t_next > t_prev and active:
-            s = 0.0
-            for rank, (rho, _v) in enumerate(reversed(active), start=1):
-                s += rho * math.sqrt(rank)
-            total += (t_next - t_prev) * s
-
-        while bi < n and births[bi][0] == t_next:
-            _, rho, v = births[bi]
-            bisect.insort(active, (rho, v))
-            bi += 1
-        while di < n and deaths[di][0] == t_next:
-            _, rho, v = deaths[di]
-            pos = bisect.bisect_left(active, (rho, v))
-            active.pop(pos)
-            di += 1
-
-        t_prev = t_next
-
-    return total
+    return sum((t_end - t_start) * s
+               for t_start, t_end, s in _static_opt_intervals(events))
 
 
 def greedy_freq_upper_bound(events: Sequence[L2Event]) -> float:
