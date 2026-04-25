@@ -115,6 +115,33 @@ DAGs are identical, so `bytedmd_live` / `bytedmd_classic` match — only
 
     ./run_grid.py          # tabulate: writes grid.csv, grid.md
     ./generate_traces.py   # visualize: writes traces/<slug>.png per algorithm
+    ./trace_diagnostics.py # visualize: writes the 9 diagnostic plots per algorithm
+
+## Charts
+
+Every algorithm in the [Summary table](#summary-table) emits the same
+fixed set of trace visualizations. Each chart kind is described once
+below; the per-algorithm copies are linked from each detail section.
+Pricing is the **LRU-live reuse distance** unless noted (`bytedmd_live`
+semantics), so the costs match the `bytedmd_live` column in the table.
+
+| Chart                       | What it shows | Reference |
+|----------------------------|---------------|-----------|
+| `<slug>.png`               | Two-stack scatter of every memory access. Arg-stack reads plot at `−addr`, scratch reads at `+addr`. Writes are orange (scratch) / red (output); the dark-magenta band on top is the output epilogue read. | — |
+| `<slug>_liveset.png`       | Live working-set size over time on the LRU-live geom stack (vars dropped on last load). | — |
+| `<slug>_reuse_distance.png` | LRU and Bélády OPT reuse distance per load on shared axes (purple = LRU; green = OPT). The visible green-below-purple gap is the locality slack Mattson inclusion guarantees an offline oracle would extract. | [belady-min-lower-bound.md](../../gemini/belady-min-lower-bound.md) |
+| `<slug>_mrc.png`           | Miss-ratio curve `M(c) = #loads with reuse distance > c` for both LRU and OPT. The area between the curves weighted by `Δ_c = ⌈√(c+1)⌉ − ⌈√c⌉` is the `bytedmd_live − bytedmd_opt` energy gap. | [belady-min-lower-bound.md](../../gemini/belady-min-lower-bound.md) |
+| `<slug>_static_opt_floor.png` | Per-tick TU LP floor `Σ_i ρ_{(i)} · √i` over currently-live vars (orange step curve, shaded area = `static_opt_lb`). Dashed red line marks the time-average. | [optimal-static-floor.md](../../gemini/optimal-static-floor.md) |
+| `<slug>_intensity.png`     | **Heartbeat** — rolling spatial arithmetic intensity (`ops / Σ ⌈√d⌉`) over a sliding window. Tiled / blocked algorithms show square-wave plateaus while a tile is in cache; naive variants stay near the floor. | [arithmetic-intensity-visualizers.md §1](../../gemini/arithmetic-intensity-visualizers.md) |
+| `<slug>_phase_diagram.png` | **Spatial Phase Diagram** — cumulative ops (y) vs cumulative fetch cost (x). The line slope = instantaneous intensity; tiled algorithms trace a steep staircase, naive ones a shallow diagonal. | [arithmetic-intensity-visualizers.md §2](../../gemini/arithmetic-intensity-visualizers.md) |
+| `<slug>_gravity_well.png`  | **Gravity Well** — per-load fetch-cost `⌈√d⌉` scatter. Dense low bands = tight orbital footprint (most reads near the ALU); high spray = excursions into deep memory. | [arithmetic-intensity-visualizers.md §3](../../gemini/arithmetic-intensity-visualizers.md) |
+| `<slug>_locality_cdf.png`  | **Compute-Fulfillment CDF** — % of arithmetic ops whose furthest-fetched operand cost ≤ C, for each radius C. A sheer cliff face near the origin means the algorithm's working volume is quarantined close to the ALU. | [arithmetic-intensity-visualizers.md §4](../../gemini/arithmetic-intensity-visualizers.md) |
+| `<slug>_wss.png`           | Sliding-τ working-set size (Denning 1968): number of distinct vars referenced inside a trailing τ-event window. τ is picked per-algorithm at the 90th-percentile reuse distance. | — |
+
+All charts above are generated for every algorithm in roughly 3 seconds
+per algorithm; **no chart is currently slow enough to skip** (none
+"timed out" — the entire grid regenerates in ~2.7 minutes including
+the per-tick TU floor and OPT pass).
 
 ## Notes
 
@@ -207,6 +234,22 @@ with-scratchpad variant that drops 35 % off this baseline.
 
 ![](traces/naive_matmul_n_16_static_opt_floor.png)
 
+**Rolling spatial intensity** — heartbeat plot of `ops / Σ ⌈√d⌉` over a sliding window.
+
+![](traces/naive_matmul_n_16_intensity.png)
+
+**Cumulative compute vs fetch cost** — slope = instantaneous spatial arithmetic intensity.
+
+![](traces/naive_matmul_n_16_phase_diagram.png)
+
+**Gravity well** — per-load fetch-cost `⌈√d⌉` scatter.
+
+![](traces/naive_matmul_n_16_gravity_well.png)
+
+**Spatial locality CDF** — compute-fulfillment as a function of radius.
+
+![](traces/naive_matmul_n_16_locality_cdf.png)
+
 **Working-set size over a τ = 100-event window** (max = 100).
 
 ![](traces/naive_matmul_n_16_wss.png)
@@ -275,6 +318,22 @@ of `naive_tiled_matmul` (which actually cuts arg traffic) and
 
 ![](traces/naive_2d_tiled_matmul_n_16_t_4_static_opt_floor.png)
 
+**Rolling spatial intensity** — heartbeat plot of `ops / Σ ⌈√d⌉` over a sliding window.
+
+![](traces/naive_2d_tiled_matmul_n_16_t_4_intensity.png)
+
+**Cumulative compute vs fetch cost** — slope = instantaneous spatial arithmetic intensity.
+
+![](traces/naive_2d_tiled_matmul_n_16_t_4_phase_diagram.png)
+
+**Gravity well** — per-load fetch-cost `⌈√d⌉` scatter.
+
+![](traces/naive_2d_tiled_matmul_n_16_t_4_gravity_well.png)
+
+**Spatial locality CDF** — compute-fulfillment as a function of radius.
+
+![](traces/naive_2d_tiled_matmul_n_16_t_4_locality_cdf.png)
+
 **Working-set size over a τ = 100-event window** (max = 100).
 
 ![](traces/naive_2d_tiled_matmul_n_16_t_4_wss.png)
@@ -337,6 +396,22 @@ which adds register-level stationary-operand scheduling on top.
 
 ![](traces/naive_tiled_matmul_n_16_static_opt_floor.png)
 
+**Rolling spatial intensity** — heartbeat plot of `ops / Σ ⌈√d⌉` over a sliding window.
+
+![](traces/naive_tiled_matmul_n_16_intensity.png)
+
+**Cumulative compute vs fetch cost** — slope = instantaneous spatial arithmetic intensity.
+
+![](traces/naive_tiled_matmul_n_16_phase_diagram.png)
+
+**Gravity well** — per-load fetch-cost `⌈√d⌉` scatter.
+
+![](traces/naive_tiled_matmul_n_16_gravity_well.png)
+
+**Spatial locality CDF** — compute-fulfillment as a function of radius.
+
+![](traces/naive_tiled_matmul_n_16_locality_cdf.png)
+
 **Working-set size over a τ = 100-event window** (max = 100).
 
 ![](traces/naive_tiled_matmul_n_16_wss.png)
@@ -377,6 +452,22 @@ what closes the gap further.
 **Per-tick TU LP floor** — integrand of `static_opt_lb`: Σ_i ρ_{(i)} · √i over currently-live vars, ranked by density; the area equals `static_opt_lb`.
 
 ![](traces/naive_matmul_cached_n_16_static_opt_floor.png)
+
+**Rolling spatial intensity** — heartbeat plot of `ops / Σ ⌈√d⌉` over a sliding window.
+
+![](traces/naive_matmul_cached_n_16_intensity.png)
+
+**Cumulative compute vs fetch cost** — slope = instantaneous spatial arithmetic intensity.
+
+![](traces/naive_matmul_cached_n_16_phase_diagram.png)
+
+**Gravity well** — per-load fetch-cost `⌈√d⌉` scatter.
+
+![](traces/naive_matmul_cached_n_16_gravity_well.png)
+
+**Spatial locality CDF** — compute-fulfillment as a function of radius.
+
+![](traces/naive_matmul_cached_n_16_locality_cdf.png)
 
 **Working-set size over a τ = 100-event window** (max = 100).
 
@@ -437,6 +528,22 @@ accumulator footprint realised here). Below all three heuristics
 
 ![](traces/tiled_matmul_n_16_static_opt_floor.png)
 
+**Rolling spatial intensity** — heartbeat plot of `ops / Σ ⌈√d⌉` over a sliding window.
+
+![](traces/tiled_matmul_n_16_intensity.png)
+
+**Cumulative compute vs fetch cost** — slope = instantaneous spatial arithmetic intensity.
+
+![](traces/tiled_matmul_n_16_phase_diagram.png)
+
+**Gravity well** — per-load fetch-cost `⌈√d⌉` scatter.
+
+![](traces/tiled_matmul_n_16_gravity_well.png)
+
+**Spatial locality CDF** — compute-fulfillment as a function of radius.
+
+![](traces/tiled_matmul_n_16_locality_cdf.png)
+
 **Working-set size over a τ = 147-event window** (max = 147).
 
 ![](traces/tiled_matmul_n_16_wss.png)
@@ -491,6 +598,22 @@ it has the same cost (86,030) — all three "explicit" / "manual" /
 
 ![](traces/tiled_matmul_explicit_n_16_t_4_static_opt_floor.png)
 
+**Rolling spatial intensity** — heartbeat plot of `ops / Σ ⌈√d⌉` over a sliding window.
+
+![](traces/tiled_matmul_explicit_n_16_t_4_intensity.png)
+
+**Cumulative compute vs fetch cost** — slope = instantaneous spatial arithmetic intensity.
+
+![](traces/tiled_matmul_explicit_n_16_t_4_phase_diagram.png)
+
+**Gravity well** — per-load fetch-cost `⌈√d⌉` scatter.
+
+![](traces/tiled_matmul_explicit_n_16_t_4_gravity_well.png)
+
+**Spatial locality CDF** — compute-fulfillment as a function of radius.
+
+![](traces/tiled_matmul_explicit_n_16_t_4_locality_cdf.png)
+
 **Working-set size over a τ = 144-event window** (max = 144).
 
 ![](traces/tiled_matmul_explicit_n_16_t_4_wss.png)
@@ -526,6 +649,22 @@ C while 1 skips the pre-fetch.
 **Per-tick TU LP floor** — integrand of `static_opt_lb`: Σ_i ρ_{(i)} · √i over currently-live vars, ranked by density; the area equals `static_opt_lb`.
 
 ![](traces/rmm_n_16_static_opt_floor.png)
+
+**Rolling spatial intensity** — heartbeat plot of `ops / Σ ⌈√d⌉` over a sliding window.
+
+![](traces/rmm_n_16_intensity.png)
+
+**Cumulative compute vs fetch cost** — slope = instantaneous spatial arithmetic intensity.
+
+![](traces/rmm_n_16_phase_diagram.png)
+
+**Gravity well** — per-load fetch-cost `⌈√d⌉` scatter.
+
+![](traces/rmm_n_16_gravity_well.png)
+
+**Spatial locality CDF** — compute-fulfillment as a function of radius.
+
+![](traces/rmm_n_16_locality_cdf.png)
 
 **Working-set size over a τ = 125-event window** (max = 125).
 
@@ -568,6 +707,22 @@ avoidance of these materialized intermediates.
 
 ![](traces/naive_strassen_n_16_static_opt_floor.png)
 
+**Rolling spatial intensity** — heartbeat plot of `ops / Σ ⌈√d⌉` over a sliding window.
+
+![](traces/naive_strassen_n_16_intensity.png)
+
+**Cumulative compute vs fetch cost** — slope = instantaneous spatial arithmetic intensity.
+
+![](traces/naive_strassen_n_16_phase_diagram.png)
+
+**Gravity well** — per-load fetch-cost `⌈√d⌉` scatter.
+
+![](traces/naive_strassen_n_16_gravity_well.png)
+
+**Spatial locality CDF** — compute-fulfillment as a function of radius.
+
+![](traces/naive_strassen_n_16_locality_cdf.png)
+
 **Working-set size over a τ = 158-event window** (max = 158).
 
 ![](traces/naive_strassen_n_16_wss.png)
@@ -607,6 +762,22 @@ matrices — the ZAFS win shows up entirely here in manual (140,526 vs
 
 ![](traces/fused_strassen_n_16_static_opt_floor.png)
 
+**Rolling spatial intensity** — heartbeat plot of `ops / Σ ⌈√d⌉` over a sliding window.
+
+![](traces/fused_strassen_n_16_intensity.png)
+
+**Cumulative compute vs fetch cost** — slope = instantaneous spatial arithmetic intensity.
+
+![](traces/fused_strassen_n_16_phase_diagram.png)
+
+**Gravity well** — per-load fetch-cost `⌈√d⌉` scatter.
+
+![](traces/fused_strassen_n_16_gravity_well.png)
+
+**Spatial locality CDF** — compute-fulfillment as a function of radius.
+
+![](traces/fused_strassen_n_16_locality_cdf.png)
+
 **Working-set size over a τ = 158-event window** (max = 158).
 
 ![](traces/fused_strassen_n_16_wss.png)
@@ -640,6 +811,22 @@ cost — every access pays `⌈√(addr ≈ N²)⌉`.
 **Per-tick TU LP floor** — integrand of `static_opt_lb`: Σ_i ρ_{(i)} · √i over currently-live vars, ranked by density; the area equals `static_opt_lb`.
 
 ![](traces/naive_attn_n_64_d_2_static_opt_floor.png)
+
+**Rolling spatial intensity** — heartbeat plot of `ops / Σ ⌈√d⌉` over a sliding window.
+
+![](traces/naive_attn_n_64_d_2_intensity.png)
+
+**Cumulative compute vs fetch cost** — slope = instantaneous spatial arithmetic intensity.
+
+![](traces/naive_attn_n_64_d_2_phase_diagram.png)
+
+**Gravity well** — per-load fetch-cost `⌈√d⌉` scatter.
+
+![](traces/naive_attn_n_64_d_2_gravity_well.png)
+
+**Spatial locality CDF** — compute-fulfillment as a function of radius.
+
+![](traces/naive_attn_n_64_d_2_locality_cdf.png)
 
 **Working-set size over a τ = 100-event window** (max = 100).
 
@@ -685,6 +872,22 @@ current manual is the outlier, not the algorithm
 **Per-tick TU LP floor** — integrand of `static_opt_lb`: Σ_i ρ_{(i)} · √i over currently-live vars, ranked by density; the area equals `static_opt_lb`.
 
 ![](traces/flash_attn_n_64_d_2_bk_8_static_opt_floor.png)
+
+**Rolling spatial intensity** — heartbeat plot of `ops / Σ ⌈√d⌉` over a sliding window.
+
+![](traces/flash_attn_n_64_d_2_bk_8_intensity.png)
+
+**Cumulative compute vs fetch cost** — slope = instantaneous spatial arithmetic intensity.
+
+![](traces/flash_attn_n_64_d_2_bk_8_phase_diagram.png)
+
+**Gravity well** — per-load fetch-cost `⌈√d⌉` scatter.
+
+![](traces/flash_attn_n_64_d_2_bk_8_gravity_well.png)
+
+**Spatial locality CDF** — compute-fulfillment as a function of radius.
+
+![](traces/flash_attn_n_64_d_2_bk_8_locality_cdf.png)
 
 **Working-set size over a τ = 100-event window** (max = 100).
 
@@ -738,6 +941,22 @@ Drops manual from 455,587 to **218,552** (−52%), now just below
 
 ![](traces/matvec_row_n_64_static_opt_floor.png)
 
+**Rolling spatial intensity** — heartbeat plot of `ops / Σ ⌈√d⌉` over a sliding window.
+
+![](traces/matvec_row_n_64_intensity.png)
+
+**Cumulative compute vs fetch cost** — slope = instantaneous spatial arithmetic intensity.
+
+![](traces/matvec_row_n_64_phase_diagram.png)
+
+**Gravity well** — per-load fetch-cost `⌈√d⌉` scatter.
+
+![](traces/matvec_row_n_64_gravity_well.png)
+
+**Spatial locality CDF** — compute-fulfillment as a function of radius.
+
+![](traces/matvec_row_n_64_locality_cdf.png)
+
 **Working-set size over a τ = 2,529-event window** (max = 1,052).
 
 ![](traces/matvec_row_n_64_wss.png)
@@ -771,6 +990,22 @@ again, the sum is fixed.
 **Per-tick TU LP floor** — integrand of `static_opt_lb`: Σ_i ρ_{(i)} · √i over currently-live vars, ranked by density; the area equals `static_opt_lb`.
 
 ![](traces/matvec_col_n_64_static_opt_floor.png)
+
+**Rolling spatial intensity** — heartbeat plot of `ops / Σ ⌈√d⌉` over a sliding window.
+
+![](traces/matvec_col_n_64_intensity.png)
+
+**Cumulative compute vs fetch cost** — slope = instantaneous spatial arithmetic intensity.
+
+![](traces/matvec_col_n_64_phase_diagram.png)
+
+**Gravity well** — per-load fetch-cost `⌈√d⌉` scatter.
+
+![](traces/matvec_col_n_64_gravity_well.png)
+
+**Spatial locality CDF** — compute-fulfillment as a function of radius.
+
+![](traces/matvec_col_n_64_locality_cdf.png)
 
 **Working-set size over a τ = 2,529-event window** (max = 1,019).
 
@@ -839,6 +1074,22 @@ term of the doc's exact breakdown:
 
 ![](traces/matvec_blocked_n_64_b_8_static_opt_floor.png)
 
+**Rolling spatial intensity** — heartbeat plot of `ops / Σ ⌈√d⌉` over a sliding window.
+
+![](traces/matvec_blocked_n_64_b_8_intensity.png)
+
+**Cumulative compute vs fetch cost** — slope = instantaneous spatial arithmetic intensity.
+
+![](traces/matvec_blocked_n_64_b_8_phase_diagram.png)
+
+**Gravity well** — per-load fetch-cost `⌈√d⌉` scatter.
+
+![](traces/matvec_blocked_n_64_b_8_gravity_well.png)
+
+**Spatial locality CDF** — compute-fulfillment as a function of radius.
+
+![](traces/matvec_blocked_n_64_b_8_locality_cdf.png)
+
 **Working-set size over a τ = 100-event window** (max = 82).
 
 ![](traces/matvec_blocked_n_64_b_8_wss.png)
@@ -874,6 +1125,22 @@ anticipate once the working set fits entirely at low addresses.
 **Per-tick TU LP floor** — integrand of `static_opt_lb`: Σ_i ρ_{(i)} · √i over currently-live vars, ranked by density; the area equals `static_opt_lb`.
 
 ![](traces/fft_iterative_n_256_static_opt_floor.png)
+
+**Rolling spatial intensity** — heartbeat plot of `ops / Σ ⌈√d⌉` over a sliding window.
+
+![](traces/fft_iterative_n_256_intensity.png)
+
+**Cumulative compute vs fetch cost** — slope = instantaneous spatial arithmetic intensity.
+
+![](traces/fft_iterative_n_256_phase_diagram.png)
+
+**Gravity well** — per-load fetch-cost `⌈√d⌉` scatter.
+
+![](traces/fft_iterative_n_256_gravity_well.png)
+
+**Spatial locality CDF** — compute-fulfillment as a function of radius.
+
+![](traces/fft_iterative_n_256_locality_cdf.png)
 
 **Working-set size over a τ = 256-event window** (max = 256).
 
@@ -914,6 +1181,22 @@ butterfly passes + 1 output epilogue), and it even beats
 
 ![](traces/fft_recursive_n_256_static_opt_floor.png)
 
+**Rolling spatial intensity** — heartbeat plot of `ops / Σ ⌈√d⌉` over a sliding window.
+
+![](traces/fft_recursive_n_256_intensity.png)
+
+**Cumulative compute vs fetch cost** — slope = instantaneous spatial arithmetic intensity.
+
+![](traces/fft_recursive_n_256_phase_diagram.png)
+
+**Gravity well** — per-load fetch-cost `⌈√d⌉` scatter.
+
+![](traces/fft_recursive_n_256_gravity_well.png)
+
+**Spatial locality CDF** — compute-fulfillment as a function of radius.
+
+![](traces/fft_recursive_n_256_locality_cdf.png)
+
 **Working-set size over a τ = 113-event window** (max = 113).
 
 ![](traces/fft_recursive_n_256_wss.png)
@@ -952,6 +1235,22 @@ Drops manual from 121,628 to **78,968** (−35%).
 
 ![](traces/stencil_naive_32x32_static_opt_floor.png)
 
+**Rolling spatial intensity** — heartbeat plot of `ops / Σ ⌈√d⌉` over a sliding window.
+
+![](traces/stencil_naive_32x32_intensity.png)
+
+**Cumulative compute vs fetch cost** — slope = instantaneous spatial arithmetic intensity.
+
+![](traces/stencil_naive_32x32_phase_diagram.png)
+
+**Gravity well** — per-load fetch-cost `⌈√d⌉` scatter.
+
+![](traces/stencil_naive_32x32_gravity_well.png)
+
+**Spatial locality CDF** — compute-fulfillment as a function of radius.
+
+![](traces/stencil_naive_32x32_locality_cdf.png)
+
 **Working-set size over a τ = 512-event window** (max = 512).
 
 ![](traces/stencil_naive_32x32_wss.png)
@@ -988,6 +1287,22 @@ effects only.
 
 ![](traces/stencil_recursive_32x32_leaf_8_static_opt_floor.png)
 
+**Rolling spatial intensity** — heartbeat plot of `ops / Σ ⌈√d⌉` over a sliding window.
+
+![](traces/stencil_recursive_32x32_leaf_8_intensity.png)
+
+**Cumulative compute vs fetch cost** — slope = instantaneous spatial arithmetic intensity.
+
+![](traces/stencil_recursive_32x32_leaf_8_phase_diagram.png)
+
+**Gravity well** — per-load fetch-cost `⌈√d⌉` scatter.
+
+![](traces/stencil_recursive_32x32_leaf_8_gravity_well.png)
+
+**Spatial locality CDF** — compute-fulfillment as a function of radius.
+
+![](traces/stencil_recursive_32x32_leaf_8_locality_cdf.png)
+
 **Working-set size over a τ = 492-event window** (max = 492).
 
 ![](traces/stencil_recursive_32x32_leaf_8_wss.png)
@@ -1020,6 +1335,22 @@ K² times.
 **Per-tick TU LP floor** — integrand of `static_opt_lb`: Σ_i ρ_{(i)} · √i over currently-live vars, ranked by density; the area equals `static_opt_lb`.
 
 ![](traces/spatial_conv_32x32_k_5_static_opt_floor.png)
+
+**Rolling spatial intensity** — heartbeat plot of `ops / Σ ⌈√d⌉` over a sliding window.
+
+![](traces/spatial_conv_32x32_k_5_intensity.png)
+
+**Cumulative compute vs fetch cost** — slope = instantaneous spatial arithmetic intensity.
+
+![](traces/spatial_conv_32x32_k_5_phase_diagram.png)
+
+**Gravity well** — per-load fetch-cost `⌈√d⌉` scatter.
+
+![](traces/spatial_conv_32x32_k_5_gravity_well.png)
+
+**Spatial locality CDF** — compute-fulfillment as a function of radius.
+
+![](traces/spatial_conv_32x32_k_5_locality_cdf.png)
 
 **Working-set size over a τ = 51-event window** (max = 51).
 
@@ -1054,6 +1385,22 @@ position.
 **Per-tick TU LP floor** — integrand of `static_opt_lb`: Σ_i ρ_{(i)} · √i over currently-live vars, ranked by density; the area equals `static_opt_lb`.
 
 ![](traces/regular_conv_16x16_k_3_cin_4_cout_4_static_opt_floor.png)
+
+**Rolling spatial intensity** — heartbeat plot of `ops / Σ ⌈√d⌉` over a sliding window.
+
+![](traces/regular_conv_16x16_k_3_cin_4_cout_4_intensity.png)
+
+**Cumulative compute vs fetch cost** — slope = instantaneous spatial arithmetic intensity.
+
+![](traces/regular_conv_16x16_k_3_cin_4_cout_4_phase_diagram.png)
+
+**Gravity well** — per-load fetch-cost `⌈√d⌉` scatter.
+
+![](traces/regular_conv_16x16_k_3_cin_4_cout_4_gravity_well.png)
+
+**Spatial locality CDF** — compute-fulfillment as a function of radius.
+
+![](traces/regular_conv_16x16_k_3_cin_4_cout_4_locality_cdf.png)
 
 **Working-set size over a τ = 193-event window** (max = 193).
 
@@ -1098,6 +1445,22 @@ including `space_dmd` (110,194) and `bytedmd_live` (148,641).
 
 ![](traces/fft_conv_n_256_static_opt_floor.png)
 
+**Rolling spatial intensity** — heartbeat plot of `ops / Σ ⌈√d⌉` over a sliding window.
+
+![](traces/fft_conv_n_256_intensity.png)
+
+**Cumulative compute vs fetch cost** — slope = instantaneous spatial arithmetic intensity.
+
+![](traces/fft_conv_n_256_phase_diagram.png)
+
+**Gravity well** — per-load fetch-cost `⌈√d⌉` scatter.
+
+![](traces/fft_conv_n_256_gravity_well.png)
+
+**Spatial locality CDF** — compute-fulfillment as a function of radius.
+
+![](traces/fft_conv_n_256_locality_cdf.png)
+
 **Working-set size over a τ = 100-event window** (max = 100).
 
 ![](traces/fft_conv_n_256_wss.png)
@@ -1135,6 +1498,22 @@ the pivot at depth 1 after its first read inside the inner loop.
 **Per-tick TU LP floor** — integrand of `static_opt_lb`: Σ_i ρ_{(i)} · √i over currently-live vars, ranked by density; the area equals `static_opt_lb`.
 
 ![](traces/quicksort_n_64_static_opt_floor.png)
+
+**Rolling spatial intensity** — heartbeat plot of `ops / Σ ⌈√d⌉` over a sliding window.
+
+![](traces/quicksort_n_64_intensity.png)
+
+**Cumulative compute vs fetch cost** — slope = instantaneous spatial arithmetic intensity.
+
+![](traces/quicksort_n_64_phase_diagram.png)
+
+**Gravity well** — per-load fetch-cost `⌈√d⌉` scatter.
+
+![](traces/quicksort_n_64_gravity_well.png)
+
+**Spatial locality CDF** — compute-fulfillment as a function of radius.
+
+![](traces/quicksort_n_64_locality_cdf.png)
 
 **Working-set size over a τ = 57-event window** (max = 57).
 
@@ -1175,6 +1554,22 @@ backbone of a pointer-less heap. `manual` (4,779) lands between
 **Per-tick TU LP floor** — integrand of `static_opt_lb`: Σ_i ρ_{(i)} · √i over currently-live vars, ranked by density; the area equals `static_opt_lb`.
 
 ![](traces/heapsort_n_64_static_opt_floor.png)
+
+**Rolling spatial intensity** — heartbeat plot of `ops / Σ ⌈√d⌉` over a sliding window.
+
+![](traces/heapsort_n_64_intensity.png)
+
+**Cumulative compute vs fetch cost** — slope = instantaneous spatial arithmetic intensity.
+
+![](traces/heapsort_n_64_phase_diagram.png)
+
+**Gravity well** — per-load fetch-cost `⌈√d⌉` scatter.
+
+![](traces/heapsort_n_64_gravity_well.png)
+
+**Spatial locality CDF** — compute-fulfillment as a function of radius.
+
+![](traces/heapsort_n_64_locality_cdf.png)
 
 **Working-set size over a τ = 36-event window** (max = 36).
 
@@ -1226,6 +1621,22 @@ ping-pong rewrite) → **3,386** (−63% from original). Now beats
 
 ![](traces/mergesort_n_64_static_opt_floor.png)
 
+**Rolling spatial intensity** — heartbeat plot of `ops / Σ ⌈√d⌉` over a sliding window.
+
+![](traces/mergesort_n_64_intensity.png)
+
+**Cumulative compute vs fetch cost** — slope = instantaneous spatial arithmetic intensity.
+
+![](traces/mergesort_n_64_phase_diagram.png)
+
+**Gravity well** — per-load fetch-cost `⌈√d⌉` scatter.
+
+![](traces/mergesort_n_64_gravity_well.png)
+
+**Spatial locality CDF** — compute-fulfillment as a function of radius.
+
+![](traces/mergesort_n_64_locality_cdf.png)
+
 **Working-set size over a τ = 51-event window** (max = 51).
 
 ![](traces/mergesort_n_64_wss.png)
@@ -1264,6 +1675,22 @@ manual from 80,940 to **27,192** (−66%), just above `space_dmd`
 **Per-tick TU LP floor** — integrand of `static_opt_lb`: Σ_i ρ_{(i)} · √i over currently-live vars, ranked by density; the area equals `static_opt_lb`.
 
 ![](traces/lcs_dp_32x32_static_opt_floor.png)
+
+**Rolling spatial intensity** — heartbeat plot of `ops / Σ ⌈√d⌉` over a sliding window.
+
+![](traces/lcs_dp_32x32_intensity.png)
+
+**Cumulative compute vs fetch cost** — slope = instantaneous spatial arithmetic intensity.
+
+![](traces/lcs_dp_32x32_phase_diagram.png)
+
+**Gravity well** — per-load fetch-cost `⌈√d⌉` scatter.
+
+![](traces/lcs_dp_32x32_gravity_well.png)
+
+**Spatial locality CDF** — compute-fulfillment as a function of radius.
+
+![](traces/lcs_dp_32x32_locality_cdf.png)
 
 **Working-set size over a τ = 66-event window** (max = 31).
 
@@ -1306,6 +1733,22 @@ plus two hot scratchpad cells. Drops manual from 751,252 to
 **Per-tick TU LP floor** — integrand of `static_opt_lb`: Σ_i ρ_{(i)} · √i over currently-live vars, ranked by density; the area equals `static_opt_lb`.
 
 ![](traces/lu_no_pivot_n_32_static_opt_floor.png)
+
+**Rolling spatial intensity** — heartbeat plot of `ops / Σ ⌈√d⌉` over a sliding window.
+
+![](traces/lu_no_pivot_n_32_intensity.png)
+
+**Cumulative compute vs fetch cost** — slope = instantaneous spatial arithmetic intensity.
+
+![](traces/lu_no_pivot_n_32_phase_diagram.png)
+
+**Gravity well** — per-load fetch-cost `⌈√d⌉` scatter.
+
+![](traces/lu_no_pivot_n_32_gravity_well.png)
+
+**Spatial locality CDF** — compute-fulfillment as a function of radius.
+
+![](traces/lu_no_pivot_n_32_locality_cdf.png)
 
 **Working-set size over a τ = 763-event window** (max = 763).
 
@@ -1353,6 +1796,22 @@ heuristics can only approximate.
 
 ![](traces/blocked_lu_n_32_nb_8_static_opt_floor.png)
 
+**Rolling spatial intensity** — heartbeat plot of `ops / Σ ⌈√d⌉` over a sliding window.
+
+![](traces/blocked_lu_n_32_nb_8_intensity.png)
+
+**Cumulative compute vs fetch cost** — slope = instantaneous spatial arithmetic intensity.
+
+![](traces/blocked_lu_n_32_nb_8_phase_diagram.png)
+
+**Gravity well** — per-load fetch-cost `⌈√d⌉` scatter.
+
+![](traces/blocked_lu_n_32_nb_8_gravity_well.png)
+
+**Spatial locality CDF** — compute-fulfillment as a function of radius.
+
+![](traces/blocked_lu_n_32_nb_8_locality_cdf.png)
+
 **Working-set size over a τ = 233-event window** (max = 233).
 
 ![](traces/blocked_lu_n_32_nb_8_wss.png)
@@ -1397,6 +1856,22 @@ levels.
 
 ![](traces/recursive_lu_n_32_static_opt_floor.png)
 
+**Rolling spatial intensity** — heartbeat plot of `ops / Σ ⌈√d⌉` over a sliding window.
+
+![](traces/recursive_lu_n_32_intensity.png)
+
+**Cumulative compute vs fetch cost** — slope = instantaneous spatial arithmetic intensity.
+
+![](traces/recursive_lu_n_32_phase_diagram.png)
+
+**Gravity well** — per-load fetch-cost `⌈√d⌉` scatter.
+
+![](traces/recursive_lu_n_32_gravity_well.png)
+
+**Spatial locality CDF** — compute-fulfillment as a function of radius.
+
+![](traces/recursive_lu_n_32_locality_cdf.png)
+
 **Working-set size over a τ = 305-event window** (max = 305).
 
 ![](traces/recursive_lu_n_32_wss.png)
@@ -1433,6 +1908,22 @@ scratchpads the same way. Drops manual from 793,416 to **427,384**
 **Per-tick TU LP floor** — integrand of `static_opt_lb`: Σ_i ρ_{(i)} · √i over currently-live vars, ranked by density; the area equals `static_opt_lb`.
 
 ![](traces/lu_partial_pivot_n_32_static_opt_floor.png)
+
+**Rolling spatial intensity** — heartbeat plot of `ops / Σ ⌈√d⌉` over a sliding window.
+
+![](traces/lu_partial_pivot_n_32_intensity.png)
+
+**Cumulative compute vs fetch cost** — slope = instantaneous spatial arithmetic intensity.
+
+![](traces/lu_partial_pivot_n_32_phase_diagram.png)
+
+**Gravity well** — per-load fetch-cost `⌈√d⌉` scatter.
+
+![](traces/lu_partial_pivot_n_32_gravity_well.png)
+
+**Spatial locality CDF** — compute-fulfillment as a function of radius.
+
+![](traces/lu_partial_pivot_n_32_locality_cdf.png)
 
 **Working-set size over a τ = 735-event window** (max = 735).
 
@@ -1472,6 +1963,22 @@ from 494,000 to **238,688** (−52%), still above `space_dmd`
 
 ![](traces/cholesky_n_32_static_opt_floor.png)
 
+**Rolling spatial intensity** — heartbeat plot of `ops / Σ ⌈√d⌉` over a sliding window.
+
+![](traces/cholesky_n_32_intensity.png)
+
+**Cumulative compute vs fetch cost** — slope = instantaneous spatial arithmetic intensity.
+
+![](traces/cholesky_n_32_phase_diagram.png)
+
+**Gravity well** — per-load fetch-cost `⌈√d⌉` scatter.
+
+![](traces/cholesky_n_32_gravity_well.png)
+
+**Spatial locality CDF** — compute-fulfillment as a function of radius.
+
+![](traces/cholesky_n_32_locality_cdf.png)
+
 **Working-set size over a τ = 418-event window** (max = 418).
 
 ![](traces/cholesky_n_32_wss.png)
@@ -1510,6 +2017,22 @@ Drops manual from 1,146,072 to **743,882** (−35%), now below
 **Per-tick TU LP floor** — integrand of `static_opt_lb`: Σ_i ρ_{(i)} · √i over currently-live vars, ranked by density; the area equals `static_opt_lb`.
 
 ![](traces/householder_qr_32x32_static_opt_floor.png)
+
+**Rolling spatial intensity** — heartbeat plot of `ops / Σ ⌈√d⌉` over a sliding window.
+
+![](traces/householder_qr_32x32_intensity.png)
+
+**Cumulative compute vs fetch cost** — slope = instantaneous spatial arithmetic intensity.
+
+![](traces/householder_qr_32x32_phase_diagram.png)
+
+**Gravity well** — per-load fetch-cost `⌈√d⌉` scatter.
+
+![](traces/householder_qr_32x32_gravity_well.png)
+
+**Spatial locality CDF** — compute-fulfillment as a function of radius.
+
+![](traces/householder_qr_32x32_locality_cdf.png)
 
 **Working-set size over a τ = 428-event window** (max = 428).
 
@@ -1555,6 +2078,22 @@ reflector) isn't implemented.
 **Per-tick TU LP floor** — integrand of `static_opt_lb`: Σ_i ρ_{(i)} · √i over currently-live vars, ranked by density; the area equals `static_opt_lb`.
 
 ![](traces/blocked_qr_32x32_nb_8_static_opt_floor.png)
+
+**Rolling spatial intensity** — heartbeat plot of `ops / Σ ⌈√d⌉` over a sliding window.
+
+![](traces/blocked_qr_32x32_nb_8_intensity.png)
+
+**Cumulative compute vs fetch cost** — slope = instantaneous spatial arithmetic intensity.
+
+![](traces/blocked_qr_32x32_nb_8_phase_diagram.png)
+
+**Gravity well** — per-load fetch-cost `⌈√d⌉` scatter.
+
+![](traces/blocked_qr_32x32_nb_8_gravity_well.png)
+
+**Spatial locality CDF** — compute-fulfillment as a function of radius.
+
+![](traces/blocked_qr_32x32_nb_8_locality_cdf.png)
 
 **Working-set size over a τ = 267-event window** (max = 267).
 
@@ -1605,6 +2144,22 @@ Drops manual from 461,782 to **297,513** (−36%), now below
 
 ![](traces/tsqr_64x16_br_8_static_opt_floor.png)
 
+**Rolling spatial intensity** — heartbeat plot of `ops / Σ ⌈√d⌉` over a sliding window.
+
+![](traces/tsqr_64x16_br_8_intensity.png)
+
+**Cumulative compute vs fetch cost** — slope = instantaneous spatial arithmetic intensity.
+
+![](traces/tsqr_64x16_br_8_phase_diagram.png)
+
+**Gravity well** — per-load fetch-cost `⌈√d⌉` scatter.
+
+![](traces/tsqr_64x16_br_8_gravity_well.png)
+
+**Spatial locality CDF** — compute-fulfillment as a function of radius.
+
+![](traces/tsqr_64x16_br_8_locality_cdf.png)
+
 **Working-set size over a τ = 96-event window** (max = 96).
 
 ![](traces/tsqr_64x16_br_8_wss.png)
@@ -1631,6 +2186,22 @@ Drops manual from 461,782 to **297,513** (−36%), now below
 **Per-tick TU LP floor** — integrand of `static_opt_lb`: Σ_i ρ_{(i)} · √i over currently-live vars, ranked by density; the area equals `static_opt_lb`.
 
 ![](traces/transpose_naive_n_32_static_opt_floor.png)
+
+**Rolling spatial intensity** — heartbeat plot of `ops / Σ ⌈√d⌉` over a sliding window.
+
+![](traces/transpose_naive_n_32_intensity.png)
+
+**Cumulative compute vs fetch cost** — slope = instantaneous spatial arithmetic intensity.
+
+![](traces/transpose_naive_n_32_phase_diagram.png)
+
+**Gravity well** — per-load fetch-cost `⌈√d⌉` scatter.
+
+![](traces/transpose_naive_n_32_gravity_well.png)
+
+**Spatial locality CDF** — compute-fulfillment as a function of radius.
+
+![](traces/transpose_naive_n_32_locality_cdf.png)
 
 **Working-set size over a τ = 922-event window** (max = 922).
 
@@ -1661,6 +2232,22 @@ Drops manual from 461,782 to **297,513** (−36%), now below
 
 ![](traces/transpose_blocked_n_32_static_opt_floor.png)
 
+**Rolling spatial intensity** — heartbeat plot of `ops / Σ ⌈√d⌉` over a sliding window.
+
+![](traces/transpose_blocked_n_32_intensity.png)
+
+**Cumulative compute vs fetch cost** — slope = instantaneous spatial arithmetic intensity.
+
+![](traces/transpose_blocked_n_32_phase_diagram.png)
+
+**Gravity well** — per-load fetch-cost `⌈√d⌉` scatter.
+
+![](traces/transpose_blocked_n_32_gravity_well.png)
+
+**Spatial locality CDF** — compute-fulfillment as a function of radius.
+
+![](traces/transpose_blocked_n_32_locality_cdf.png)
+
 **Working-set size over a τ = 897-event window** (max = 897).
 
 ![](traces/transpose_blocked_n_32_wss.png)
@@ -1690,6 +2277,22 @@ Drops manual from 461,782 to **297,513** (−36%), now below
 
 ![](traces/transpose_recursive_n_32_static_opt_floor.png)
 
+**Rolling spatial intensity** — heartbeat plot of `ops / Σ ⌈√d⌉` over a sliding window.
+
+![](traces/transpose_recursive_n_32_intensity.png)
+
+**Cumulative compute vs fetch cost** — slope = instantaneous spatial arithmetic intensity.
+
+![](traces/transpose_recursive_n_32_phase_diagram.png)
+
+**Gravity well** — per-load fetch-cost `⌈√d⌉` scatter.
+
+![](traces/transpose_recursive_n_32_gravity_well.png)
+
+**Spatial locality CDF** — compute-fulfillment as a function of radius.
+
+![](traces/transpose_recursive_n_32_locality_cdf.png)
+
 **Working-set size over a τ = 884-event window** (max = 884).
 
 ![](traces/transpose_recursive_n_32_wss.png)
@@ -1718,6 +2321,22 @@ Drops manual from 461,782 to **297,513** (−36%), now below
 **Per-tick TU LP floor** — integrand of `static_opt_lb`: Σ_i ρ_{(i)} · √i over currently-live vars, ranked by density; the area equals `static_opt_lb`.
 
 ![](traces/stencil_time_naive_16x16_t_4_static_opt_floor.png)
+
+**Rolling spatial intensity** — heartbeat plot of `ops / Σ ⌈√d⌉` over a sliding window.
+
+![](traces/stencil_time_naive_16x16_t_4_intensity.png)
+
+**Cumulative compute vs fetch cost** — slope = instantaneous spatial arithmetic intensity.
+
+![](traces/stencil_time_naive_16x16_t_4_phase_diagram.png)
+
+**Gravity well** — per-load fetch-cost `⌈√d⌉` scatter.
+
+![](traces/stencil_time_naive_16x16_t_4_gravity_well.png)
+
+**Spatial locality CDF** — compute-fulfillment as a function of radius.
+
+![](traces/stencil_time_naive_16x16_t_4_locality_cdf.png)
 
 **Working-set size over a τ = 273-event window** (max = 264).
 
@@ -1773,6 +2392,22 @@ algorithm that was previously our worst-ratio offender.
 
 ![](traces/stencil_time_diamond_16x16_t_4_static_opt_floor.png)
 
+**Rolling spatial intensity** — heartbeat plot of `ops / Σ ⌈√d⌉` over a sliding window.
+
+![](traces/stencil_time_diamond_16x16_t_4_intensity.png)
+
+**Cumulative compute vs fetch cost** — slope = instantaneous spatial arithmetic intensity.
+
+![](traces/stencil_time_diamond_16x16_t_4_phase_diagram.png)
+
+**Gravity well** — per-load fetch-cost `⌈√d⌉` scatter.
+
+![](traces/stencil_time_diamond_16x16_t_4_gravity_well.png)
+
+**Spatial locality CDF** — compute-fulfillment as a function of radius.
+
+![](traces/stencil_time_diamond_16x16_t_4_locality_cdf.png)
+
 **Working-set size over a τ = 145-event window** (max = 145).
 
 ![](traces/stencil_time_diamond_16x16_t_4_wss.png)
@@ -1809,6 +2444,22 @@ Lazy arg reads at k=0 replace the V² preload. Drops manual from
 **Per-tick TU LP floor** — integrand of `static_opt_lb`: Σ_i ρ_{(i)} · √i over currently-live vars, ranked by density; the area equals `static_opt_lb`.
 
 ![](traces/floyd_warshall_naive_v_16_static_opt_floor.png)
+
+**Rolling spatial intensity** — heartbeat plot of `ops / Σ ⌈√d⌉` over a sliding window.
+
+![](traces/floyd_warshall_naive_v_16_intensity.png)
+
+**Cumulative compute vs fetch cost** — slope = instantaneous spatial arithmetic intensity.
+
+![](traces/floyd_warshall_naive_v_16_phase_diagram.png)
+
+**Gravity well** — per-load fetch-cost `⌈√d⌉` scatter.
+
+![](traces/floyd_warshall_naive_v_16_gravity_well.png)
+
+**Spatial locality CDF** — compute-fulfillment as a function of radius.
+
+![](traces/floyd_warshall_naive_v_16_locality_cdf.png)
 
 **Working-set size over a τ = 256-event window** (max = 256).
 
@@ -1852,6 +2503,22 @@ single-algorithm wins in the grid.
 
 ![](traces/floyd_warshall_recursive_v_16_static_opt_floor.png)
 
+**Rolling spatial intensity** — heartbeat plot of `ops / Σ ⌈√d⌉` over a sliding window.
+
+![](traces/floyd_warshall_recursive_v_16_intensity.png)
+
+**Cumulative compute vs fetch cost** — slope = instantaneous spatial arithmetic intensity.
+
+![](traces/floyd_warshall_recursive_v_16_phase_diagram.png)
+
+**Gravity well** — per-load fetch-cost `⌈√d⌉` scatter.
+
+![](traces/floyd_warshall_recursive_v_16_gravity_well.png)
+
+**Spatial locality CDF** — compute-fulfillment as a function of radius.
+
+![](traces/floyd_warshall_recursive_v_16_locality_cdf.png)
+
 **Working-set size over a τ = 32-event window** (max = 32).
 
 ![](traces/floyd_warshall_recursive_v_16_wss.png)
@@ -1880,6 +2547,22 @@ single-algorithm wins in the grid.
 **Per-tick TU LP floor** — integrand of `static_opt_lb`: Σ_i ρ_{(i)} · √i over currently-live vars, ranked by density; the area equals `static_opt_lb`.
 
 ![](traces/layernorm_unfused_n_256_static_opt_floor.png)
+
+**Rolling spatial intensity** — heartbeat plot of `ops / Σ ⌈√d⌉` over a sliding window.
+
+![](traces/layernorm_unfused_n_256_intensity.png)
+
+**Cumulative compute vs fetch cost** — slope = instantaneous spatial arithmetic intensity.
+
+![](traces/layernorm_unfused_n_256_phase_diagram.png)
+
+**Gravity well** — per-load fetch-cost `⌈√d⌉` scatter.
+
+![](traces/layernorm_unfused_n_256_gravity_well.png)
+
+**Spatial locality CDF** — compute-fulfillment as a function of radius.
+
+![](traces/layernorm_unfused_n_256_locality_cdf.png)
 
 **Working-set size over a τ = 258-event window** (max = 257).
 
@@ -1910,6 +2593,22 @@ single-algorithm wins in the grid.
 
 ![](traces/layernorm_fused_n_256_static_opt_floor.png)
 
+**Rolling spatial intensity** — heartbeat plot of `ops / Σ ⌈√d⌉` over a sliding window.
+
+![](traces/layernorm_fused_n_256_intensity.png)
+
+**Cumulative compute vs fetch cost** — slope = instantaneous spatial arithmetic intensity.
+
+![](traces/layernorm_fused_n_256_phase_diagram.png)
+
+**Gravity well** — per-load fetch-cost `⌈√d⌉` scatter.
+
+![](traces/layernorm_fused_n_256_gravity_well.png)
+
+**Spatial locality CDF** — compute-fulfillment as a function of radius.
+
+![](traces/layernorm_fused_n_256_locality_cdf.png)
+
 **Working-set size over a τ = 193-event window** (max = 193).
 
 ![](traces/layernorm_fused_n_256_wss.png)
@@ -1939,6 +2638,22 @@ single-algorithm wins in the grid.
 
 ![](traces/matrix_powers_naive_n_16_s_4_static_opt_floor.png)
 
+**Rolling spatial intensity** — heartbeat plot of `ops / Σ ⌈√d⌉` over a sliding window.
+
+![](traces/matrix_powers_naive_n_16_s_4_intensity.png)
+
+**Cumulative compute vs fetch cost** — slope = instantaneous spatial arithmetic intensity.
+
+![](traces/matrix_powers_naive_n_16_s_4_phase_diagram.png)
+
+**Gravity well** — per-load fetch-cost `⌈√d⌉` scatter.
+
+![](traces/matrix_powers_naive_n_16_s_4_gravity_well.png)
+
+**Spatial locality CDF** — compute-fulfillment as a function of radius.
+
+![](traces/matrix_powers_naive_n_16_s_4_locality_cdf.png)
+
 **Working-set size over a τ = 276-event window** (max = 137).
 
 ![](traces/matrix_powers_naive_n_16_s_4_wss.png)
@@ -1967,6 +2682,22 @@ single-algorithm wins in the grid.
 **Per-tick TU LP floor** — integrand of `static_opt_lb`: Σ_i ρ_{(i)} · √i over currently-live vars, ranked by density; the area equals `static_opt_lb`.
 
 ![](traces/matrix_powers_ca_n_16_s_4_static_opt_floor.png)
+
+**Rolling spatial intensity** — heartbeat plot of `ops / Σ ⌈√d⌉` over a sliding window.
+
+![](traces/matrix_powers_ca_n_16_s_4_intensity.png)
+
+**Cumulative compute vs fetch cost** — slope = instantaneous spatial arithmetic intensity.
+
+![](traces/matrix_powers_ca_n_16_s_4_phase_diagram.png)
+
+**Gravity well** — per-load fetch-cost `⌈√d⌉` scatter.
+
+![](traces/matrix_powers_ca_n_16_s_4_gravity_well.png)
+
+**Spatial locality CDF** — compute-fulfillment as a function of radius.
+
+![](traces/matrix_powers_ca_n_16_s_4_locality_cdf.png)
 
 **Working-set size over a τ = 276-event window** (max = 134).
 
@@ -2003,6 +2734,22 @@ Drops manual from 494,000 to **244,300** (−51%), still above
 
 ![](traces/cholesky_left_looking_n_32_static_opt_floor.png)
 
+**Rolling spatial intensity** — heartbeat plot of `ops / Σ ⌈√d⌉` over a sliding window.
+
+![](traces/cholesky_left_looking_n_32_intensity.png)
+
+**Cumulative compute vs fetch cost** — slope = instantaneous spatial arithmetic intensity.
+
+![](traces/cholesky_left_looking_n_32_phase_diagram.png)
+
+**Gravity well** — per-load fetch-cost `⌈√d⌉` scatter.
+
+![](traces/cholesky_left_looking_n_32_gravity_well.png)
+
+**Spatial locality CDF** — compute-fulfillment as a function of radius.
+
+![](traces/cholesky_left_looking_n_32_locality_cdf.png)
+
 **Working-set size over a τ = 279-event window** (max = 279).
 
 ![](traces/cholesky_left_looking_n_32_wss.png)
@@ -2031,6 +2778,22 @@ Drops manual from 494,000 to **244,300** (−51%), still above
 **Per-tick TU LP floor** — integrand of `static_opt_lb`: Σ_i ρ_{(i)} · √i over currently-live vars, ranked by density; the area equals `static_opt_lb`.
 
 ![](traces/spmv_csr_banded_n_32_bw_3_static_opt_floor.png)
+
+**Rolling spatial intensity** — heartbeat plot of `ops / Σ ⌈√d⌉` over a sliding window.
+
+![](traces/spmv_csr_banded_n_32_bw_3_intensity.png)
+
+**Cumulative compute vs fetch cost** — slope = instantaneous spatial arithmetic intensity.
+
+![](traces/spmv_csr_banded_n_32_bw_3_phase_diagram.png)
+
+**Gravity well** — per-load fetch-cost `⌈√d⌉` scatter.
+
+![](traces/spmv_csr_banded_n_32_bw_3_gravity_well.png)
+
+**Spatial locality CDF** — compute-fulfillment as a function of radius.
+
+![](traces/spmv_csr_banded_n_32_bw_3_locality_cdf.png)
 
 **Working-set size over a τ = 131-event window** (max = 74).
 
@@ -2061,6 +2824,22 @@ Drops manual from 494,000 to **244,300** (−51%), still above
 
 ![](traces/spmv_csr_random_n_32_nnz_7_static_opt_floor.png)
 
+**Rolling spatial intensity** — heartbeat plot of `ops / Σ ⌈√d⌉` over a sliding window.
+
+![](traces/spmv_csr_random_n_32_nnz_7_intensity.png)
+
+**Cumulative compute vs fetch cost** — slope = instantaneous spatial arithmetic intensity.
+
+![](traces/spmv_csr_random_n_32_nnz_7_phase_diagram.png)
+
+**Gravity well** — per-load fetch-cost `⌈√d⌉` scatter.
+
+![](traces/spmv_csr_random_n_32_nnz_7_gravity_well.png)
+
+**Spatial locality CDF** — compute-fulfillment as a function of radius.
+
+![](traces/spmv_csr_random_n_32_nnz_7_locality_cdf.png)
+
 **Working-set size over a τ = 163-event window** (max = 96).
 
 ![](traces/spmv_csr_random_n_32_nnz_7_wss.png)
@@ -2089,6 +2868,22 @@ Drops manual from 494,000 to **244,300** (−51%), still above
 **Per-tick TU LP floor** — integrand of `static_opt_lb`: Σ_i ρ_{(i)} · √i over currently-live vars, ranked by density; the area equals `static_opt_lb`.
 
 ![](traces/bitonic_sort_n_64_static_opt_floor.png)
+
+**Rolling spatial intensity** — heartbeat plot of `ops / Σ ⌈√d⌉` over a sliding window.
+
+![](traces/bitonic_sort_n_64_intensity.png)
+
+**Cumulative compute vs fetch cost** — slope = instantaneous spatial arithmetic intensity.
+
+![](traces/bitonic_sort_n_64_phase_diagram.png)
+
+**Gravity well** — per-load fetch-cost `⌈√d⌉` scatter.
+
+![](traces/bitonic_sort_n_64_gravity_well.png)
+
+**Spatial locality CDF** — compute-fulfillment as a function of radius.
+
+![](traces/bitonic_sort_n_64_locality_cdf.png)
 
 **Working-set size over a τ = 64-event window** (max = 64).
 

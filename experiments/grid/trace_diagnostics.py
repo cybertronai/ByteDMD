@@ -259,6 +259,151 @@ def _miss_curve(distances, max_cap):
     return misses
 
 
+def _per_event_cost_and_ops(events, rd_times, rd_distances):
+    """Build (costs, ops) arrays of length len(events).
+    costs[i] = ceil(sqrt(d)) at L2Load i; 0 elsewhere.
+    ops[i]   = 1 at L2Op i; 0 elsewhere.
+    """
+    import math as _math
+    n = len(events)
+    costs = [0] * n
+    ops = [0] * n
+    cost_at = {t: _math.isqrt(max(0, d - 1)) + 1
+               for t, d in zip(rd_times, rd_distances)}
+    for i, ev in enumerate(events):
+        if isinstance(ev, L2Load):
+            costs[i] = cost_at.get(i, 0)
+    # Late import to avoid ordering issues; L2Op is only present here.
+    from bytedmd_ir import L2Op
+    for i, ev in enumerate(events):
+        if isinstance(ev, L2Op):
+            ops[i] = 1
+    return costs, ops
+
+
+def _op_max_operand_costs(events, rd_times, rd_distances):
+    """For each L2Op, return the max fetch cost over its operand L2Loads."""
+    import math as _math
+    from bytedmd_ir import L2Op
+    cost_at = {t: _math.isqrt(max(0, d - 1)) + 1
+               for t, d in zip(rd_times, rd_distances)}
+    pending = []
+    op_max = []
+    for i, ev in enumerate(events):
+        if isinstance(ev, L2Load):
+            pending.append(cost_at.get(i, 0))
+        elif isinstance(ev, L2Op):
+            op_max.append(max(pending) if pending else 0)
+            pending = []
+    return op_max
+
+
+def plot_rolling_intensity(costs, ops_arr, window, title, out_path):
+    """Heartbeat plot — sliding-window arithmetic intensity:
+    intensity(t) = ops_in_window(t) / max(1, cost_in_window(t)).
+    See gemini/arithmetic-intensity-visualizers.md §1."""
+    n = len(costs)
+    if n == 0:
+        return
+    csum = [0] * (n + 1)
+    osum = [0] * (n + 1)
+    for i in range(n):
+        csum[i + 1] = csum[i] + costs[i]
+        osum[i + 1] = osum[i] + ops_arr[i]
+    times = list(range(n))
+    intens = []
+    for t in range(n):
+        a = max(0, t - window + 1)
+        b = t + 1
+        c_w = csum[b] - csum[a]
+        o_w = osum[b] - osum[a]
+        intens.append(o_w / c_w if c_w > 0 else 0.0)
+    fig, ax = plt.subplots(figsize=(11, 3.4))
+    ax.plot(times, intens, color="tab:blue", linewidth=0.6,
+            rasterized=True)
+    ax.set_xlabel("Access index (time)")
+    ax.set_ylabel(f"Intensity (ops / Σ ⌈√d⌉) over a {window:,}-event window")
+    ax.set_title(title)
+    ax.grid(True, alpha=0.3)
+    ax.set_xlim(0, n)
+    ax.set_ylim(bottom=0)
+    fig.tight_layout()
+    fig.savefig(out_path, dpi=200, bbox_inches="tight")
+    plt.close(fig)
+
+
+def plot_phase_diagram(costs, ops_arr, title, out_path):
+    """Cumulative ops vs cumulative fetch cost — slope = intensity.
+    See gemini/arithmetic-intensity-visualizers.md §2."""
+    n = len(costs)
+    if n == 0:
+        return
+    cum_c = [0.0]
+    cum_o = [0.0]
+    for i in range(n):
+        cum_c.append(cum_c[-1] + costs[i])
+        cum_o.append(cum_o[-1] + ops_arr[i])
+    fig, ax = plt.subplots(figsize=(11, 3.6))
+    ax.plot(cum_c, cum_o, color="tab:cyan", linewidth=0.9,
+            rasterized=True)
+    ax.set_xlabel("Cumulative fetch cost  Σ ⌈√d⌉")
+    ax.set_ylabel("Cumulative ops")
+    ax.set_title(title)
+    ax.grid(True, alpha=0.3)
+    ax.set_xlim(left=0)
+    ax.set_ylim(bottom=0)
+    fig.tight_layout()
+    fig.savefig(out_path, dpi=200, bbox_inches="tight")
+    plt.close(fig)
+
+
+def plot_gravity_well(rd_times, rd_distances, title, out_path):
+    """Per-load fetch cost ⌈√d⌉ scatter — 'gravity well'. The dense
+    band shows the orbital radius from which the ALU is being fed.
+    See gemini/arithmetic-intensity-visualizers.md §3."""
+    import math as _math
+    if not rd_times:
+        return
+    cost = [_math.isqrt(max(0, d - 1)) + 1 for d in rd_distances]
+    fig, ax = plt.subplots(figsize=(11, 3.4))
+    ax.scatter(rd_times, cost, s=0.8, c="tab:red", alpha=0.30,
+               linewidths=0, rasterized=True)
+    ax.set_xlabel("Access index (time)")
+    ax.set_ylabel("Fetch cost  ⌈√d⌉  for this load")
+    ax.set_title(title)
+    ax.grid(True, alpha=0.3)
+    ax.set_xlim(0, rd_times[-1] + 1)
+    ax.set_ylim(bottom=0)
+    fig.tight_layout()
+    fig.savefig(out_path, dpi=200, bbox_inches="tight")
+    plt.close(fig)
+
+
+def plot_locality_cdf(op_max_costs, title, out_path):
+    """CDF: % of ops whose furthest operand was fetched at cost ≤ C.
+    See gemini/arithmetic-intensity-visualizers.md §4."""
+    if not op_max_costs:
+        return
+    n = len(op_max_costs)
+    sorted_c = sorted(op_max_costs)
+    cdf_x = [0] + sorted_c + [sorted_c[-1] + 1]
+    cdf_y = [0] + [(i + 1) / n * 100 for i in range(n)] + [100]
+    fig, ax = plt.subplots(figsize=(11, 3.4))
+    ax.plot(cdf_x, cdf_y, drawstyle="steps-post", color="tab:green",
+            linewidth=1.0, rasterized=True)
+    ax.fill_between(cdf_x, 0, cdf_y, step="post", color="tab:green",
+                    alpha=0.15, linewidth=0, rasterized=True)
+    ax.set_xlabel("Spatial cost threshold C  (= ⌈√d⌉ of furthest operand)")
+    ax.set_ylabel("% of ops fulfilled at cost ≤ C")
+    ax.set_title(title)
+    ax.grid(True, alpha=0.3)
+    ax.set_ylim(0, 100)
+    ax.set_xlim(left=0)
+    fig.tight_layout()
+    fig.savefig(out_path, dpi=200, bbox_inches="tight")
+    plt.close(fig)
+
+
 def plot_static_opt_floor(times, floors, total, n_events, title, out_path):
     """Step plot of the per-tick TU LP floor Σ_i ρ_{(i)} · √i over live
     vars (gemini/optimal-static-floor.md). The shaded area equals
@@ -404,6 +549,32 @@ def main() -> None:
             f"{name} — per-tick TU LP floor "
             f"(static_opt_lb = {sof_total:,.0f})",
             os.path.join(traces_dir, f"{slug}_static_opt_floor.png"))
+
+        # Spatial-arithmetic-intensity visualizers
+        # (gemini/arithmetic-intensity-visualizers.md).
+        ai_costs, ai_ops = _per_event_cost_and_ops(events, rd_t, rd_d)
+        op_max = _op_max_operand_costs(events, rd_t, rd_d)
+        ai_window = max(50, min(1000, len(events) // 4 or 50))
+
+        plot_rolling_intensity(
+            ai_costs, ai_ops, ai_window,
+            f"{name} — rolling spatial intensity "
+            f"(window = {ai_window:,} events)",
+            os.path.join(traces_dir, f"{slug}_intensity.png"))
+        plot_phase_diagram(
+            ai_costs, ai_ops,
+            f"{name} — cumulative ops vs fetch cost "
+            f"(slope = intensity)",
+            os.path.join(traces_dir, f"{slug}_phase_diagram.png"))
+        plot_gravity_well(
+            rd_t, rd_d,
+            f"{name} — fetch-cost scatter (gravity well)",
+            os.path.join(traces_dir, f"{slug}_gravity_well.png"))
+        plot_locality_cdf(
+            op_max,
+            f"{name} — spatial locality CDF "
+            f"(compute fulfillment, n_ops = {len(op_max):,})",
+            os.path.join(traces_dir, f"{slug}_locality_cdf.png"))
 
         plot_wss(
             wss_t, wss_s, window,
