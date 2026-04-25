@@ -231,6 +231,62 @@ def plot_opt_reuse_distance(times, distances, title, out_path):
     plt.close(fig)
 
 
+def _miss_curve(distances, max_cap):
+    """Return M(c) for c = 0..max_cap, where M(c) = # of distances > c.
+
+    Bin distances into a counts array, prefix-sum it, then M(c) = N − prefix(c).
+    O(max_cap + N).
+    """
+    if not distances:
+        return [0] * (max_cap + 1)
+    n = len(distances)
+    bins = [0] * (max_cap + 2)
+    for d in distances:
+        di = d if d <= max_cap else max_cap + 1
+        bins[di] += 1
+    cum = 0
+    misses = [0] * (max_cap + 1)
+    for c in range(max_cap + 1):
+        cum += bins[c]
+        misses[c] = n - cum
+    return misses
+
+
+def plot_mrc_combined(lru_d, opt_d, title, out_path):
+    """Miss-ratio curves for LRU and Bélády OPT on the same axes.
+
+    For each cache capacity c (= number of slots), plot the number of
+    loads that miss — i.e., loads with reuse distance > c. By Mattson
+    inclusion the OPT curve sits at or below the LRU curve at every c;
+    the area between them weighted by the marginal cost
+    Δ_c = ceil(sqrt(c+1)) − ceil(sqrt(c)) is exactly the locality slack
+    that bytedmd_opt extracts (energy decomposition in
+    gemini/belady-min-lower-bound.md §1).
+    """
+    if not (lru_d and opt_d):
+        return
+    max_cap = max(max(lru_d), max(opt_d))
+    lru_m = _miss_curve(lru_d, max_cap)
+    opt_m = _miss_curve(opt_d, max_cap)
+    caps = list(range(max_cap + 1))
+
+    fig, ax = plt.subplots(figsize=(11, 3.6))
+    ax.plot(caps, lru_m, color="tab:purple", linewidth=1.1,
+            rasterized=True, label="LRU misses")
+    ax.plot(caps, opt_m, color="tab:green", linewidth=1.1,
+            rasterized=True, label="Bélády OPT misses")
+    ax.set_xlabel("Cache capacity c (slots)")
+    ax.set_ylabel("Misses M(c) = # loads with reuse distance > c")
+    ax.set_title(title)
+    ax.grid(True, alpha=0.3)
+    ax.set_xlim(0, max_cap)
+    ax.set_ylim(bottom=0)
+    ax.legend(loc="upper right", fontsize=8, framealpha=0.85)
+    fig.tight_layout()
+    fig.savefig(out_path, dpi=200, bbox_inches="tight")
+    plt.close(fig)
+
+
 def plot_reuse_distance_combined(times, lru_d, opt_d, title, out_path):
     """Overlay LRU and Bélády OPT reuse distances on the same axes.
 
@@ -297,6 +353,12 @@ def main() -> None:
             f"{name} — reuse distance per load "
             f"(LRU max = {mx:,}; OPT max = {opt_mx:,})",
             os.path.join(traces_dir, f"{slug}_reuse_distance.png"))
+
+        # Miss-ratio curves (LRU and OPT) across all capacities c.
+        plot_mrc_combined(
+            rd_d, opt_d,
+            f"{name} — miss-ratio curve (LRU vs Bélády OPT)",
+            os.path.join(traces_dir, f"{slug}_mrc.png"))
 
         plot_wss(
             wss_t, wss_s, window,

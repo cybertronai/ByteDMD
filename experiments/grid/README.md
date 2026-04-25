@@ -199,6 +199,10 @@ with-scratchpad variant that drops 35 % off this baseline.
 
 ![](traces/naive_matmul_n_16_reuse_distance.png)
 
+**Miss-ratio curve** — LRU vs Bélády OPT misses by cache capacity.
+
+![](traces/naive_matmul_n_16_mrc.png)
+
 **Working-set size over a τ = 100-event window** (max = 100).
 
 ![](traces/naive_matmul_n_16_wss.png)
@@ -259,6 +263,10 @@ of `naive_tiled_matmul` (which actually cuts arg traffic) and
 
 ![](traces/naive_2d_tiled_matmul_n_16_t_4_reuse_distance.png)
 
+**Miss-ratio curve** — LRU vs Bélády OPT misses by cache capacity.
+
+![](traces/naive_2d_tiled_matmul_n_16_t_4_mrc.png)
+
 **Working-set size over a τ = 100-event window** (max = 100).
 
 ![](traces/naive_2d_tiled_matmul_n_16_t_4_wss.png)
@@ -313,6 +321,10 @@ which adds register-level stationary-operand scheduling on top.
 
 ![](traces/naive_tiled_matmul_n_16_reuse_distance.png)
 
+**Miss-ratio curve** — LRU vs Bélády OPT misses by cache capacity.
+
+![](traces/naive_tiled_matmul_n_16_mrc.png)
+
 **Working-set size over a τ = 100-event window** (max = 100).
 
 ![](traces/naive_tiled_matmul_n_16_wss.png)
@@ -345,6 +357,10 @@ what closes the gap further.
 **Reuse distance per load** — LRU vs Bélády OPT (max LRU = 512; max OPT = 512).
 
 ![](traces/naive_matmul_cached_n_16_reuse_distance.png)
+
+**Miss-ratio curve** — LRU vs Bélády OPT misses by cache capacity.
+
+![](traces/naive_matmul_cached_n_16_mrc.png)
 
 **Working-set size over a τ = 100-event window** (max = 100).
 
@@ -397,6 +413,10 @@ accumulator footprint realised here). Below all three heuristics
 
 ![](traces/tiled_matmul_n_16_reuse_distance.png)
 
+**Miss-ratio curve** — LRU vs Bélády OPT misses by cache capacity.
+
+![](traces/tiled_matmul_n_16_mrc.png)
+
 **Working-set size over a τ = 147-event window** (max = 147).
 
 ![](traces/tiled_matmul_n_16_wss.png)
@@ -443,6 +463,10 @@ it has the same cost (86,030) — all three "explicit" / "manual" /
 
 ![](traces/tiled_matmul_explicit_n_16_t_4_reuse_distance.png)
 
+**Miss-ratio curve** — LRU vs Bélády OPT misses by cache capacity.
+
+![](traces/tiled_matmul_explicit_n_16_t_4_mrc.png)
+
 **Working-set size over a τ = 144-event window** (max = 144).
 
 ![](traces/tiled_matmul_explicit_n_16_t_4_wss.png)
@@ -470,6 +494,10 @@ C while 1 skips the pre-fetch.
 **Reuse distance per load** — LRU vs Bélády OPT (max LRU = 522; max OPT = 512).
 
 ![](traces/rmm_n_16_reuse_distance.png)
+
+**Miss-ratio curve** — LRU vs Bélády OPT misses by cache capacity.
+
+![](traces/rmm_n_16_mrc.png)
 
 **Working-set size over a τ = 125-event window** (max = 125).
 
@@ -504,6 +532,10 @@ avoidance of these materialized intermediates.
 
 ![](traces/naive_strassen_n_16_reuse_distance.png)
 
+**Miss-ratio curve** — LRU vs Bélády OPT misses by cache capacity.
+
+![](traces/naive_strassen_n_16_mrc.png)
+
 **Working-set size over a τ = 158-event window** (max = 158).
 
 ![](traces/naive_strassen_n_16_wss.png)
@@ -535,6 +567,10 @@ matrices — the ZAFS win shows up entirely here in manual (140,526 vs
 
 ![](traces/fused_strassen_n_16_reuse_distance.png)
 
+**Miss-ratio curve** — LRU vs Bélády OPT misses by cache capacity.
+
+![](traces/fused_strassen_n_16_mrc.png)
+
 **Working-set size over a τ = 158-event window** (max = 158).
 
 ![](traces/fused_strassen_n_16_wss.png)
@@ -560,6 +596,10 @@ cost — every access pays `⌈√(addr ≈ N²)⌉`.
 **Reuse distance per load** — LRU vs Bélády OPT (max LRU = 4,163; max OPT = 384).
 
 ![](traces/naive_attn_n_64_d_2_reuse_distance.png)
+
+**Miss-ratio curve** — LRU vs Bélády OPT misses by cache capacity.
+
+![](traces/naive_attn_n_64_d_2_mrc.png)
 
 **Working-set size over a τ = 100-event window** (max = 100).
 
@@ -597,6 +637,10 @@ current manual is the outlier, not the algorithm
 **Reuse distance per load** — LRU vs Bélády OPT (max LRU = 384; max OPT = 384).
 
 ![](traces/flash_attn_n_64_d_2_bk_8_reuse_distance.png)
+
+**Miss-ratio curve** — LRU vs Bélády OPT misses by cache capacity.
+
+![](traces/flash_attn_n_64_d_2_bk_8_mrc.png)
 
 **Working-set size over a τ = 100-event window** (max = 100).
 
@@ -642,6 +686,10 @@ Drops manual from 455,587 to **218,552** (−52%), now just below
 
 ![](traces/matvec_row_n_64_reuse_distance.png)
 
+**Miss-ratio curve** — LRU vs Bélády OPT misses by cache capacity.
+
+![](traces/matvec_row_n_64_mrc.png)
+
 **Working-set size over a τ = 2,529-event window** (max = 1,052).
 
 ![](traces/matvec_row_n_64_wss.png)
@@ -667,6 +715,10 @@ again, the sum is fixed.
 **Reuse distance per load** — LRU vs Bélády OPT (max LRU = 4,160; max OPT = 4,160).
 
 ![](traces/matvec_col_n_64_reuse_distance.png)
+
+**Miss-ratio curve** — LRU vs Bélády OPT misses by cache capacity.
+
+![](traces/matvec_col_n_64_mrc.png)
 
 **Working-set size over a τ = 2,529-event window** (max = 1,019).
 
@@ -727,6 +779,10 @@ term of the doc's exact breakdown:
 
 ![](traces/matvec_blocked_n_64_b_8_reuse_distance.png)
 
+**Miss-ratio curve** — LRU vs Bélády OPT misses by cache capacity.
+
+![](traces/matvec_blocked_n_64_b_8_mrc.png)
+
 **Working-set size over a τ = 100-event window** (max = 82).
 
 ![](traces/matvec_blocked_n_64_b_8_wss.png)
@@ -754,6 +810,10 @@ anticipate once the working set fits entirely at low addresses.
 **Reuse distance per load** — LRU vs Bélády OPT (max LRU = 256; max OPT = 256).
 
 ![](traces/fft_iterative_n_256_reuse_distance.png)
+
+**Miss-ratio curve** — LRU vs Bélády OPT misses by cache capacity.
+
+![](traces/fft_iterative_n_256_mrc.png)
 
 **Working-set size over a τ = 256-event window** (max = 256).
 
@@ -786,6 +846,10 @@ butterfly passes + 1 output epilogue), and it even beats
 
 ![](traces/fft_recursive_n_256_reuse_distance.png)
 
+**Miss-ratio curve** — LRU vs Bélády OPT misses by cache capacity.
+
+![](traces/fft_recursive_n_256_mrc.png)
+
 **Working-set size over a τ = 113-event window** (max = 113).
 
 ![](traces/fft_recursive_n_256_wss.png)
@@ -816,6 +880,10 @@ Drops manual from 121,628 to **78,968** (−35%).
 
 ![](traces/stencil_naive_32x32_reuse_distance.png)
 
+**Miss-ratio curve** — LRU vs Bélády OPT misses by cache capacity.
+
+![](traces/stencil_naive_32x32_mrc.png)
+
 **Working-set size over a τ = 512-event window** (max = 512).
 
 ![](traces/stencil_naive_32x32_wss.png)
@@ -844,6 +912,10 @@ effects only.
 
 ![](traces/stencil_recursive_32x32_leaf_8_reuse_distance.png)
 
+**Miss-ratio curve** — LRU vs Bélády OPT misses by cache capacity.
+
+![](traces/stencil_recursive_32x32_leaf_8_mrc.png)
+
 **Working-set size over a τ = 492-event window** (max = 492).
 
 ![](traces/stencil_recursive_32x32_leaf_8_wss.png)
@@ -868,6 +940,10 @@ K² times.
 **Reuse distance per load** — LRU vs Bélády OPT (max LRU = 1,049; max OPT = 1,049).
 
 ![](traces/spatial_conv_32x32_k_5_reuse_distance.png)
+
+**Miss-ratio curve** — LRU vs Bélády OPT misses by cache capacity.
+
+![](traces/spatial_conv_32x32_k_5_mrc.png)
 
 **Working-set size over a τ = 51-event window** (max = 51).
 
@@ -894,6 +970,10 @@ position.
 **Reuse distance per load** — LRU vs Bélády OPT (max LRU = 1,168; max OPT = 1,168).
 
 ![](traces/regular_conv_16x16_k_3_cin_4_cout_4_reuse_distance.png)
+
+**Miss-ratio curve** — LRU vs Bélády OPT misses by cache capacity.
+
+![](traces/regular_conv_16x16_k_3_cin_4_cout_4_mrc.png)
 
 **Working-set size over a τ = 193-event window** (max = 193).
 
@@ -930,6 +1010,10 @@ including `space_dmd` (110,194) and `bytedmd_live` (148,641).
 
 ![](traces/fft_conv_n_256_reuse_distance.png)
 
+**Miss-ratio curve** — LRU vs Bélády OPT misses by cache capacity.
+
+![](traces/fft_conv_n_256_mrc.png)
+
 **Working-set size over a τ = 100-event window** (max = 100).
 
 ![](traces/fft_conv_n_256_wss.png)
@@ -959,6 +1043,10 @@ the pivot at depth 1 after its first read inside the inner loop.
 **Reuse distance per load** — LRU vs Bélády OPT (max LRU = 64; max OPT = 64).
 
 ![](traces/quicksort_n_64_reuse_distance.png)
+
+**Miss-ratio curve** — LRU vs Bélády OPT misses by cache capacity.
+
+![](traces/quicksort_n_64_mrc.png)
 
 **Working-set size over a τ = 57-event window** (max = 57).
 
@@ -991,6 +1079,10 @@ backbone of a pointer-less heap. `manual` (4,779) lands between
 **Reuse distance per load** — LRU vs Bélády OPT (max LRU = 64; max OPT = 64).
 
 ![](traces/heapsort_n_64_reuse_distance.png)
+
+**Miss-ratio curve** — LRU vs Bélády OPT misses by cache capacity.
+
+![](traces/heapsort_n_64_mrc.png)
 
 **Working-set size over a τ = 36-event window** (max = 36).
 
@@ -1034,6 +1126,10 @@ ping-pong rewrite) → **3,386** (−63% from original). Now beats
 
 ![](traces/mergesort_n_64_reuse_distance.png)
 
+**Miss-ratio curve** — LRU vs Bélády OPT misses by cache capacity.
+
+![](traces/mergesort_n_64_mrc.png)
+
 **Working-set size over a τ = 51-event window** (max = 51).
 
 ![](traces/mergesort_n_64_wss.png)
@@ -1064,6 +1160,10 @@ manual from 80,940 to **27,192** (−66%), just above `space_dmd`
 **Reuse distance per load** — LRU vs Bélády OPT (max LRU = 96; max OPT = 65).
 
 ![](traces/lcs_dp_32x32_reuse_distance.png)
+
+**Miss-ratio curve** — LRU vs Bélády OPT misses by cache capacity.
+
+![](traces/lcs_dp_32x32_mrc.png)
 
 **Working-set size over a τ = 66-event window** (max = 31).
 
@@ -1098,6 +1198,10 @@ plus two hot scratchpad cells. Drops manual from 751,252 to
 **Reuse distance per load** — LRU vs Bélády OPT (max LRU = 1,024; max OPT = 1,024).
 
 ![](traces/lu_no_pivot_n_32_reuse_distance.png)
+
+**Miss-ratio curve** — LRU vs Bélády OPT misses by cache capacity.
+
+![](traces/lu_no_pivot_n_32_mrc.png)
 
 **Working-set size over a τ = 763-event window** (max = 763).
 
@@ -1137,6 +1241,10 @@ heuristics can only approximate.
 
 ![](traces/blocked_lu_n_32_nb_8_reuse_distance.png)
 
+**Miss-ratio curve** — LRU vs Bélády OPT misses by cache capacity.
+
+![](traces/blocked_lu_n_32_nb_8_mrc.png)
+
 **Working-set size over a τ = 233-event window** (max = 233).
 
 ![](traces/blocked_lu_n_32_nb_8_wss.png)
@@ -1173,6 +1281,10 @@ levels.
 
 ![](traces/recursive_lu_n_32_reuse_distance.png)
 
+**Miss-ratio curve** — LRU vs Bélády OPT misses by cache capacity.
+
+![](traces/recursive_lu_n_32_mrc.png)
+
 **Working-set size over a τ = 305-event window** (max = 305).
 
 ![](traces/recursive_lu_n_32_wss.png)
@@ -1201,6 +1313,10 @@ scratchpads the same way. Drops manual from 793,416 to **427,384**
 **Reuse distance per load** — LRU vs Bélády OPT (max LRU = 1,024; max OPT = 1,024).
 
 ![](traces/lu_partial_pivot_n_32_reuse_distance.png)
+
+**Miss-ratio curve** — LRU vs Bélády OPT misses by cache capacity.
+
+![](traces/lu_partial_pivot_n_32_mrc.png)
 
 **Working-set size over a τ = 735-event window** (max = 735).
 
@@ -1232,6 +1348,10 @@ from 494,000 to **238,688** (−52%), still above `space_dmd`
 
 ![](traces/cholesky_n_32_reuse_distance.png)
 
+**Miss-ratio curve** — LRU vs Bélády OPT misses by cache capacity.
+
+![](traces/cholesky_n_32_mrc.png)
+
 **Working-set size over a τ = 418-event window** (max = 418).
 
 ![](traces/cholesky_n_32_wss.png)
@@ -1262,6 +1382,10 @@ Drops manual from 1,146,072 to **743,882** (−35%), now below
 **Reuse distance per load** — LRU vs Bélády OPT (max LRU = 1,024; max OPT = 1,024).
 
 ![](traces/householder_qr_32x32_reuse_distance.png)
+
+**Miss-ratio curve** — LRU vs Bélády OPT misses by cache capacity.
+
+![](traces/householder_qr_32x32_mrc.png)
 
 **Working-set size over a τ = 428-event window** (max = 428).
 
@@ -1299,6 +1423,10 @@ reflector) isn't implemented.
 **Reuse distance per load** — LRU vs Bélády OPT (max LRU = 1,024; max OPT = 1,024).
 
 ![](traces/blocked_qr_32x32_nb_8_reuse_distance.png)
+
+**Miss-ratio curve** — LRU vs Bélády OPT misses by cache capacity.
+
+![](traces/blocked_qr_32x32_nb_8_mrc.png)
 
 **Working-set size over a τ = 267-event window** (max = 267).
 
@@ -1341,6 +1469,10 @@ Drops manual from 461,782 to **297,513** (−36%), now below
 
 ![](traces/tsqr_64x16_br_8_reuse_distance.png)
 
+**Miss-ratio curve** — LRU vs Bélády OPT misses by cache capacity.
+
+![](traces/tsqr_64x16_br_8_mrc.png)
+
 **Working-set size over a τ = 96-event window** (max = 96).
 
 ![](traces/tsqr_64x16_br_8_wss.png)
@@ -1359,6 +1491,10 @@ Drops manual from 461,782 to **297,513** (−36%), now below
 **Reuse distance per load** — LRU vs Bélády OPT (max LRU = 1,024; max OPT = 1,024).
 
 ![](traces/transpose_naive_n_32_reuse_distance.png)
+
+**Miss-ratio curve** — LRU vs Bélády OPT misses by cache capacity.
+
+![](traces/transpose_naive_n_32_mrc.png)
 
 **Working-set size over a τ = 922-event window** (max = 922).
 
@@ -1381,6 +1517,10 @@ Drops manual from 461,782 to **297,513** (−36%), now below
 
 ![](traces/transpose_blocked_n_32_reuse_distance.png)
 
+**Miss-ratio curve** — LRU vs Bélády OPT misses by cache capacity.
+
+![](traces/transpose_blocked_n_32_mrc.png)
+
 **Working-set size over a τ = 897-event window** (max = 897).
 
 ![](traces/transpose_blocked_n_32_wss.png)
@@ -1402,6 +1542,10 @@ Drops manual from 461,782 to **297,513** (−36%), now below
 
 ![](traces/transpose_recursive_n_32_reuse_distance.png)
 
+**Miss-ratio curve** — LRU vs Bélády OPT misses by cache capacity.
+
+![](traces/transpose_recursive_n_32_mrc.png)
+
 **Working-set size over a τ = 884-event window** (max = 884).
 
 ![](traces/transpose_recursive_n_32_wss.png)
@@ -1422,6 +1566,10 @@ Drops manual from 461,782 to **297,513** (−36%), now below
 **Reuse distance per load** — LRU vs Bélády OPT (max LRU = 312; max OPT = 256).
 
 ![](traces/stencil_time_naive_16x16_t_4_reuse_distance.png)
+
+**Miss-ratio curve** — LRU vs Bélády OPT misses by cache capacity.
+
+![](traces/stencil_time_naive_16x16_t_4_mrc.png)
 
 **Working-set size over a τ = 273-event window** (max = 264).
 
@@ -1469,6 +1617,10 @@ algorithm that was previously our worst-ratio offender.
 
 ![](traces/stencil_time_diamond_16x16_t_4_reuse_distance.png)
 
+**Miss-ratio curve** — LRU vs Bélády OPT misses by cache capacity.
+
+![](traces/stencil_time_diamond_16x16_t_4_mrc.png)
+
 **Working-set size over a τ = 145-event window** (max = 145).
 
 ![](traces/stencil_time_diamond_16x16_t_4_wss.png)
@@ -1497,6 +1649,10 @@ Lazy arg reads at k=0 replace the V² preload. Drops manual from
 **Reuse distance per load** — LRU vs Bélády OPT (max LRU = 256; max OPT = 256).
 
 ![](traces/floyd_warshall_naive_v_16_reuse_distance.png)
+
+**Miss-ratio curve** — LRU vs Bélády OPT misses by cache capacity.
+
+![](traces/floyd_warshall_naive_v_16_mrc.png)
 
 **Working-set size over a τ = 256-event window** (max = 256).
 
@@ -1532,6 +1688,10 @@ single-algorithm wins in the grid.
 
 ![](traces/floyd_warshall_recursive_v_16_reuse_distance.png)
 
+**Miss-ratio curve** — LRU vs Bélády OPT misses by cache capacity.
+
+![](traces/floyd_warshall_recursive_v_16_mrc.png)
+
 **Working-set size over a τ = 32-event window** (max = 32).
 
 ![](traces/floyd_warshall_recursive_v_16_wss.png)
@@ -1552,6 +1712,10 @@ single-algorithm wins in the grid.
 **Reuse distance per load** — LRU vs Bélády OPT (max LRU = 258; max OPT = 257).
 
 ![](traces/layernorm_unfused_n_256_reuse_distance.png)
+
+**Miss-ratio curve** — LRU vs Bélády OPT misses by cache capacity.
+
+![](traces/layernorm_unfused_n_256_mrc.png)
 
 **Working-set size over a τ = 258-event window** (max = 257).
 
@@ -1574,6 +1738,10 @@ single-algorithm wins in the grid.
 
 ![](traces/layernorm_fused_n_256_reuse_distance.png)
 
+**Miss-ratio curve** — LRU vs Bélády OPT misses by cache capacity.
+
+![](traces/layernorm_fused_n_256_mrc.png)
+
 **Working-set size over a τ = 193-event window** (max = 193).
 
 ![](traces/layernorm_fused_n_256_wss.png)
@@ -1595,6 +1763,10 @@ single-algorithm wins in the grid.
 
 ![](traces/matrix_powers_naive_n_16_s_4_reuse_distance.png)
 
+**Miss-ratio curve** — LRU vs Bélády OPT misses by cache capacity.
+
+![](traces/matrix_powers_naive_n_16_s_4_mrc.png)
+
 **Working-set size over a τ = 276-event window** (max = 137).
 
 ![](traces/matrix_powers_naive_n_16_s_4_wss.png)
@@ -1615,6 +1787,10 @@ single-algorithm wins in the grid.
 **Reuse distance per load** — LRU vs Bélády OPT (max LRU = 287; max OPT = 272).
 
 ![](traces/matrix_powers_ca_n_16_s_4_reuse_distance.png)
+
+**Miss-ratio curve** — LRU vs Bélády OPT misses by cache capacity.
+
+![](traces/matrix_powers_ca_n_16_s_4_mrc.png)
 
 **Working-set size over a τ = 276-event window** (max = 134).
 
@@ -1643,6 +1819,10 @@ Drops manual from 494,000 to **244,300** (−51%), still above
 
 ![](traces/cholesky_left_looking_n_32_reuse_distance.png)
 
+**Miss-ratio curve** — LRU vs Bélády OPT misses by cache capacity.
+
+![](traces/cholesky_left_looking_n_32_mrc.png)
+
 **Working-set size over a τ = 279-event window** (max = 279).
 
 ![](traces/cholesky_left_looking_n_32_wss.png)
@@ -1663,6 +1843,10 @@ Drops manual from 494,000 to **244,300** (−51%), still above
 **Reuse distance per load** — LRU vs Bélády OPT (max LRU = 213; max OPT = 32).
 
 ![](traces/spmv_csr_banded_n_32_bw_3_reuse_distance.png)
+
+**Miss-ratio curve** — LRU vs Bélády OPT misses by cache capacity.
+
+![](traces/spmv_csr_banded_n_32_bw_3_mrc.png)
 
 **Working-set size over a τ = 131-event window** (max = 74).
 
@@ -1685,6 +1869,10 @@ Drops manual from 494,000 to **244,300** (−51%), still above
 
 ![](traces/spmv_csr_random_n_32_nnz_7_reuse_distance.png)
 
+**Miss-ratio curve** — LRU vs Bélády OPT misses by cache capacity.
+
+![](traces/spmv_csr_random_n_32_nnz_7_mrc.png)
+
 **Working-set size over a τ = 163-event window** (max = 96).
 
 ![](traces/spmv_csr_random_n_32_nnz_7_wss.png)
@@ -1705,6 +1893,10 @@ Drops manual from 494,000 to **244,300** (−51%), still above
 **Reuse distance per load** — LRU vs Bélády OPT (max LRU = 64; max OPT = 64).
 
 ![](traces/bitonic_sort_n_64_reuse_distance.png)
+
+**Miss-ratio curve** — LRU vs Bélády OPT misses by cache capacity.
+
+![](traces/bitonic_sort_n_64_mrc.png)
 
 **Working-set size over a τ = 64-event window** (max = 64).
 
