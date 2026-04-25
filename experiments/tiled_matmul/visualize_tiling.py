@@ -26,6 +26,7 @@ import os
 import matplotlib
 matplotlib.use('Agg')
 import matplotlib.pyplot as plt
+from matplotlib.ticker import MultipleLocator
 import numpy as np
 
 
@@ -157,6 +158,7 @@ def main():
         ax.set_yticks([0, N*N, 2*N*N])
         ax.set_yticklabels(['0', f'{N*N}\nA|B boundary', f'{2*N*N}'],
                            fontsize=9)
+        ax.xaxis.set_major_locator(MultipleLocator(N*N))
         ax.grid(True, alpha=0.3)
 
     axes[-1].set_xlabel("Time (Access Index)", fontsize=11)
