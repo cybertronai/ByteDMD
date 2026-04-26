@@ -38,6 +38,7 @@ from bytedmd_ir import (
     bytedmd_classic,
     bytedmd_live,
     bytedmd_opt,
+    splitting_lower_bound,
     matmul_rmm,
     matmul_tiled,
     static_opt_lb,
@@ -429,6 +430,7 @@ ALGOS: List[Tuple[str, Callable, Tuple, Callable[[], int]]] = [
 METRICS: List[Tuple[str, Callable[[Sequence[L2Event]], int] | None]] = [
     ("bytedmd_opt",     bytedmd_opt),
     ("static_opt_lb",   static_opt_lb),
+    ("split_lb",        splitting_lower_bound),
     ("space_dmd",       space_dmd),
     ("copy_space_dmd",  copy_space_dmd),
     ("bytedmd_live",    bytedmd_live),
