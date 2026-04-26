@@ -1,4 +1,4 @@
-To drastically reduce the total energy cost under the geometric stack model, we need to restructure the data access sequence so the heaviest $O(N \\log N)$ FFT butterfly traversals occur inside the absolute lowest physical addresses (where the cost $\\approx \\sqrt{\\text{addr}}$ is cheapest).
+To drastically reduce the total energy cost under the geometric stack model, we need to restructure the data access sequence so the heaviest $O(N \log N)$ FFT butterfly traversals occur inside the absolute lowest physical addresses (where the cost $\approx \sqrt{\text{addr}}$ is cheapest).
 
 The baseline manual\_fft\_conv creates three large sequential allocations for $X, Y,$ and $Z$ and loops directly against them. This racks up immense penalties because operations are forced into progressively deeper physical memory addresses up to \~769.
 
@@ -6,8 +6,8 @@ We can completely crush the energetic cost from roughly **273,318** down to roug
 
 1. **16x16 2D L1 Caching**: A length-256 FFT cleanly factors into row and column block passes. By explicitly mapping a 16-element cache\_A directly at the very bottom of the geometric stack (addresses 1..16), we can load elements in chunks, natively run 4 stages of Cooley-Tukey butterflies inside the ultra-cheap L1 footprint, and dump the results back to memory.  
 2. **Shared Geometric Workspace**: We only need two active $N$-sized variables. We can map X to the lowest tier block immediately above the cache. We execute the X FFT, park its output gracefully into Y, and then dynamically reuse X sequentially as our workspace for *both* the Y FFT and the final Z IFFT.  
-3. **Fused Loading & Bit-Reversal**: The baseline wastes thousands of accesses randomly swapping bytes over linear iterations. Since bit-reversal is entirely static, we instruct the argument loader to read $X\_{\\text{in}}$ and $Y\_{\\text{in}}$ directly into their target reversed coordinates dynamically upon birth.  
-4. **Fused Pointwise Z**: The mathematical core operation $Z \= X \\times Y$ requires $Z$ to be bit-reversed before its IFFT runs. Because $X\_{\\text{fft}}$ and $Y\_{\\text{fft}}$ are perfectly aligned sequences, we skip materializing a $Z$ array entirely. We multiply them on-the-fly sequentially pair-by-pair natively *inside the $Z$ IFFT cache loading loop*.
+3. **Fused Loading & Bit-Reversal**: The baseline wastes thousands of accesses randomly swapping bytes over linear iterations. Since bit-reversal is entirely static, we instruct the argument loader to read $X_{\text{in}}$ and $Y_{\text{in}}$ directly into their target reversed coordinates dynamically upon birth.  
+4. **Fused Pointwise Z**: The mathematical core operation $Z = X \times Y$ requires $Z$ to be bit-reversed before its IFFT runs. Because $X_{\text{fft}}$ and $Y_{\text{fft}}$ are perfectly aligned sequences, we skip materializing a $Z$ array entirely. We multiply them on-the-fly sequentially pair-by-pair natively *inside the $Z$ IFFT cache loading loop*.
 
 ### **Improved Implementation**
 

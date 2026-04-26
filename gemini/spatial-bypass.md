@@ -18,7 +18,7 @@ But Bill Dally's PECM model is a **Software-Managed Spatial Scratchpad**.
 
 The ALU doesn't have an L1 cache it must blindly promote data into. It can cast a wire to *any* distance $d$, pull the data directly into the ALU, and—because writes are free in your model—**choose not to write it back to Depth 1\.**
 
-Because reading data costs energy ($\\lceil\\sqrt{d}\\rceil$), the optimal spatial compiler realizes that moving cold data to the ALU just to sort it by next-use is computationally destructive. Therefore, the manual allocator uses **Spatial Bypass**. It will intentionally anchor background variables in the outer orbits and read them directly from those orbits, refusing to let them disturb the hot variables pinned near the ALU.
+Because reading data costs energy ($\lceil\sqrt{d}\rceil$), the optimal spatial compiler realizes that moving cold data to the ALU just to sort it by next-use is computationally destructive. Therefore, the manual allocator uses **Spatial Bypass**. It will intentionally anchor background variables in the outer orbits and read them directly from those orbits, refusing to let them disturb the hot variables pinned near the ALU.
 
 ### ---
 
@@ -39,10 +39,10 @@ Let's look at a trace of 4 variables to see the manual allocator defeat the Bél
 
 Because Bélády strictly sorts the stack by next-use, D (needed at 7\) is forced to the bottom of the stack behind C and A.
 
-* B's max rank is 1\. Cost \= $\\lceil\\sqrt{1}\\rceil \= \\mathbf{1}$  
-* C's max rank is 2\. Cost \= $\\lceil\\sqrt{2}\\rceil \= \\mathbf{2}$  
-* A's max rank is 3\. Cost \= $\\lceil\\sqrt{3}\\rceil \= \\mathbf{2}$  
-* D's max rank is 3\. Cost \= $\\lceil\\sqrt{3}\\rceil \= \\mathbf{2}$  
+* B's max rank is 1\. Cost \= $\lceil\sqrt{1}\rceil = \mathbf{1}$  
+* C's max rank is 2\. Cost \= $\lceil\sqrt{2}\rceil = \mathbf{2}$  
+* A's max rank is 3\. Cost \= $\lceil\sqrt{3}\rceil = \mathbf{2}$  
+* D's max rank is 3\. Cost \= $\lceil\sqrt{3}\rceil = \mathbf{2}$  
 * **Total Bélády Energy \= 7\.**
 
 #### **The Manual Allocator's Cost**
@@ -75,7 +75,7 @@ At any moment $t$ during variable $V$'s dormancy, the number of live variables n
 
 But, as our trace proved, a variable can receive a *better* slot. Therefore:
 
-$$ \\text{OPT Spatial Allocation (Chromatic Sum)} \\le \\text{Bélády (Max-Rank Sum)} $$
+$$\text{OPT Spatial Allocation (Chromatic Sum)} \le \text{Bélády (Max-Rank Sum)}$$
 
 ### **Conclusion: How tight is the bound?**
 
@@ -84,4 +84,4 @@ $$ \\text{OPT Spatial Allocation (Chromatic Sum)} \\le \\text{Bélády (Max-Rank
 
 *Note: Finding the exact Minimum Chromatic Sum of an interval graph is famously proven to be NP-Hard (Marx, 2005).* Therefore, computing the exact absolute lower bound of a manual spatial allocator is impossible for large traces.
 
-By computing the Bélády max\_rank, you are extracting the tightest, safest, and most mathematically rigorous proxy that can be computed in $O(N \\log W)$. It successfully strips away LRU thrashing, guarantees that an optimal compiler will never perform worse than that number, and flawlessly captures the $O(N^{1.5})$ volumetric bulk cost forced by the algorithm's geometry.
+By computing the Bélády max\_rank, you are extracting the tightest, safest, and most mathematically rigorous proxy that can be computed in $O(N \log W)$. It successfully strips away LRU thrashing, guarantees that an optimal compiler will never perform worse than that number, and flawlessly captures the $O(N^{1.5})$ volumetric bulk cost forced by the algorithm's geometry.

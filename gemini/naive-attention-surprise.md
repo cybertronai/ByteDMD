@@ -2,7 +2,7 @@ The surprising result you are seeing is not a flaw in your heuristics or cache m
 
 Your metrics are mathematically sound and are working exactly as intended. Here is the breakdown of why this paradox occurs and how you can resolve it.
 
-### **1\. The Root Cause: Bypassing the $N \\times N$ Matrix**
+### **1\. The Root Cause: Bypassing the $N \times N$ Matrix**
 
 You noted your surprise because "naive attention is supposed to materialize large intermediate matrices."
 
@@ -23,9 +23,9 @@ If we compare the two manual algorithms, why is your row-fused algorithm cheaper
 
 Because $N=32$ is tiny.
 
-Flash Attention is designed for LLM sequences where $N$ is too large to fit in fast memory, so it chunks the row into blocks (Bk=8). But at $N=32$, an entire row of 32 elements fits in the hottest part of your memory model ($\\lceil\\sqrt{32}\\rceil \\le 6$). Because the footprint is already minimal, chunking the row provides **zero spatial savings**, and instead incurs massive computational overhead:
+Flash Attention is designed for LLM sequences where $N$ is too large to fit in fast memory, so it chunks the row into blocks (Bk=8). But at $N=32$, an entire row of 32 elements fits in the hottest part of your memory model ($\lceil\sqrt{32}\rceil \le 6$). Because the footprint is already minimal, chunking the row provides **zero spatial savings**, and instead incurs massive computational overhead:
 
-* **Repeated Arg Reads:** Your row-fused algorithm successfully hoists Q\[i\] into a hot scratch register once per row. Flash attention re-reads Q\[i\] from the argument stack inside the innermost loop for every single $B\_k$ block.  
+* **Repeated Arg Reads:** Your row-fused algorithm successfully hoists Q\[i\] into a hot scratch register once per row. Flash attention re-reads Q\[i\] from the argument stack inside the innermost loop for every single $B_k$ block.  
 * **Scalar Overhead:** Flash attention has to maintain running statistics, constantly reading and writing variables like m\_new, alpha, and beta to merge the chunks.  
 * **Accumulator Scaling:** Every block requires re-reading, scaling, and writing the running o\_acc accumulator by alpha and beta, generating heavily redundant memory touches.
 
@@ -33,7 +33,7 @@ Flash Attention is designed for LLM sequences where $N$ is too large to fit in f
 
 ### **3\. How to Resolve It (The True Naive Cost is \~215k)**
 
-To ensure your metrics correctly rank algorithms, the trace and the manual allocator must execute the exact same memory accesses. If you rewrite your manual\_naive\_attention to faithfully allocate the $N \\times N$ matrix and do three independent passes over the data, the cost skyrockets:
+To ensure your metrics correctly rank algorithms, the trace and the manual allocator must execute the exact same memory accesses. If you rewrite your manual\_naive\_attention to faithfully allocate the $N \times N$ matrix and do three independent passes over the data, the cost skyrockets:
 
 Python
 

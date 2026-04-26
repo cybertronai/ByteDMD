@@ -12,7 +12,7 @@ By doing this, the manual schedule acts as if a hardware register is holding the
 
 A multiply-accumulate operation (acc \+= A \* B) evaluates as a multiply followed by an add.
 
-Your inner loop touched fast\_A and fast\_B, but completely omitted the read of the intermediate multiplication product. Even though this temporary sits at the absolute top of the stack (depth 1), reading it still costs $\\lceil \\sqrt{1} \\rceil \= 1$.
+Your inner loop touched fast\_A and fast\_B, but completely omitted the read of the intermediate multiplication product. Even though this temporary sits at the absolute top of the stack (depth 1), reading it still costs $\lceil \sqrt{1} \rceil = 1$.
 
 ### **3\. Spurious Accumulator Init (Overcharge)**
 

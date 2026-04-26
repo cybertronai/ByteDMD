@@ -14,10 +14,10 @@ There are two major physical "loopholes" your manual allocator uses to mathemati
 
 Fused Strassen and Iterative FFT have terrible temporal locality; they rely on heavy cyclic and strided sweeps over massive matrices/butterflies.
 
-* **In ByteDMD (LRU):** A cyclic sweep over a working set of size $W$ is the absolute worst-case scenario for an LRU cache. Every time you need an element, it is the *least recently used*, meaning it has sunk to the absolute bottom of the stack (depth $W$). ByteDMD charges you the maximum penalty of $\\mathbf{1.0 \\sqrt{W}}$ for *every single read*.  
-* **In Manual (Static):** The $W$ elements never move; they are statically pinned at addresses $1 \\dots W$. The average cost to read them cyclically is the integral of the area: $\\frac{1}{W} \\int\_0^W \\sqrt{x} \\, dx \= \\mathbf{\\frac{2}{3} \\sqrt{W}}$.
+* **In ByteDMD (LRU):** A cyclic sweep over a working set of size $W$ is the absolute worst-case scenario for an LRU cache. Every time you need an element, it is the *least recently used*, meaning it has sunk to the absolute bottom of the stack (depth $W$). ByteDMD charges you the maximum penalty of $\mathbf{1.0 \sqrt{W}}$ for *every single read*.  
+* **In Manual (Static):** The $W$ elements never move; they are statically pinned at addresses $1 \dots W$. The average cost to read them cyclically is the integral of the area: $\frac{1}{W} \int_0^W \sqrt{x} \, dx = \mathbf{\frac{2}{3} \sqrt{W}}$.
 
-Because $\\frac{2}{3} \< 1$, static spatial placement gives you an inherent **\~33% cost discount** over LRU caching for cyclic algorithms.
+Because $\frac{2}{3} < 1$, static spatial placement gives you an inherent **\~33% cost discount** over LRU caching for cyclic algorithms.
 
 #### **Exploit B: In-Place Updates vs. Top-of-Stack Scrambling**
 
@@ -38,7 +38,7 @@ You can do this by adding **one of the two following restrictions** to your manu
 
 To eliminate the 33% Cyclic Discount, you must ban "Action at a Distance."
 
-* **The Rule:** The ALU is only allowed to compute on Address 1\. To read() an element from Address $X$, you must explicitly swap it to Address 1\. Doing so forcefully shifts all existing data at addresses $1 \\dots X-1$ down by one address to make room.  
+* **The Rule:** The ALU is only allowed to compute on Address 1\. To read() an element from Address $X$, you must explicitly swap it to Address 1\. Doing so forcefully shifts all existing data at addresses $1 \dots X-1$ down by one address to make room.  
 * **Why it restores the bound:** This physically turns your manual 1D bump allocator into a dynamic LRU stack. Sweeping over $A$ and $B$ will violently thrash your memory layout, constantly pushing your fast\_C accumulators away from the ALU. The manual cost will perfectly mirror the LRU thrashing penalty and spike above 173,919.
 
 #### **Restriction 2: Single Static Assignment (Ban In-Place Updates)**
@@ -46,7 +46,7 @@ To eliminate the 33% Cyclic Discount, you must ban "Action at a Distance."
 To simulate ByteDMD's top-of-stack output rule, you must ban your allocator from holding onto prime real estate for mutable variables.
 
 * **The Rule:** You are legally forbidden from overwriting an address (no fast\_C \+= val). Every time a value is modified or accumulated, it must be written to a newly allocated bump address (self.ptr \+= 1), and the old address must be abandoned as dead space.  
-* **Why it restores the bound:** Without a garbage collector, your bump pointer will continuously grow toward infinity with every single inner-loop accumulation. The active footprint of the algorithm will march into higher and higher addresses, inflating the $\\sqrt{\\text{addr}}$ penalty until it effortlessly surpasses the ByteDMD limit.
+* **Why it restores the bound:** Without a garbage collector, your bump pointer will continuously grow toward infinity with every single inner-loop accumulation. The active footprint of the algorithm will march into higher and higher addresses, inflating the $\sqrt{\text{addr}}$ penalty until it effortlessly surpasses the ByteDMD limit.
 
 ### **The Takeaway**
 

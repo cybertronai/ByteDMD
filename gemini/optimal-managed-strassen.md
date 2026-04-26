@@ -1,48 +1,50 @@
 ### **Theoretical Analysis: Strassen vs. Standard MatMul under Physical Data Movement**
 
-When transitioning from measuring abstract FLOPs to quantifying spatial Data Movement Cost—where accessing the $k$-th byte incurs a physical routing cost of $\\lceil\\sqrt{k}\\rceil$—an incredible theoretical result emerges: **Strassen's algorithm perfectly absorbs the data movement overhead that plagues standard recursive matrix multiplication.**
+When transitioning from measuring abstract FLOPs to quantifying spatial Data Movement Cost—where accessing the $k$-th byte incurs a physical routing cost of $\lceil\sqrt{k}\rceil$—an incredible theoretical result emerges: **Strassen's algorithm perfectly absorbs the data movement overhead that plagues standard recursive matrix multiplication.**
 
-#### **1\. Standard Recursive MatMul Data Movement: $\\Theta(N^3 \\log N)$**
+#### **1\. Standard Recursive MatMul Data Movement: $\Theta(N^3 \log N)$**
 
-For standard block matrix multiplication, each recursion step spawns $8$ subproblems. At depth $d$ (where the subproblem dimension is $M$), the algorithm must explicitly copy/move $\\mathcal{O}(M^2)$ elements inside an arena tightly bounded by index $\\mathcal{O}(M^2)$.
+For standard block matrix multiplication, each recursion step spawns $8$ subproblems. At depth $d$ (where the subproblem dimension is $M$), the algorithm must explicitly copy/move $\mathcal{O}(M^2)$ elements inside an arena tightly bounded by index $\mathcal{O}(M^2)$.
 
-The average distance access cost for each element inside this arena is $\\mathcal{O}(\\sqrt{M^2}) \= \\mathcal{O}(M)$.
+The average distance access cost for each element inside this arena is $\mathcal{O}(\sqrt{M^2}) = \mathcal{O}(M)$.
 
-Therefore, the data movement cost at step $d$ is $\\mathcal{O}(M^2) \\times \\mathcal{O}(M) \= \\mathcal{O}(M^3)$.
+Therefore, the data movement cost at step $d$ is $\mathcal{O}(M^2) \times \mathcal{O}(M) = \mathcal{O}(M^3)$.
 
 The cost recurrence becomes:
 
-$$D(N) \= 8 D(N/2) \+ \\Theta(N^3)$$  
-By the Master Theorem, since $a=8$ and $b^k \= 2^3 \= 8$, we fall into the critical case. The geometric series balances perfectly across all depths, and the total data movement footprint evaluates strictly to **$\\Theta(N^3 \\log N)$**.
+$$D(N) = 8 D(N/2) + \Theta(N^3)$$
 
-#### **2\. Strassen's Algorithm Data Movement: $\\Theta(N^3)$**
+By the Master Theorem, since $a=8$ and $b^k = 2^3 = 8$, we fall into the critical case. The geometric series balances perfectly across all depths, and the total data movement footprint evaluates strictly to **$\Theta(N^3 \log N)$**.
 
-Strassen drastically alters this equation by reducing the recursive branches from $8$ to $7$. The additive work at each level (computing $M\_1 \\dots M\_7$) still involves moving and adding $\\mathcal{O}(M^2)$ elements across a local distance of $\\mathcal{O}(M)$, meaning the spatial overhead remains exactly $\\mathcal{O}(M^3)$.
+#### **2\. Strassen's Algorithm Data Movement: $\Theta(N^3)$**
+
+Strassen drastically alters this equation by reducing the recursive branches from $8$ to $7$. The additive work at each level (computing $M_1 \dots M_7$) still involves moving and adding $\mathcal{O}(M^2)$ elements across a local distance of $\mathcal{O}(M)$, meaning the spatial overhead remains exactly $\mathcal{O}(M^3)$.
 
 However, the recurrence fundamentally shifts:
 
-$$D\_{str}(N) \= 7 D\_{str}(N/2) \+ \\Theta(N^3)$$  
-Applying the Master Theorem ($a=7, b=2, k=3$), we find that $7 \< 2^3$. This corresponds to a root-dominated geometric sequence. The tree decays structurally and the sum completely resolves to **$\\Theta(N^3)$**.
+$$D_{str}(N) = 7 D_{str}(N/2) + \Theta(N^3)$$
 
-**The Insight:** Under a 2D physical constraint, Strassen annihilates the asymptotic $\\log N$ routing penalty. Its arithmetic complexity of $\\mathcal{O}(N^{2.81})$ is masked by the $\\mathcal{O}(N^3)$ physical bounds of matrix reads/writes, but it still asymptotically crushes standard MatMul\!
+Applying the Master Theorem ($a=7, b=2, k=3$), we find that $7 < 2^3$. This corresponds to a root-dominated geometric sequence. The tree decays structurally and the sum completely resolves to **$\Theta(N^3)$**.
+
+**The Insight:** Under a 2D physical constraint, Strassen annihilates the asymptotic $\log N$ routing penalty. Its arithmetic complexity of $\mathcal{O}(N^{2.81})$ is masked by the $\mathcal{O}(N^3)$ physical bounds of matrix reads/writes, but it still asymptotically crushes standard MatMul\!
 
 ### ---
 
 **Memory Management Strategy (The Tombstone Arena)**
 
-To actually attain this $\\Theta(N^3)$ hardware bound, we cannot allow deeper recurrences to directly read or write to far-away External Memory arrays. We must utilize an **Inverted Stack Arena** combined with **Explicit Operand Staging**:
+To actually attain this $\Theta(N^3)$ hardware bound, we cannot allow deeper recurrences to directly read or write to far-away External Memory arrays. We must utilize an **Inverted Stack Arena** combined with **Explicit Operand Staging**:
 
 1. **Inverted Stack Allocations:** The deepest recursion levels (base cases) are assigned the lowest physical addresses closest to the CPU (e.g., indices 1, 2, 3...).  
-2. **3-Buffer Minimum Footprint:** At recursion level $d$ (dimension $M$), we strictly allocate just **three** buffers (X, Y, and Z) of size $M/2 \\times M/2$.  
-3. **Sequential Tombstoning:** We evaluate the 7 intermediate Strassen products sequentially. For each product $M\_k$, the parent computes the combinations into X and Y, executes the recursion which deposits into Z, and then immediately tombstones (recycles) the X, Y, Z bounds for the next sibling product $M\_{k+1}$.  
-4. **Forced Copy Operand Staging:** Even if an argument is passed cleanly (e.g., passing $B\_{11}$ untouched for product $M\_2$), we explicitly *copy* it into the child's local Y buffer. This forcefully drags the data out of the sprawling top-level memory blocks and compacts it tightly around the CPU.  
+2. **3-Buffer Minimum Footprint:** At recursion level $d$ (dimension $M$), we strictly allocate just **three** buffers (X, Y, and Z) of size $M/2 \times M/2$.  
+3. **Sequential Tombstoning:** We evaluate the 7 intermediate Strassen products sequentially. For each product $M_k$, the parent computes the combinations into X and Y, executes the recursion which deposits into Z, and then immediately tombstones (recycles) the X, Y, Z bounds for the next sibling product $M_{k+1}$.  
+4. **Forced Copy Operand Staging:** Even if an argument is passed cleanly (e.g., passing $B_{11}$ untouched for product $M_2$), we explicitly *copy* it into the child's local Y buffer. This forcefully drags the data out of the sprawling top-level memory blocks and compacts it tightly around the CPU.  
 5. **Zero-Allocation Accumulation:** Instead of zero-initializing the parent matrix $C$, we utilize an assign instruction when a quadrant is targeted for the first time. Subsequent calculations strictly add or sub from that location.
 
 ### ---
 
 **Python Implementation**
 
-Below is the self-contained simulator that constructs the optimized Tombstone layout, properly stages data through the inverted arenas, and traces the optimal $\\mathcal{O}(N^3)$ spatial cost.
+Below is the self-contained simulator that constructs the optimized Tombstone layout, properly stages data through the inverted arenas, and traces the optimal $\mathcal{O}(N^3)$ spatial cost.
 
 Python
 

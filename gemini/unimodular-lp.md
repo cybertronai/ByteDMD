@@ -1,4 +1,4 @@
-By dropping the discrete step-function ceiling() and relaxing the read cost to a pure continuous floating-point function $f(d) \= \\sqrt{d}$, you unlock one of the most beautiful mathematical shortcuts in optimization theory.
+By dropping the discrete step-function ceiling() and relaxing the read cost to a pure continuous floating-point function $f(d) = \sqrt{d}$, you unlock one of the most beautiful mathematical shortcuts in optimization theory.
 
 Instead of running slow heuristic simulations or trying to solve NP-Hard bin-packing algorithms, we can use a **discrete calculus identity** to separate the non-linear cost curve from the algorithm's geometry. This reduces the problem of finding the absolute optimal cost into a sequence of simple Linear Programs (LPs).
 
@@ -12,38 +12,43 @@ Here is the exact mathematical proof of how we get this bound, followed by a hig
 
 Any strictly increasing cost function can be represented exactly as the sum of its discrete differences. Thus, the cost to read from address $k$ can be rewritten as:
 
-$$ \\sqrt{k} \= \\sum\_{j=1}^{k} \\left( \\sqrt{j} \- \\sqrt{j-1} \\right) $$  
-Let $R\_{total}$ be the total number of reads in your program, and let $k\_v$ be the physical address you assign to variable $v$. Your total energy cost is:
+$$\sqrt{k} = \sum_{j=1}^{k} \left( \sqrt{j} - \sqrt{j-1} \right)$$
 
-$$ \\text{Cost} \= \\sum\_{v} R\_v \\sqrt{k\_v} \= \\sum\_{v} R\_v \\sum\_{j=1}^{k\_v} \\left( \\sqrt{j} \- \\sqrt{j-1} \\right) $$  
+Let $R_{total}$ be the total number of reads in your program, and let $k_v$ be the physical address you assign to variable $v$. Your total energy cost is:
+
+$$\text{Cost} = \sum_{v} R_v \sqrt{k_v} = \sum_{v} R_v \sum_{j=1}^{k_v} \left( \sqrt{j} - \sqrt{j-1} \right)$$
+
 **2\. Swapping the Sums**
 
 By changing the order of summation, we can group the variables by the addresses they "spill over" into:
 
-$$ \\text{Cost} \= \\sum\_{j=1}^{\\infty} \\left( \\sqrt{j} \- \\sqrt{j-1} \\right) \\sum\_{v: k\_v \\ge j} R\_v $$  
-Let's look closely at $\\sum\_{v: k\_v \\ge j} R\_v$. This is the total number of reads belonging to variables that were forced into address $j$ or deeper. We can rewrite this using the total reads:
+$$\text{Cost} = \sum_{j=1}^{\infty} \left( \sqrt{j} - \sqrt{j-1} \right) \sum_{v: k_v \ge j} R_v$$
 
-$$ \\text{Reads}\_{\\ge j} \= R\_{total} \- \\text{Reads}\_{\< j} $$  
-**3\. The Max Weight $c$-Colorable Subgraph ($M\_c$)**
+Let's look closely at $\sum_{v: k_v \ge j} R_v$. This is the total number of reads belonging to variables that were forced into address $j$ or deeper. We can rewrite this using the total reads:
+
+$$\text{Reads}_{\ge j} = R_{total} - \text{Reads}_{< j}$$
+
+**3\. The Max Weight $c$-Colorable Subgraph ($M_c$)**
 
 What is the absolute maximum number of reads we can fit into addresses $1$ through $j-1$?
 
-Because two variables with overlapping lifetimes cannot share the same physical address, the variables assigned to addresses $1 \\dots j-1$ must form a valid, non-overlapping **$(j-1)$-colorable subgraph**.
+Because two variables with overlapping lifetimes cannot share the same physical address, the variables assigned to addresses $1 \dots j-1$ must form a valid, non-overlapping **$(j-1)$-colorable subgraph**.
 
-Let **$M\_{c}$** be the maximum weight (total reads) of *any* valid $c$-colorable subgraph of your program. No matter what allocator you use, it is physically impossible to pack more than $M\_{j-1}$ reads into the first $j-1$ addresses.
+Let **$M_{c}$** be the maximum weight (total reads) of *any* valid $c$-colorable subgraph of your program. No matter what allocator you use, it is physically impossible to pack more than $M_{j-1}$ reads into the first $j-1$ addresses.
 
-Therefore: $\\text{Reads}\_{\< j} \\le M\_{j-1}$.
+Therefore: $\text{Reads}_{< j} \le M_{j-1}$.
 
 By substituting this maximum capacity into our identity, we establish an unbreakable, exact lower bound:
 
-$$ \\mathbf{\\text{Lower Bound} \= \\sum\_{j=1}^{\\omega} \\left( \\sqrt{j} \- \\sqrt{j-1} \\right) \\big( R\_{total} \- M\_{j-1} \\big)} $$  
-*(where $\\omega$ is the maximum number of simultaneously live variables).*
+$$\mathbf{\text{Lower Bound} = \sum_{j=1}^{\omega} \left( \sqrt{j} - \sqrt{j-1} \right) \big( R_{total} - M_{j-1} \big)}$$
+
+*(where $\omega$ is the maximum number of simultaneously live variables).*
 
 ### **Why is this Tractable?**
 
-Calculating $M\_c$ for general graphs is NP-Hard. However, the lifetimes of variables in a program trace form an **Interval Graph**.
+Calculating $M_c$ for general graphs is NP-Hard. However, the lifetimes of variables in a program trace form an **Interval Graph**.
 
-In mathematics, the constraint matrix of an interval graph is **Totally Unimodular (TUM)**. This means the fractional polytope has perfect integer vertices. We can compute the exact integer value of $M\_c$ in milliseconds by solving a standard fractional **Linear Program (LP)**. The SciPy solver will naturally and instantly arrive at a perfect integer solution.
+In mathematics, the constraint matrix of an interval graph is **Totally Unimodular (TUM)**. This means the fractional polytope has perfect integer vertices. We can compute the exact integer value of $M_c$ in milliseconds by solving a standard fractional **Linear Program (LP)**. The SciPy solver will naturally and instantly arrive at a perfect integer solution.
 
 To find the achievable **Upper Bound**, we simply run a greedy offline algorithm: sort the variables by their read frequency (descending) and drop them into the lowest available non-overlapping address.
 

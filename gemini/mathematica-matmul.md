@@ -1,6 +1,6 @@
 Source: https://docs.google.com/document/d/1r0JXPrLHSePEKKek78dUmc5qDWTwBepFDUI77Ut1KYg/edit
 
-To compute the precise ByteDMD trace cost of a standard naive matrix multiplication ($C\_{i,j} \= \\sum\_{k=0}^{N-1} A\_{i,k} \\times B\_{k,j}$), we must systematically analyze the behavior of the **demand-paged fully associative stack** coupled with the **two-pass aggressive liveness analysis**.
+To compute the precise ByteDMD trace cost of a standard naive matrix multiplication ($C_{i,j} = \sum_{k=0}^{N-1} A_{i,k} \times B_{k,j}$), we must systematically analyze the behavior of the **demand-paged fully associative stack** coupled with the **two-pass aggressive liveness analysis**.
 
 ![JSON icon][image1]  
 out-177593...1464595503  
@@ -10,36 +10,36 @@ Because variables vaporize immediately after their logical last use completes, t
 
 ### **1\. The Precise Trace Depth Formulas**
 
-Over the execution of the nested loops across coordinates $(i, j, k)$, exactly $4N^3 \- 2N^2$ memory read events occur. The LRU stack distance (depth) of each accessed variable settles into highly predictable polynomial boundaries:
+Over the execution of the nested loops across coordinates $(i, j, k)$, exactly $4N^3 - 2N^2$ memory read events occur. The LRU stack distance (depth) of each accessed variable settles into highly predictable polynomial boundaries:
 
-**1\. Intermediate Products ($P\_k \= A\_{i,k} \\times B\_{k,j}$):**
+**1\. Intermediate Products ($P_k = A_{i,k} \times B_{k,j}$):**
 
-* Because the product is evaluated and immediately pushed to the top of the stack prior to the addition $S\_k \= S\_{k-1} \+ P\_k$, the product $P\_k$ is perpetually accessed exactly at the top of the cache.  
-* **Depth Formula:** $D(P) \= \\mathbf{1}$ for all exactly $N^2(N-1)$ addition loops.
+* Because the product is evaluated and immediately pushed to the top of the stack prior to the addition $S_k = S_{k-1} + P_k$, the product $P_k$ is perpetually accessed exactly at the top of the cache.  
+* **Depth Formula:** $D(P) = \mathbf{1}$ for all exactly $N^2(N-1)$ addition loops.
 
 **2\. Accumulator Elements ($S$):**
 
-* For $k \> 0$, the previously computed running sum $S\_{k-1}$ is fetched just after $A$, $B$, and $P$ are evaluated and pushed onto the stack. Due to aggressive compaction (variables die immediately upon loop boundaries), the baseline stack distance of the accumulator is effectively fixed.  
-* **Depth Formula:** $D(S) \= \\mathbf{4 \- \\delta\_i \- \\delta\_j}$ where $\\delta\_i \= 1$ if $i \= N-1$ else $0$, and $\\delta\_j \= 1$ if $j \= N-1$ else $0$.  
+* For $k > 0$, the previously computed running sum $S_{k-1}$ is fetched just after $A$, $B$, and $P$ are evaluated and pushed onto the stack. Due to aggressive compaction (variables die immediately upon loop boundaries), the baseline stack distance of the accumulator is effectively fixed.  
+* **Depth Formula:** $D(S) = \mathbf{4 - \delta_i - \delta_j}$ where $\delta_i = 1$ if $i = N-1$ else $0$, and $\delta_j = 1$ if $j = N-1$ else $0$.  
   *(Thus, exactly $(N-1)^3$ accesses evaluate at Depth 4).*
 
-**3\. Left Matrix ($A\_{i,k}$):**
+**3\. Left Matrix ($A_{i,k}$):**
 
-* Row $i$ of Matrix $A$ is heavily re-read $N$ times across the $j$ loop. Its last usage is cleanly detected at $j \= N-1$, meaning it safely vaporizes at the end of the row and doesn't pollute the LRU stack across the outer $i$ boundary.  
-* **Depth Formula:** For interior block reads ($0 \< i, j \< N-1$), the depth is bounded to exactly $\\mathbf{2N \+ 1}$ for $k=0$ and $\\mathbf{2N \+ 2}$ for $k \> 0$.
+* Row $i$ of Matrix $A$ is heavily re-read $N$ times across the $j$ loop. Its last usage is cleanly detected at $j = N-1$, meaning it safely vaporizes at the end of the row and doesn't pollute the LRU stack across the outer $i$ boundary.  
+* **Depth Formula:** For interior block reads ($0 < i, j < N-1$), the depth is bounded to exactly $\mathbf{2N + 1}$ for $k=0$ and $\mathbf{2N + 2}$ for $k > 0$.
 
-**4\. Right Matrix ($B\_{k,j}$):**
+**4\. Right Matrix ($B_{k,j}$):**
 
-* Matrix $B$ is completely traversed over $i=0$. Because elements $B\_{k,j}$ are continually required for every subsequent row $i$, the entire $N \\times N$ matrix is kept alive on the stack until the very final $i \= N-1$ sweep.  
-* **Depth Formula:** When reading $B\_{k,j}$ in the interior ($0 \< i, j \< N-1$), the stack distance is offset by the living entirety of the matrix plus the alive outputs $C$ and the working row $A$. Its depth is exactly $\\mathbf{N^2 \+ 2N}$ for $k=0$ and $\\mathbf{N^2 \+ 2N \+ 1}$ for $k\>0$.
+* Matrix $B$ is completely traversed over $i=0$. Because elements $B_{k,j}$ are continually required for every subsequent row $i$, the entire $N \times N$ matrix is kept alive on the stack until the very final $i = N-1$ sweep.  
+* **Depth Formula:** When reading $B_{k,j}$ in the interior ($0 < i, j < N-1$), the stack distance is offset by the living entirety of the matrix plus the alive outputs $C$ and the working row $A$. Its depth is exactly $\mathbf{N^2 + 2N}$ for $k=0$ and $\mathbf{N^2 + 2N + 1}$ for $k>0$.
 
 ### ---
 
 **2\. Mathematical Code**
 
-By mapping these exact analytical limits through piecewise algebra, we entirely bypass the immense $\\mathcal{O}(N^5)$ algorithmic overhead of AST traversal, generic object wrapping, and index-based state array liveness permutations.
+By mapping these exact analytical limits through piecewise algebra, we entirely bypass the immense $\mathcal{O}(N^5)$ algorithmic overhead of AST traversal, generic object wrapping, and index-based state array liveness permutations.
 
-The following mathematical Python code runs in perfect $\\mathcal{O}(N^3)$ computational time and returns the exact ByteDMD L1 simulated execution footprint for square matrices.
+The following mathematical Python code runs in perfect $\mathcal{O}(N^3)$ computational time and returns the exact ByteDMD L1 simulated execution footprint for square matrices.
 
 Python
 

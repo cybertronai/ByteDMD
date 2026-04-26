@@ -84,12 +84,13 @@ def manual\_tiled\_matmul(n: int, T: int | None \= None) \-\> int:
 
 **Yes.** Under the geometric stack model, you face a ruthless convex optimization problem that dictates a mathematically strict lower limit.
 
-1. **The Hong-Kung limits:** In classical flat memory, computing $O(N^3)$ matrix multiplication operations with a local cache of size $S$ requires $\\Omega(N^3/\\sqrt{S})$ memory transfers from the main (argument) stack.  
-2. **The Geometric Penalty:** Under your geometric stack formulation, making your L1 scratchpad large (increasing $S$) pushes your active accumulators deeper into physical memory space, applying a forced $\\Theta(\\sqrt{S})$ tax to all of your inner-loop MAC iterations.
+1. **The Hong-Kung limits:** In classical flat memory, computing $O(N^3)$ matrix multiplication operations with a local cache of size $S$ requires $\Omega(N^3/\sqrt{S})$ memory transfers from the main (argument) stack.  
+2. **The Geometric Penalty:** Under your geometric stack formulation, making your L1 scratchpad large (increasing $S$) pushes your active accumulators deeper into physical memory space, applying a forced $\Theta(\sqrt{S})$ tax to all of your inner-loop MAC iterations.
 
 By using an explicit cache of size $S$, your total cost behaves like:
 
-$$ \\text{Total Cost} \\approx \\underbrace{C\_1 N^3 \\cdot \\sqrt{S}}\_{\\text{L1 cache touches}} \+ \\underbrace{C\_2 \\frac{N^3}{\\sqrt{S}}}\_{\\text{Arg fetches}} $$  
-By the AM-GM inequality, this sum is strictly bounded below by $2N^3\\sqrt{C\_1C\_2}$. If you attempt to make your cache larger, the geometric penalty of touching deep variables dominates; if you make it smaller, you get drowned in expensive argument fetches from main memory.
+$$\text{Total Cost} \approx \underbrace{C_1 N^3 \cdot \sqrt{S}}_{\text{L1 cache touches}} + \underbrace{C_2 \frac{N^3}{\sqrt{S}}}_{\text{Arg fetches}}$$
 
-If you analytically sweep this across every possible 2D block combination at $n=16$, the continuous minimum mathematically converges precisely on an $8 \\times 4$ accumulator footprint. This means your nested shape configuration (blocks \= 2 combined with T \= 4\) sits directly at the mathematical minimum. Thus, **67,758** represents the hard mathematical floor for standard algorithms in this framework.
+By the AM-GM inequality, this sum is strictly bounded below by $2N^3\sqrt{C_1C_2}$. If you attempt to make your cache larger, the geometric penalty of touching deep variables dominates; if you make it smaller, you get drowned in expensive argument fetches from main memory.
+
+If you analytically sweep this across every possible 2D block combination at $n=16$, the continuous minimum mathematically converges precisely on an $8 \times 4$ accumulator footprint. This means your nested shape configuration (blocks \= 2 combined with T \= 4\) sits directly at the mathematical minimum. Thus, **67,758** represents the hard mathematical floor for standard algorithms in this framework.

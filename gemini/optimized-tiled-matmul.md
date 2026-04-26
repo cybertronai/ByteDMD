@@ -4,7 +4,7 @@ To drastically reduce the total energy cost under the geometric stack model, we 
 
 The naive manual\_tiled\_matmul schedule pays massive geometric costs for three main reasons:
 
-1. **Redundant 2D Array Buffering:** It explicitly allocates full $T \\times T$ 2D scratchpads for sA, sB, and sC upfront ($16 \\times 3 \= 48$ premium stack slots). This bloats the active working set size, pushing the primary output array and inner-loop scratchpads to higher physical addresses and punishing every single $O(N^3)$ MAC operation.  
+1. **Redundant 2D Array Buffering:** It explicitly allocates full $T \times T$ 2D scratchpads for sA, sB, and sC upfront ($16 \times 3 = 48$ premium stack slots). This bloats the active working set size, pushing the primary output array and inner-loop scratchpads to higher physical addresses and punishing every single $O(N^3)$ MAC operation.  
 2. **Double Arg-Stack Reads:** The baseline loops are structured strictly as bi, bj, bk. For every block interaction, it completely re-reads the full 2D blocks of $A$ and $B$ from the deeply expensive argument stack. Because $B$ sits linearly behind $A$ (Addresses 257..512), reading $B$ repetitively acts as an aggressive multiplier against the cost metric.  
 3. **Double Accumulator Reads:** It initializes sC by redundantly copying from the zeroed C output at the start, and repeatedly flushes and loads sC for every single $bk$ iteration.
 
@@ -14,7 +14,7 @@ Because these operations bounce inside fragmented address spaces, the energy met
 
 We can shatter the cost bounds by restructuring our inner MAC loops exactly like a modern micro-kernel.
 
-Instead of caching massive $T \\times T$ tiles for $A$ and $B$, we stream $B$ row-by-row into a tight 4-element L1 vector (c\_B), and $A$ element-by-element into a single scalar register (c\_A). To maximize the reuse of c\_B and prevent excessive $B$ arg-stack loads, we hoist the k loop outwards and evaluate **two vertical blocks of C** (blocks \= 2\) simultaneously inside a single tightly packed 32-element sC scratchpad.
+Instead of caching massive $T \times T$ tiles for $A$ and $B$, we stream $B$ row-by-row into a tight 4-element L1 vector (c\_B), and $A$ element-by-element into a single scalar register (c\_A). To maximize the reuse of c\_B and prevent excessive $B$ arg-stack loads, we hoist the k loop outwards and evaluate **two vertical blocks of C** (blocks \= 2\) simultaneously inside a single tightly packed 32-element sC scratchpad.
 
 This collapses the MAC core phenomenally: c\_A is firmly locked at physical Address 1, c\_B is placed at Addresses 2-5, and sC sits perfectly at Addresses 6-37.
 
@@ -92,6 +92,6 @@ def manual\_tiled\_matmul(n: int, T: int | None \= None) \-\> int:
 
 ### **Why this is mathematically optimal:**
 
-1. **Perfect Scratchpad Sizing:** Deflating sA, sB, and sC down from full matrices into highly localized vector and scalar elements bounds over $4,000$ MAC combinations to execute entirely underneath $\\approx \\text{isqrt}(37)$.  
+1. **Perfect Scratchpad Sizing:** Deflating sA, sB, and sC down from full matrices into highly localized vector and scalar elements bounds over $4,000$ MAC combinations to execute entirely underneath $\approx \text{isqrt}(37)$.  
 2. **0 Redundant Arg Stack Cost:** The baseline algorithm pulls blocks from $A$ and $B$ repetitively loop-to-loop. Grouping vertical sequences over blocks \= 2 calculates two independent $C$ block sequences using the exact same $B$ row cache simultaneously. This strictly slashes the most expensive $B$ arg-stack fetches linearly in half.  
 3. **The 58,531 Lower Bound:** By eliminating the double-buffer layout and enforcing outer-product loop hoisting, the manual energy metric plummets from **82,520** directly to **58,531**. This mathematically bypasses typical baseline heuristic limits, confidently undercutting the best dynamic trackers under identical memory models (bytedmd\_live natively caps out near 78,708).

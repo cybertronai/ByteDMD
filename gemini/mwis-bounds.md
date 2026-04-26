@@ -6,30 +6,30 @@ It is highly intuitive to assume that the "free sliding" and perfect liveness co
 
 ### **Proof by Counterexample: The "Hot-Cold" Loop**
 
-Imagine a program that heavily reuses one "Hot" variable ($H$), interleaved with temporary "Cold" variables ($C\_i$) that are stored, read once, and immediately die.
+Imagine a program that heavily reuses one "Hot" variable ($H$), interleaved with temporary "Cold" variables ($C_i$) that are stored, read once, and immediately die.
 
-Consider tracing this loop $N$ times: Store C\_i $\\rightarrow$ Load H $\\rightarrow$ Load C\_i. Let's evaluate the exact load costs using the continuous cache penalty $\\lceil\\sqrt{d}\\rceil$:
+Consider tracing this loop $N$ times: Store C\_i $\rightarrow$ Load H $\rightarrow$ Load C\_i. Let's evaluate the exact load costs using the continuous cache penalty $\lceil\sqrt{d}\rceil$:
 
 **1\. Evaluation under ByteDMD-live**
 
 Because LRU places newly allocated variables at the top of the stack, allocating the temporary pushes the hot variable down.
 
-* Store C\_i: $C\_i$ takes Depth 1\. The heavily used $H$ is forced to slide down to Depth 2\.  
-* Load H: $H$ is at Depth 2\. **Cost \= $\\lceil\\sqrt{2}\\rceil \= 2$**. $H$ slides to Depth 1, pushing $C\_i$ to Depth 2\.  
-* Load C\_i: $C\_i$ is at Depth 2\. **Cost \= $\\lceil\\sqrt{2}\\rceil \= 2$**. $C\_i$ dies and vanishes.  
-* **Total Load Cost per iteration:** $2 \+ 2 \= \\mathbf{4}$
+* Store C\_i: $C_i$ takes Depth 1\. The heavily used $H$ is forced to slide down to Depth 2\.  
+* Load H: $H$ is at Depth 2\. **Cost \= $\lceil\sqrt{2}\rceil = 2$**. $H$ slides to Depth 1, pushing $C_i$ to Depth 2\.  
+* Load C\_i: $C_i$ is at Depth 2\. **Cost \= $\lceil\sqrt{2}\rceil = 2$**. $C_i$ dies and vanishes.  
+* **Total Load Cost per iteration:** $2 + 2 = \mathbf{4}$
 
 **2\. Evaluation under a Static Physical Allocator (e.g., Compiler Scratchpad)**
 
 A smart physical allocator avoids LRU thrashing by statically pinning variables to fixed addresses and instantly reusing holes.
 
 * It pins the Hot variable $H$ to **Address 1**.  
-* It assigns the temporaries $C\_i$ to **Address 2** (when $C\_i$ dies, Address 2 is instantly freed for $C\_{i+1}$).  
-* Load H: Read from Address 1\. **Cost \= $\\lceil\\sqrt{1}\\rceil \= \\mathbf{1}$**.  
-* Load C\_i: Read from Address 2\. **Cost \= $\\lceil\\sqrt{2}\\rceil \= \\mathbf{2}$**.  
-* **Total Load Cost per iteration:** $1 \+ 2 \= \\mathbf{3}$
+* It assigns the temporaries $C_i$ to **Address 2** (when $C_i$ dies, Address 2 is instantly freed for $C_{i+1}$).  
+* Load H: Read from Address 1\. **Cost \= $\lceil\sqrt{1}\rceil = \mathbf{1}$**.  
+* Load C\_i: Read from Address 2\. **Cost \= $\lceil\sqrt{2}\rceil = \mathbf{2}$**.  
+* **Total Load Cost per iteration:** $1 + 2 = \mathbf{3}$
 
-**Conclusion:** **$3 \< 4$**. The strict physical static implementation executes the loop **25% cheaper** than ByteDMD-live. The "free sliding" in ByteDMD-live actively sabotages the algorithm by continually unpinning the hot variable.
+**Conclusion:** **$3 < 4$**. The strict physical static implementation executes the loop **25% cheaper** than ByteDMD-live. The "free sliding" in ByteDMD-live actively sabotages the algorithm by continually unpinning the hot variable.
 
 ### ---
 
@@ -37,11 +37,11 @@ A smart physical allocator avoids LRU thrashing by statically pinning variables 
 
 Since we must avoid the "magic" of unpriced sliding to evaluate real physical bounds, we are dealing with the mathematics of **Static Memory Allocation**. We can map the program's memory footprint to an **Interval Graph** (a variable is an interval spanning from its first Store to its last Load, and its weight is its total read frequency).
 
-1. **The Strict Lower Bound ($O(N \\log N)$ via MWIS):**  
+1. **The Strict Lower Bound ($O(N \log N)$ via MWIS):**  
    Because variables with overlapping lifetimes cannot share the same physical address, we can enforce a mathematical capacity constraint: **No single physical address in the universe can serve more total reads than the Maximum Weight Independent Set (MWIS)** of the interval graph.  
    By finding the MWIS, we can bound the physical floor via "Water-Pouring": we pack exactly MWIS loads into Address 1, MWIS loads into Address 2, etc. This yields a mathematically unbreakable lower bound for any static allocator.  
 2. **The Achievable Upper Bound:**  
-   To bound the optimal cost from above, we simply run the trace through a greedy static allocator (min\_heap). Because this is a valid and physically executable assignment, the optimal true physical cost is guaranteed to be $\\le$ this value.
+   To bound the optimal cost from above, we simply run the trace through a greedy static allocator (min\_heap). Because this is a valid and physically executable assignment, the optimal true physical cost is guaranteed to be $\le$ this value.
 
 Here is the implementation of bytedmd\_bounds.py that computes these exact boundaries on Recursive Matrix Multiplication.
 

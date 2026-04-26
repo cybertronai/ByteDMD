@@ -10,9 +10,9 @@ Here is the exact mathematical explanation of why static\_opt\_lb is blind to lo
 
 Why do Naive Matmul and Tiled Matmul get the exact same lower bound under static\_opt\_lb?
 
-Because static\_opt\_lb calculates the access density of a variable over its **global lifespan** ($\\text{Total Reads} / \\text{Total Lifespan}$).
+Because static\_opt\_lb calculates the access density of a variable over its **global lifespan** ($\text{Total Reads} / \text{Total Lifespan}$).
 
-In both algorithms, Matrix A and Matrix B are born at $t=0$, and their final reads occur at the very end of the program. They live for $\\Theta(N^3)$ cycles, and are read $\\Theta(N^3)$ times.
+In both algorithms, Matrix A and Matrix B are born at $t=0$, and their final reads occur at the very end of the program. They live for $\Theta(N^3)$ cycles, and are read $\Theta(N^3)$ times.
 
 Because static\_opt\_lb assumes a variable is a monolithic rock permanently pinned to a single physical address, the order in which the reads happen is completely invisible to it. The LP floor evaluates the exact same set of variables with the exact same global densities, resulting in the exact same physical cost.
 
@@ -43,25 +43,28 @@ When bytedmd\_opt sees the shortened reuse distances in the tiled trace, it math
 
 ### **The Grand Hierarchy of Bounds**
 
-Let $T\_{naive}$ be the raw naive trace, and $T\_{tiled}$ be the raw tiled trace.
+Let $T_{naive}$ be the raw naive trace, and $T_{tiled}$ be the raw tiled trace.
 
-Let $T'\_{tiled}$ be the trace where an algorithm designer has explicitly inserted optimal DMA copies (like your copy\_space\_dmd heuristic or by explicitly rewriting the code).
+Let $T'_{tiled}$ be the trace where an algorithm designer has explicitly inserted optimal DMA copies (like your copy\_space\_dmd heuristic or by explicitly rewriting the code).
 
 The math strictly guarantees the following inequalities:
 
 **1\. The Static Blindness:**
 
-$$ C\_{\\text{static\\\_opt\\\_lb}}(T\_{naive}) \== C\_{\\text{static\\\_opt\\\_lb}}(T\_{tiled}) $$  
+$$C_{\text{static\-opt\-lb}}(T_{naive}) == C_{\text{static\-opt\-lb}}(T_{tiled})$$
+
 *(Static allocators cannot benefit from loop reordering without explicit copies).*
 
 **2\. The Benefit of Copies:**
 
-$$ C\_{\\text{static\\\_opt\\\_lb}}(T'\_{tiled}) \\ll C\_{\\text{static\\\_opt\\\_lb}}(T\_{tiled}) $$  
+$$C_{\text{static\-opt\-lb}}(T'_{tiled}) \ll C_{\text{static\-opt\-lb}}(T_{tiled})$$
+
 *(Inserting copies allows the static LP to act like a dynamic cache, violently lowering the bound).*
 
 **3\. The Absolute Dynamic Floor:**
 
-$$ C\_{\\text{bytedmd\\\_opt}}(T\_{tiled}) \\le C\_{\\text{static\\\_opt\\\_lb}}(T'\_{tiled}) $$  
+$$C_{\text{bytedmd\-opt}}(T_{tiled}) \le C_{\text{static\-opt\-lb}}(T'_{tiled})$$
+
 *(No matter how clever the algorithm designer is at inserting manual DMA copies, they can NEVER beat an omniscient dynamic oracle running on the raw tiled trace).*
 
 ### **Summary**

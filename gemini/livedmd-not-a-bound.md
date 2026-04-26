@@ -12,7 +12,7 @@ Here is the proof by two counterexamples, followed by the conceptual explanation
 
 **Proof 1: The "Hot-Cold" Loop Counterexample**
 
-Imagine a trace where one heavily reused "Hot" variable ($H$) is interleaved with temporary "Cold" variables ($C\_i$) that are stored, read once, and immediately die.
+Imagine a trace where one heavily reused "Hot" variable ($H$) is interleaved with temporary "Cold" variables ($C_i$) that are stored, read once, and immediately die.
 
 **The Trace:**
 
@@ -22,28 +22,28 @@ Imagine a trace where one heavily reused "Hot" variable ($H$) is interleaved wit
    * Load H  
    * Load C\_i *(C\_i dies)*
 
-Let's evaluate the exact cost of a single loop iteration under the continuous cache model where reading from depth $d$ costs $\\sqrt{d}$.
+Let's evaluate the exact cost of a single loop iteration under the continuous cache model where reading from depth $d$ costs $\sqrt{d}$.
 
 **1\. Evaluation under ByteDMD-live**
 
-* **Store C\_i**: $C\_i$ is placed at the top of the stack. The stack becomes \[C\_i, H\]. The Hot variable $H$ is forced down to depth 2\!  
-* **Load H**: $H$ is at depth 2\. **Cost \= $\\sqrt{2} \\approx 1.414$**.  
-  * *LRU updates*: $H$ slides to the top. Stack becomes \[H, C\_i\]. $C\_i$ is pushed to depth 2\.  
-* **Load C\_i**: $C\_i$ is at depth 2\. **Cost \= $\\sqrt{2} \\approx 1.414$**.  
-  * *Compaction*: $C\_i$ dies and vanishes. Stack returns to \[H\].  
-* **Total Loop Cost:** $1.414 \+ 1.414 \= \\mathbf{2.828}$
+* **Store C\_i**: $C_i$ is placed at the top of the stack. The stack becomes \[C\_i, H\]. The Hot variable $H$ is forced down to depth 2\!  
+* **Load H**: $H$ is at depth 2\. **Cost \= $\sqrt{2} \approx 1.414$**.  
+  * *LRU updates*: $H$ slides to the top. Stack becomes \[H, C\_i\]. $C_i$ is pushed to depth 2\.  
+* **Load C\_i**: $C_i$ is at depth 2\. **Cost \= $\sqrt{2} \approx 1.414$**.  
+  * *Compaction*: $C_i$ dies and vanishes. Stack returns to \[H\].  
+* **Total Loop Cost:** $1.414 + 1.414 = \mathbf{2.828}$
 
 **2\. Evaluation under a Physical Allocator (e.g., min\_heap / Scratchpad)**
 
 A physical allocator statically pins variables to fixed addresses and immediately reuses holes.
 
 * It statically pins the Hot variable $H$ to **Address 1**.  
-* It assigns the temporary $C\_i$ to **Address 2**. When $C\_i$ dies, Address 2 is instantly freed for the next iteration.  
-* **Load H**: Read from Address 1\. **Cost \= $\\sqrt{1} \= \\mathbf{1.0}$**.  
-* **Load C\_i**: Read from Address 2\. **Cost \= $\\sqrt{2} \\approx \\mathbf{1.414}$**.  
-* **Total Loop Cost:** $1.0 \+ 1.414 \= \\mathbf{2.414}$
+* It assigns the temporary $C_i$ to **Address 2**. When $C_i$ dies, Address 2 is instantly freed for the next iteration.  
+* **Load H**: Read from Address 1\. **Cost \= $\sqrt{1} = \mathbf{1.0}$**.  
+* **Load C\_i**: Read from Address 2\. **Cost \= $\sqrt{2} \approx \mathbf{1.414}$**.  
+* **Total Loop Cost:** $1.0 + 1.414 = \mathbf{2.414}$
 
-**Conclusion:** **$2.414 \< 2.828$**. The physical implementation natively executes the loop nearly **15% cheaper** than ByteDMD-live.
+**Conclusion:** **$2.414 < 2.828$**. The physical implementation natively executes the loop nearly **15% cheaper** than ByteDMD-live.
 
 ### ---
 
@@ -56,15 +56,15 @@ Assume we allocate an array of $K$ variables, and we read them in a repeating se
 Because ByteDMD-live enforces LRU, reading a variable pushes everything else down. In a cyclic loop, by the time you cycle back to reading variable A, the other $K-1$ reads have maliciously pushed A to the absolute bottom of the stack (depth $K$).
 
 * Every single read in the loop happens at the maximum depth $K$.  
-* **Cost per loop:** $K \\times \\sqrt{K} \= \\mathbf{K^{1.5}}$
+* **Cost per loop:** $K \times \sqrt{K} = \mathbf{K^{1.5}}$
 
 **2\. The Actual Physical Implementation Cost**
 
 A physical allocator simply assigns the $K$ variables to stationary physical addresses $1$ through $K$. There is zero sliding; they sit permanently. The processor reads from those fixed addresses.
 
-* **Cost per loop:** $\\sum\_{i=1}^{K} \\sqrt{i} \\approx \\int\_0^K \\sqrt{x} \\, dx \= \\mathbf{\\frac{2}{3}K^{1.5}}$
+* **Cost per loop:** $\sum_{i=1}^{K} \sqrt{i} \approx \int_0^K \sqrt{x} \, dx = \mathbf{\frac{2}{3}K^{1.5}}$
 
-**Conclusion:** Because $\\frac{2}{3} K^{1.5} \< K^{1.5}$, the physical implementation natively executes the sweep **33% cheaper** than ByteDMD-live.
+**Conclusion:** Because $\frac{2}{3} K^{1.5} < K^{1.5}$, the physical implementation natively executes the sweep **33% cheaper** than ByteDMD-live.
 
 ### ---
 
@@ -73,7 +73,7 @@ A physical allocator simply assigns the $K$ variables to stationary physical add
 There are two fundamental reasons why explicit physical addressing mathematically defeats ByteDMD-live:
 
 1. **The LRU Allocation Penalty:** In ByteDMD-live, whenever you allocate a *new* variable, it claims Depth 1, forcing all existing working data to slide deeper away from the processor. A smart compiler/physical allocator avoids this by pinning the hot working set at Address 1 and routing temporary variables around it.  
-2. **Jensen's Inequality (Concavity):** The continuous cache cost function $f(x) \= \\sqrt{x}$ is strictly concave. Mathematically, polarizing your costs (keeping your hot items permanently at Address 1 and cold items permanently at Address 100\) yields a smaller sum than averaging them out. The continuous LRU "sliding" in ByteDMD-live constantly averages the distances out, inadvertently maximizing the concave penalty.
+2. **Jensen's Inequality (Concavity):** The continuous cache cost function $f(x) = \sqrt{x}$ is strictly concave. Mathematically, polarizing your costs (keeping your hot items permanently at Address 1 and cold items permanently at Address 100\) yields a smaller sum than averaging them out. The continuous LRU "sliding" in ByteDMD-live constantly averages the distances out, inadvertently maximizing the concave penalty.
 
 ### **Summary**
 

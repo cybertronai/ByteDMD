@@ -6,14 +6,14 @@ The discrepancy exists because your manual calculation and the Python trace eval
 
 Take a close look at what your manual function models versus what the traced Python matmul\_tiled code actually executes:
 
-1. **In manual (Explicit DMA):** You explicitly model a DMA transfer. You pay a one-time penalty to copy blocks of $A$ and $B$ from distant main memory into a short-lived temporary scratchpad (sA and sB) mapped to very low addresses ($1 \\dots 3T^2$). The $4,096$ operations in the inner MAC loop read exclusively from this fast scratchpad.  
+1. **In manual (Explicit DMA):** You explicitly model a DMA transfer. You pay a one-time penalty to copy blocks of $A$ and $B$ from distant main memory into a short-lived temporary scratchpad (sA and sB) mapped to very low addresses ($1 \dots 3T^2$). The $4,096$ operations in the inner MAC loop read exclusively from this fast scratchpad.  
 2. **In the Python trace (matmul\_tiled):** There is no scratchpad\! The inner loop reads directly from the main global arrays:  
    Python  
    C\[i\]\[j\] \= C\[i\]\[j\] \+ A\[i\]\[k\] \* B\[k\]\[j\]
 
 **How SpaceDMD sees this:** SpaceDMD acts like a **Static AOT Compiler** (like a TPU allocator). It assigns exactly *one permanent physical address* to each variable for its entire lifespan based on density. Because the variable A\[i\]\[k\] lives from the very beginning of the program to the very end, its overall density is low. SpaceDMD banishes A to a high address (e.g., Rank \~300+).
 
-Since your trace never explicitly copies $A$ to a temporary variable, SpaceDMD is forced to charge you the massive long-distance penalty of $\\approx \\sqrt{300}$ for *every single one* of the $4,096$ innermost loop reads.
+Since your trace never explicitly copies $A$ to a temporary variable, SpaceDMD is forced to charge you the massive long-distance penalty of $\approx \sqrt{300}$ for *every single one* of the $4,096$ innermost loop reads.
 
 *(Note: bytedmd\_live scores lower at 74,560 because it's a dynamic LRU cache. The hardware dynamically promotes A\[i\]\[k\] to depth 1 upon its first read, effectively building a scratchpad for you automatically. SpaceDMD is forbidden from relocating variables on the fly).*
 

@@ -10,7 +10,8 @@ Instead of treating a variable as a "monolithic rock" that lives from its first 
 1. **Sever the Lifespans:** If variable V is read at t\_1, t\_2, and t\_3, we break it into two independent virtual variables: V\_A (living from t\_1 to t\_2) and V\_B (living from t\_2 to t\_3).  
 2. **Calculate Local Density:** Each virtual variable provides exactly 1 read at the end of its lifespan. Its Local Density is strictly \\rho\_i \= \\frac{1}{t\_{next} \- t\_{prev}}. *(If V is read frequently, \\rho skyrockets. If V goes dormant for 10,000 cycles, \\rho drops to near zero).*  
 3. **The Fractional Sweep:** At any clock tick t, look at all the virtual intervals currently spanning across t. Sort them globally by their *Local Density* (\\rho\_i) descending.  
-4. **The Amortized Floor:** Calculate the fractional pigeonhole sum for that tick: $$ \\text{Floor}(t) \= \\sum\_{k=1}^{A\_t} \\rho\_{(k)} \\cdot \\sqrt{k} $$  
+4. **The Amortized Floor:** Calculate the fractional pigeonhole sum for that tick: $$\text{Floor}(t) = \sum_{k=1}^{A_t} \rho_{(k)} \cdot \sqrt{k}$$
+
 5. Sum \\text{Floor}(t) across the entire program. Add the compulsory first-read costs.
 
 ### **Why is this a Lower Bound on Splitting and DMA?**

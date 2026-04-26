@@ -6,7 +6,7 @@ In your tiled\_matmul script, standard SpaceDMD returns **93,369**, which is sig
 
 It fails because SpaceDMD calculates a global density: Total Accesses / Total Lifespan.
 
-If a block of Matrix B is read heavily during Tile 1, goes completely dormant for thousands of cycles, and is read heavily again during Tile 10, SpaceDMD assumes the variable is **statically pinned** in the scratchpad for that entire dead duration. The long lifespan destroys its density score, the heuristic banishes it to deep memory, and it charges you the massive deep-read cost $\\sqrt{D\_{\\text{MainRAM}}}$ for **every single inner-loop access**.
+If a block of Matrix B is read heavily during Tile 1, goes completely dormant for thousands of cycles, and is read heavily again during Tile 10, SpaceDMD assumes the variable is **statically pinned** in the scratchpad for that entire dead duration. The long lifespan destroys its density score, the heuristic banishes it to deep memory, and it charges you the massive deep-read cost $\sqrt{D_{\text{MainRAM}}}$ for **every single inner-loop access**.
 
 Your manual code doesn't do this\! You let the temporary tile die in your L1 scratchpad to make room, and explicitly copy the next tile from main memory when you need it.
 
@@ -18,7 +18,7 @@ It simulates an optimal DMA engine by scanning the trace:
 
 1. **Detect Temporal Gaps:** We look at the gaps between reads of the same variable. If the gap exceeds a certain threshold (representing the L1 cache capacity), we assume a human programmer would have evicted it.  
 2. **Sever the Lifetimes:** We mathematically sever the variable's lifetime into local "Bursts".  
-3. **Charge the DMA Penalty:** Right before a burst begins, we explicitly insert an L2Load from the original deep-memory variable, and an L2Store into a fresh Scratchpad\_Copy variable. We explicitly pay the heavy $\\sqrt{D\_{\\text{MainRAM}}}$ penalty to fetch the data.  
+3. **Charge the DMA Penalty:** Right before a burst begins, we explicitly insert an L2Load from the original deep-memory variable, and an L2Store into a fresh Scratchpad\_Copy variable. We explicitly pay the heavy $\sqrt{D_{\text{MainRAM}}}$ penalty to fetch the data.  
 4. **Rank by Local Density:** We route all inner-loop reads to the new Scratchpad\_Copy. Because this copy is accessed heavily in a tiny timeframe and then dies, its *local* density skyrockets. Standard SpaceDMD automatically packs it into Rank 1 (Address 1).
 
 ### **The Python Implementation**
@@ -111,9 +111,9 @@ def copy\_space\_dmd(events, input\_arg\_idx=None, gap\_thresholds=(16, 64, 256,
 
 If you add "copy\_space\_dmd": copy\_space\_dmd(events, input\_idx) to your dictionary of metrics, you will see a beautiful mathematical hierarchy emerge for tiled\_matmul(n=16):
 
-1. **bytedmd\_live**: $\\approx 78,708$ *(The absolute mathematical limit of physics, assuming free sliding).*  
-2. **copy\_space\_dmd**: $\\approx \\mathbf{61,918}$ *(The optimal upper-bound achievable with explicit software DMA copies).*  
-3. **manual**: $\\approx 67,758$ *(Your hand-written manual schedule. Since $61,918 \< 67,758$, this proves your manual code is incredibly well-optimized, but an algorithm with slightly more dynamic block-sizing could squeeze out \~9% more efficiency).*  
-4. **space\_dmd**: $\\approx 93,369$ *(The naive static bound without explicit copies. Matrices act as monolithic rocks, clogging up L1).*
+1. **bytedmd\_live**: $\approx 78,708$ *(The absolute mathematical limit of physics, assuming free sliding).*  
+2. **copy\_space\_dmd**: $\approx \mathbf{61,918}$ *(The optimal upper-bound achievable with explicit software DMA copies).*  
+3. **manual**: $\approx 67,758$ *(Your hand-written manual schedule. Since $61,918 < 67,758$, this proves your manual code is incredibly well-optimized, but an algorithm with slightly more dynamic block-sizing could squeeze out \~9% more efficiency).*  
+4. **space\_dmd**: $\approx 93,369$ *(The naive static bound without explicit copies. Matrices act as monolithic rocks, clogging up L1).*
 
 Because we construct an explicit, valid execution trace (every copy charges exactly one explicit L2Load from the deep base variable), this heuristic proves that a physical continuous cache cost of **61,918** is rigorously achievable by a compiler mapping your algorithm to a 2D grid.

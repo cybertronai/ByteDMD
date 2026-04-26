@@ -82,8 +82,8 @@ Divide-and-Conquer algorithms that use functional, out-of-place memory allocatio
 
 ### The Algorithm Trace
 
-1. $E = \text{FFT}(\text{Even\_Elements})$
-2. $O = \text{FFT}(\text{Odd\_Elements})$
+1. $E = \text{FFT}(\text{Even-Elements})$
+2. $O = \text{FFT}(\text{Odd-Elements})$
 3. **Combine:** Loop over $N$, evaluating $\text{Result}[k] = E[k] + W \cdot O[k]$
 
 ### The Classic Mattson Trap: $\Theta(N^{1.5} \sqrt{\log N})$

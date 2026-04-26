@@ -5,7 +5,7 @@ To answer your questions directly:
 1. **Is this a bug in space\_dmd?** No, but space\_dmd is "cheating" the laws of static allocation. It behaves like a dynamic cache, not a pinned static scratchpad.  
 2. **Which one is the proper lower bound?** static\_opt\_lb is the proper, mathematically unbreakable lower bound. However, its Python implementation in your script contains a bug regarding the **Two-Stack** memory model.
 
-When you fix the Python bug, static\_opt\_lb correctly drops to **\~75,671**, mathematically restoring the universe ($75,671 \< 79,044$).
+When you fix the Python bug, static\_opt\_lb correctly drops to **\~75,671**, mathematically restoring the universe ($75,671 < 79,044$).
 
 Here is exactly how space\_dmd cheats, why static\_opt\_lb exploded to 109k, and the drop-in Python code to fix it.
 
@@ -28,9 +28,9 @@ However, the Fenwick tree (bit.prefix) computes the rank of X **only among the v
 
 Imagine Variable X (Rank 50\) is alive for 10,000 cycles.
 
-* At cycle 100, the 49 higher-priority variables are alive. Reading X costs $\\sqrt{50}$.  
+* At cycle 100, the 49 higher-priority variables are alive. Reading X costs $\sqrt{50}$.  
 * At cycle 200, those 49 variables die.  
-* Because they died, bit.prefix evaluates to 1\! Reading X now costs $\\sqrt{1}$.
+* Because they died, bit.prefix evaluates to 1\! Reading X now costs $\sqrt{1}$.
 
 **This is physically impossible for a static allocator\!** Variable X was assigned to Address 50\. When the addresses above it empty out, a static allocator cannot magically slide X up to Address 1 mid-lifetime without explicit read/write DMA penalties.
 
@@ -48,7 +48,7 @@ Python
             if ev.var not in starts:  
                 starts\[ev.var\] \= 0 if ev.var not in stored else i
 
-This single line forces **every single input variable** (Matrix A and Matrix B) to be considered "physically alive" and hogging a physical scratchpad slot from $t=0$. Since Naive Matmul has $2N^2$ inputs, static\_opt\_lb hallucinates a massive traffic jam of 512 variables fighting for space from the very first clock cycle, forcing the amortized LP floor to charge heavy $\\sqrt{512}$ penalties across the board.
+This single line forces **every single input variable** (Matrix A and Matrix B) to be considered "physically alive" and hogging a physical scratchpad slot from $t=0$. Since Naive Matmul has $2N^2$ inputs, static\_opt\_lb hallucinates a massive traffic jam of 512 variables fighting for space from the very first clock cycle, forcing the amortized LP floor to charge heavy $\sqrt{512}$ penalties across the board.
 
 space\_dmd does not do this\! It correctly honors the "lazy" Two-Stack model: Matrix A and B stay safely on the free Argument Stack and only move to the Geometric Stack at the exact moment of their first load.
 

@@ -2,9 +2,9 @@ The reason your original manual allocator scored **238,853** while SpaceDMD achi
 
 ### **1\. The Geometrical Flaw in the Original Manual Allocator**
 
-In your original implementation, the entire $64 \\times 64$ matrix A was statically placed in physical memory at addresses 131 to 4226\.
+In your original implementation, the entire $64 \times 64$ matrix A was statically placed in physical memory at addresses 131 to 4226\.
 
-Because your hardware cost function is strictly $\\sum \\lceil\\sqrt{d}\\rceil$, simply reading 4,096 distinct elements from those distant addresses mathematically guarantees a minimum distance penalty of **$\\approx 175,000$**. It is physically impossible to approach 72k if you statically store A in the L1 grid\!
+Because your hardware cost function is strictly $\sum \lceil\sqrt{d}\rceil$, simply reading 4,096 distinct elements from those distant addresses mathematically guarantees a minimum distance penalty of **$\approx 175,000$**. It is physically impossible to approach 72k if you statically store A in the L1 grid\!
 
 ### **2\. How did SpaceDMD cheat geometry to score 72,775?**
 
@@ -17,7 +17,7 @@ SpaceDMD evaluates cost dynamically based on **active liveness**. It recognizes 
 To build a highly efficient manual allocator, we must do two things:
 
 1. **Stream A:** We stop allocating A in the spatial grid. We stream it through a single hardware register (Address 10).  
-2. **"Create Scratchpad" Tiling:** We block the matrix multiplication into $4 \\times 4$ tiles. We explicitly load chunks of x from main memory into a tiny 4-element L1 scratchpad (x\_tile).
+2. **"Create Scratchpad" Tiling:** We block the matrix multiplication into $4 \times 4$ tiles. We explicitly load chunks of x from main memory into a tiny 4-element L1 scratchpad (x\_tile).
 
 This slices the energy cost from **238,853** all the way down to **\~54,900**.
 

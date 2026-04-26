@@ -2,61 +2,61 @@ Here is a clear, step-by-step mathematical walkthrough and a self-contained Pyth
 
 ### **1\. The Physical Memory Model**
 
-Imagine memory as a continuous 1D array of addresses ($1, 2, 3 \\dots$) mapped onto a 2D physical silicon grid spiraling outward from the processor (ALU).
+Imagine memory as a continuous 1D array of addresses ($1, 2, 3 \dots$) mapped onto a 2D physical silicon grid spiraling outward from the processor (ALU).
 
-Because the area of a 2D shape grows quadratically with its radius ($A \= \\pi r^2$), the physical distance (wire length) to reach address $X$ scales as $\\sqrt{X}$.
+Because the area of a 2D shape grows quadratically with its radius ($A = \pi r^2$), the physical distance (wire length) to reach address $X$ scales as $\sqrt{X}$.
 
-* **The Rule:** Reading from address addr costs $\\lceil\\sqrt{\\text{addr}}\\rceil$. (Writes are free).  
+* **The Rule:** Reading from address addr costs $\lceil\sqrt{\text{addr}}\rceil$. (Writes are free).  
 * **The Layout:** We enforce a two-tiered manual layout.  
-  * **Below (Scratchpad):** The absolute lowest addresses ($1 \\dots S$) are permanently pinned to our L1 tile buffers.  
+  * **Below (Scratchpad):** The absolute lowest addresses ($1 \dots S$) are permanently pinned to our L1 tile buffers.  
   * **Above (Arguments):** The large matrices $A$ and $B$ are allocated *after* the scratchpad, pushing them out into deeper, more expensive physical addresses.
 
 ### ---
 
-**2\. Step-by-Step Walkthrough ($16 \\times 16$ Matrices, $T=4$)**
+**2\. Step-by-Step Walkthrough ($16 \times 16$ Matrices, $T=4$)**
 
-Let's compute the memory cost to multiply two $16 \\times 16$ matrices. Both $A$ and $B$ contain 256 elements.
+Let's compute the memory cost to multiply two $16 \times 16$ matrices. Both $A$ and $B$ contain 256 elements.
 
 #### **Strategy A: Naive Matmul (Direct Fetching)**
 
 In the naive approach, we don't allocate a scratchpad. The matrices start immediately at Address 1\.
 
-* Matrix $A$ is at addresses 1 to 256 (Average read cost $\\approx 11$)  
-* Matrix $B$ is at addresses 257 to 512 (Average read cost $\\approx 19$)
+* Matrix $A$ is at addresses 1 to 256 (Average read cost $\approx 11$)  
+* Matrix $B$ is at addresses 257 to 512 (Average read cost $\approx 19$)
 
 To compute a single element of $C$, the ALU does 16 multiply-accumulates (MACs). It reaches out to $A$ and $B$ for every single calculation.
 
-* **Cost for 1 element:** $16 \\text{ reads} \\times (11 \+ 19\) \\approx \\mathbf{480}$ cost.  
-* **Total Cost for all 256 elements:** $256 \\times 480 \\approx \\mathbf{122,880}$ distance cost.
+* **Cost for 1 element:** $16 \text{ reads} \times (11 + 19) \approx \mathbf{480}$ cost.  
+* **Total Cost for all 256 elements:** $256 \times 480 \approx \mathbf{122,880}$ distance cost.
 
 #### **Strategy B: Manual Tiled Matmul**
 
-We allocate three $4 \\times 4$ local scratchpads first, pushing $A$ and $B$ further away.
+We allocate three $4 \times 4$ local scratchpads first, pushing $A$ and $B$ further away.
 
-* fast\_A (Addr 1 to 16\) $\\rightarrow$ Avg cost: $\\mathbf{3}$  
-* fast\_B (Addr 17 to 32\) $\\rightarrow$ Avg cost: $\\mathbf{5}$  
-* fast\_C (Addr 33 to 48\) $\\rightarrow$ Avg cost: $\\mathbf{6}$  
+* fast\_A (Addr 1 to 16\) $\rightarrow$ Avg cost: $\mathbf{3}$  
+* fast\_B (Addr 17 to 32\) $\rightarrow$ Avg cost: $\mathbf{5}$  
+* fast\_C (Addr 33 to 48\) $\rightarrow$ Avg cost: $\mathbf{6}$  
 * *Notice: $A$ and $B$ now start at address 49, making them slightly more expensive to read from than before\!*
 
-We compute the $16 \\times 16$ output by breaking it into sixteen $4 \\times 4$ blocks. Let's trace **one** block:
+We compute the $16 \times 16$ output by breaking it into sixteen $4 \times 4$ blocks. Let's trace **one** block:
 
 **Phase 1: DMA Block Fetch (Pay the heavy toll)**
 
-We fetch a $4 \\times 4$ block of $A$ and a $4 \\times 4$ block of $B$ from deep memory and save them to the scratchpad.
+We fetch a $4 \times 4$ block of $A$ and a $4 \times 4$ block of $B$ from deep memory and save them to the scratchpad.
 
-* **Fetch Cost:** 16 elements of $A$ (cost $\\sim 13$) \+ 16 elements of $B$ (cost $\\sim 21$) $\\approx \\mathbf{544}$ cost.
+* **Fetch Cost:** 16 elements of $A$ (cost $\sim 13$) \+ 16 elements of $B$ (cost $\sim 21$) $\approx \mathbf{544}$ cost.
 
 **Phase 2: Compute locally in the Scratchpad (The Payout)**
 
-Now we compute the 16 output elements of this block. Each element requires 4 MACs, but we read *exclusively* from our perfectly pinned addresses $1 \\dots 48$.
+Now we compute the 16 output elements of this block. Each element requires 4 MACs, but we read *exclusively* from our perfectly pinned addresses $1 \dots 48$.
 
-* **Cost for 1 element:** $4 \\text{ reads} \\times (\\text{fast\\\_A} \+ \\text{fast\\\_B} \+ \\text{fast\\\_C}) \\rightarrow 4 \\times (3 \+ 5 \+ 6\) \= \\mathbf{56}$ cost.  
-* **Cost for all 16 elements in the block:** $16 \\times 56 \= \\mathbf{896}$ cost.
+* **Cost for 1 element:** $4 \text{ reads} \times (\text{fast\-A} + \text{fast\-B} + \text{fast\-C}) \rightarrow 4 \times (3 + 5 + 6) = \mathbf{56}$ cost.  
+* **Cost for all 16 elements in the block:** $16 \times 56 = \mathbf{896}$ cost.
 
 **Net Result per block:**
 
-* **Naive Cost:** $16 \\text{ elements} \\times 480 \\text{ cost} \= \\mathbf{7,680}$  
-* **Tiled Cost:** $544 \\text{ (Fetch)} \+ 896 \\text{ (Compute)} \= \\mathbf{1,440}$
+* **Naive Cost:** $16 \text{ elements} \times 480 \text{ cost} = \mathbf{7,680}$  
+* **Tiled Cost:** $544 \text{ (Fetch)} + 896 \text{ (Compute)} = \mathbf{1,440}$
 
 Even though we penalized $A$ and $B$ by pushing them into higher addresses, **the Manual Tiled approach mathematically crushes the Naive approach** because it converts $O(N^3)$ long-distance wire routing into $O(N^3)$ ultra-local wire routing.
 
@@ -155,4 +155,4 @@ if \_\_name\_\_ \== "\_\_main\_\_":
 
 If this code was run on an LRU cache (like a CPU), sweeping across the large matrix blocks of $A$ and $B$ during Phase 1 would routinely sink your $C$ accumulator to the bottom of the LRU stack, dynamically inflating its distance penalty.
 
-By manually reserving addresses $1 \\dots 48$, you forcefully declare that fast\_A, fast\_B, and fast\_C can **never be displaced**. The physical wires connecting them to the ALU remain short forever, mathematically enforcing optimal energy efficiency.
+By manually reserving addresses $1 \dots 48$, you forcefully declare that fast\_A, fast\_B, and fast\_C can **never be displaced**. The physical wires connecting them to the ALU remain short forever, mathematically enforcing optimal energy efficiency.

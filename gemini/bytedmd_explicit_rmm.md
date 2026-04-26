@@ -1,20 +1,20 @@
-To mathematically prove that the $\\Theta(N^3 \\log N)$ bound is a physically achievable and realistic estimate under your continuous cache model (where cost \= ceil(sqrt(address))), we must abandon the implicit "magic" of dynamic LRU caches entirely.
+To mathematically prove that the $\Theta(N^3 \log N)$ bound is a physically achievable and realistic estimate under your continuous cache model (where cost \= ceil(sqrt(address))), we must abandon the implicit "magic" of dynamic LRU caches entirely.
 
-If we use a naive static memory layout and simply pass pointers around (like standard in-place recursive algorithms), the base cases are forced to read from physical distances of $\\Theta(N^2)$, degrading the data-movement cost catastrophically to **$\\Theta(N^4)$**.
+If we use a naive static memory layout and simply pass pointers around (like standard in-place recursive algorithms), the base cases are forced to read from physical distances of $\Theta(N^2)$, degrading the data-movement cost catastrophically to **$\Theta(N^4)$**.
 
 To fix this and achieve the true lower bound, we must implement a **Hierarchical Scratchpad Allocator**.
 
 We statically pre-allocate an inverted pyramid of memory blocks:
 
-* The tiny $1 \\times 1$ base-case buffers are pinned to the absolute fastest physical addresses (1, 2, 3).  
-* The $2 \\times 2$ buffers are pinned right behind them.  
-* The massive $N \\times N$ matrices are pinned at the deepest, slowest addresses (Main RAM).
+* The tiny $1 \times 1$ base-case buffers are pinned to the absolute fastest physical addresses (1, 2, 3).  
+* The $2 \times 2$ buffers are pinned right behind them.  
+* The massive $N \times N$ matrices are pinned at the deepest, slowest addresses (Main RAM).
 
 At each step of the recursion, a **Software DMA Controller** explicitly block-copies the active sub-matrices down from the slower Parent memory into the faster Child memory designated for that recursion depth.
 
-* Copying $K \\times K$ elements from a physical depth of $O(K^2)$ costs exactly $\\Theta(K^2 \\text{ elements}) \\times \\sqrt{K^2} \= \\mathbf{\\Theta(K^3)}$.  
+* Copying $K \times K$ elements from a physical depth of $O(K^2)$ costs exactly $\Theta(K^2 \text{ elements}) \times \sqrt{K^2} = \mathbf{\Theta(K^3)}$.  
 * We do 8 recursive calls on the ultra-fast child memory.  
-* This explicitly creates the physical recurrence $T(K) \= 8 T(K/2) \+ \\Theta(K^3)$, which mathematically guarantees **$\\Theta(N^3 \\log N)$** by the Master Theorem.
+* This explicitly creates the physical recurrence $T(K) = 8 T(K/2) + \Theta(K^3)$, which mathematically guarantees **$\Theta(N^3 \log N)$** by the Master Theorem.
 
 Here is the efficient, self-contained Python laboratory that simulates this exact physical hardware model, runs both algorithms side-by-side, and outputs the mathematical proof of their asymptotes.
 
@@ -197,5 +197,5 @@ Plaintext
 
 Notice the columns mapping the asymptotic ratios.
 
-1. **The Static In-Place Trap ($O(N^4)$):** Because standard in-place pointers leave the data stationary, the inner base cases are constantly fetching numbers from extremely deep physical memory distances. The Cost / N^4 ratio converges perfectly to a hard constant ($\\approx 6.0$).  
-2. **The Explicit Hierarchical Escape ($O(N^3 \\log N)$):** By spending a calculated amount of energy to explicitly block-copy data into L1/L2 buffers *before* recursing, we collapse the base case energy cost from $O(N)$ down to an absolute minimum cost of $1$ or $2$. The Cost / (N^3 \\log N) ratio beautifully converges toward a hard constant ($\\approx 6.0$), definitively proving that manual software DMA management alone is enough to realize the $O(N^3 \\log N)$ speed-of-light bound without relying on the magic of an automated hardware cache.
+1. **The Static In-Place Trap ($O(N^4)$):** Because standard in-place pointers leave the data stationary, the inner base cases are constantly fetching numbers from extremely deep physical memory distances. The Cost / N^4 ratio converges perfectly to a hard constant ($\approx 6.0$).  
+2. **The Explicit Hierarchical Escape ($O(N^3 \log N)$):** By spending a calculated amount of energy to explicitly block-copy data into L1/L2 buffers *before* recursing, we collapse the base case energy cost from $O(N)$ down to an absolute minimum cost of $1$ or $2$. The Cost / (N^3 \\log N) ratio beautifully converges toward a hard constant ($\approx 6.0$), definitively proving that manual software DMA management alone is enough to realize the $O(N^3 \log N)$ speed-of-light bound without relying on the magic of an automated hardware cache.

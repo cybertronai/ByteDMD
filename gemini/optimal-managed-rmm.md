@@ -1,16 +1,16 @@
-To achieve the theoretically optimal $\\mathcal{O}(N^3 \\log N)$ cost under the physical distance metric where accessing the $k$-th byte costs $\\lceil\\sqrt{k}\\rceil$, we must explicitly dictate the spatial layout of our memory during execution.
+To achieve the theoretically optimal $\mathcal{O}(N^3 \log N)$ cost under the physical distance metric where accessing the $k$-th byte costs $\lceil\sqrt{k}\rceil$, we must explicitly dictate the spatial layout of our memory during execution.
 
 ### **The Strategy: Inverted Stack Arenas (Explicit Tombstoning)**
 
-If we perform recursive matrix multiplication by computing base cases directly on the original input matrices, our $1 \\times 1$ multiplications will read variables stored at indices up to $\\mathcal{O}(N^2)$. The cost per access would be $\\mathcal{O}(N)$, and multiplying that by the $N^3$ base-case operations yields an extremely inefficient $\\mathcal{O}(N^4)$ cost.
+If we perform recursive matrix multiplication by computing base cases directly on the original input matrices, our $1 \times 1$ multiplications will read variables stored at indices up to $\mathcal{O}(N^2)$. The cost per access would be $\mathcal{O}(N)$, and multiplying that by the $N^3$ base-case operations yields an extremely inefficient $\mathcal{O}(N^4)$ cost.
 
 To overcome this, we explicitly simulate the **Tombstone Strategy's** aggressive compaction by manipulating Working Memory as a Depth-Indexed Arena Allocator (an "Inverted Stack"):
 
 1. We divide the total working memory into tightly bounded "arenas" indexed by recursion depth.  
-2. The deepest recursion level (the $1 \\times 1$ base cases) is allocated the absolute lowest memory addresses (e.g., indices 1, 2, 3). Thus, the $\\mathcal{O}(N^3)$ base case operations only cost $\\mathcal{O}(1)$ to access\!  
-3. Before a recursive step, the parent matrices explicitly copy their required active $M/2 \\times M/2$ quadrants into the tightly localized arena belonging to the child's depth.  
+2. The deepest recursion level (the $1 \times 1$ base cases) is allocated the absolute lowest memory addresses (e.g., indices 1, 2, 3). Thus, the $\mathcal{O}(N^3)$ base case operations only cost $\mathcal{O}(1)$ to access\!  
+3. Before a recursive step, the parent matrices explicitly copy their required active $M/2 \times M/2$ quadrants into the tightly localized arena belonging to the child's depth.  
 4. Once the child branch finishes, the memory it occupied is logically "tombstoned" (freed). When the next sibling recursion executes, it physically overwrites and **reuses the exact same tight addresses**.  
-5. Copying data at recursion level $M$ bounded around a maximum arena size of $\\mathcal{O}(M^2)$ incurs an access distance cost of $\\mathcal{O}(M)$. Moving $M^2$ elements yields a level cost of $\\mathcal{O}(M^3)$. Using the Master Theorem: $T(N) \= 8T(N/2) \+ \\mathcal{O}(N^3)$, which resolves elegantly to the optimal footprint of **$\\mathcal{O}(N^3 \\log N)$**.
+5. Copying data at recursion level $M$ bounded around a maximum arena size of $\mathcal{O}(M^2)$ incurs an access distance cost of $\mathcal{O}(M)$. Moving $M^2$ elements yields a level cost of $\mathcal{O}(M^3)$. Using the Master Theorem: $T(N) = 8T(N/2) + \mathcal{O}(N^3)$, which resolves elegantly to the optimal footprint of **$\mathcal{O}(N^3 \log N)$**.
 
 ### **Python Implementation**
 

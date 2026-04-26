@@ -163,6 +163,7 @@ Research notes on **ByteDMD** (Byte-level Data Movement Distance): a concrete me
 |--------|---------|
 | [capacity-envelope.md](capacity-envelope.md) | Sleator–Tarjan Capacity Envelope: trace-specific O(N) lower bound from the live reuse distance histogram (MRC → MaxForward → 2D radial integral), recovering 70–90% of Live-DMD vs the loose 0.3849 constant |
 | [locality-measures.md](locality-measures.md) | Yuan et al. Relational Theory of Locality applied to matmul: RI/RD/footprint/MRC/eviction-time pipeline, convertibility via Xiang + Denning–HOTL, with naive-vs-tiled predictions |
+| [belady-optimal-cost.md](belady-optimal-cost.md) | Two-pass Belady gives the *exact* OPT spatial cost (not a loose bound) under sqrt-cost geometry: stack-distance + 2D radial decomposition, computable in O(N log W) |
 
 ## April 24, 2026
 
@@ -182,3 +183,11 @@ Research notes on **ByteDMD** (Byte-level Data Movement Distance): a concrete me
 | [fix-tiebreaker-spacedmd-bug.md](fix-tiebreaker-spacedmd-bug.md) | matvec_col(n=64) violates the lower bound (space_dmd=197,719 < static_opt_lb=212,183): space_dmd's density tie-breaking lets accumulator-vs-input reorder mid-execution ("Tie-Breaker Teleportation"); 2-line fix freezes ranks at first-use and restores the inequality |
 | [static-vs-dynamic.md](static-vs-dynamic.md) | Why static_opt_lb gives identical bounds for naive vs tiled matmul (it scores monolithic global density, blind to loop reordering); inserting copy variables slices lifespans into dense bursts, transforming static into dynamic — bytedmd_opt (Belady MIN) is the lower bound that already accounts for optimal copying |
 | [intersection-of-lifetimes.md](intersection-of-lifetimes.md) | Geometric intuition for Belady OPT on a time-vs-deadline plane: variables travel horizontally above the y=x ALU line, vertical sweeps count contention rank, max_rank = the largest sweep-intersection over a variable's dormancy — the absolute physical floor for data movement |
+| [move-to-front-tax.md](move-to-front-tax.md) | Even liveness-adjusted Belady is not a static lower bound: any demand-fetched dynamic cache pays a "Move-to-Front Tax" promoting cold reads into Address 1, which a static allocator with cache bypassing can avoid — counter-example trace where static beats adjusted Belady |
+| [fractional-lp-splitting.md](fractional-lp-splitting.md) | Local Interval Density LP: severs each variable's lifespan into per-burst intervals, scoring density locally — a strict lower bound for any allocator that splits variables / inserts L1 copies / acts as a dynamic cache, *more fundamental* than bytedmd_opt because it skips the Move-to-Front tax |
+
+## April 26, 2026
+
+| Report | Summary |
+|--------|---------|
+| [interval-graph-construction.md](interval-graph-construction.md) | Reduce optimal static spatial allocation to Weighted Minimum Chromatic Sum on an interval graph: vertices = read-to-read dormancy intervals, edges = time overlaps, weights = √color cost — graph coloring exposes spatial loopholes that Belady's sort cannot find |

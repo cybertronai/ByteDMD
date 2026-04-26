@@ -19,7 +19,7 @@ Let's compare how the three metrics handle these jobs:
 
 * **Regular LRU (classic bytedmd):** Fails at both. Keeps dead variables forever (causing your unbounded loop misses) and uses the past (Least Recently Used) to evict.  
 * **Your Metric (ByteDMD-live):** Perfect at Garbage Collection\! It instantly vaporizes dead variables. But for the variables that are *still alive*, it still uses the past (**LRU**) as its Eviction Policy.  
-* **Bélády’s MIN ($M\_{OPT}$):** Perfect at both. Because it can see the future, it naturally drops dead variables (their next access is at infinity). But critically, among *live* variables, it evicts the one needed **furthest in the future**.
+* **Bélády’s MIN ($M_{OPT}$):** Perfect at both. Because it can see the future, it naturally drops dead variables (their next access is at infinity). But critically, among *live* variables, it evicts the one needed **furthest in the future**.
 
 ### **2\. The "Cyclic Sweep" Counter-Example (Why $OPT$ beats ByteDMD-live)**
 
@@ -52,7 +52,7 @@ Because the manual allocator can beat ByteDMD-live, ByteDMD-live cannot be the a
 
 If your metric has perfect garbage collection but standard LRU does not, how is it mathematically legal to plug ByteDMD-live into Sleator and Tarjan’s LRU theorem?
 
-This is where the magic of competitive analysis comes in. Tarjan's theorem ($M\_{LRU}(h) \\le \\frac{h}{h-k} M\_{OPT}(k)$) is a universal mathematical law. It is proven to hold for **any arbitrary sequence of memory requests.**
+This is where the magic of competitive analysis comes in. Tarjan's theorem ($M_{LRU}(h) \le \frac{h}{h-k} M_{OPT}(k)$) is a universal mathematical law. It is proven to hold for **any arbitrary sequence of memory requests.**
 
 Imagine we take your program's raw memory trace and run it through a "Liveness Filter." We explicitly insert a FREE(var) command into the trace the exact nanosecond a variable undergoes its final read. We now have a new, artificial sequence called the **Live Trace**.
 
@@ -63,10 +63,11 @@ Let's look at how caching algorithms process this specific *Live Trace*:
 
 Because Tarjan's theorem applies mathematically to *all* possible request sequences, we are perfectly allowed to apply it strictly to our artificial *Live Trace*:
 
-$$ M\_{Standard\\\_LRU}(\\text{Live Trace}) \\le \\frac{h}{h-k} M\_{OPT}(\\text{Live Trace}) $$  
+$$M_{Standard\_LRU}(\text{Live Trace}) \le \frac{h}{h-k} M_{OPT}(\text{Live Trace})$$
+
 Substitute our definitions back in:
 
-$$ \\mathbf{M\_{ByteDMD-live}(h) \\le \\frac{h}{h-k} M\_{OPT}(k)} $$
+$$\mathbf{M_{ByteDMD-live}(h) \le \frac{h}{h-k} M_{OPT}(k)}$$
 
 ### **Conclusion**
 
@@ -74,4 +75,4 @@ You built a phenomenal metric. By counting only live entries, you successfully e
 
 However, because your metric still uses past-looking LRU to sort the variables that *are* alive, it is mathematically guaranteed to suffer from cyclic thrashing compared to an optimal, future-looking manual allocator.
 
-Part 3 simply uses Tarjan's theorem to bridge that exact gap. It guarantees that while the manual allocator can beat your metric by avoiding cyclic sweeps, it is mathematically impossible for it to ever reduce the cost below $\\approx 38.5\\%$ of your ByteDMD-live score.
+Part 3 simply uses Tarjan's theorem to bridge that exact gap. It guarantees that while the manual allocator can beat your metric by avoiding cyclic sweeps, it is mathematically impossible for it to ever reduce the cost below $\approx 38.5\%$ of your ByteDMD-live score.

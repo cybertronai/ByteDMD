@@ -56,29 +56,21 @@ Let $d$ be the **element depth** in the LRU stack.
 
 For the benchmark setting $w=1$ byte-per-element:
 
-$$
-G\_{\mathrm{disc}}(d)=\lceil \sqrt d\rceil,\qquad
-G\_{\mathrm{cont}}(d)=\sqrt d.
-$$
+$$G_{\mathrm{disc}}(d)=\lceil \sqrt d\rceil,\qquad
+G_{\mathrm{cont}}(d)=\sqrt d.$$
 
 For literal $w$-byte ByteDMD, replace that by
 
-$$
-G^{(w)}\_{\mathrm{disc}}(d)=U(dw)-U((d-1)w),
-$$
+$$G^{(w)}_{\mathrm{disc}}(d)=U(dw)-U((d-1)w),$$
 
 where
 
-$$
-U(m)=\sum\_{r=1}^m \lceil \sqrt r\rceil
-=\frac{M(6m-2M^2+3M-1)}{6},\qquad M=\lceil \sqrt m\rceil,
-$$
+$$U(m)=\sum_{r=1}^m \lceil \sqrt r\rceil
+=\frac{M(6m-2M^2+3M-1)}{6},\qquad M=\lceil \sqrt m\rceil,$$
 
 which is exactly the helper implemented in `bytedmd.py`, and
 
-$$
-G^{(w)}\_{\mathrm{cont}}(d)=\sum\_{q=1}^{w}\sqrt{(d-1)w+q}.
-$$
+$$G^{(w)}_{\mathrm{cont}}(d)=\sum_{q=1}^{w}\sqrt{(d-1)w+q}.$$
 
 The README benchmark numbers use the default `bytes_per_element=1`, so $w=1$ is the setting that reproduces 948 and 906. 
 
@@ -88,21 +80,15 @@ bytedmd
 
 A useful simplification is that every add step
 
-$$
-s \leftarrow s + (A[i][k]B[k][j]),\qquad k\ge 1
-$$
+$$s \leftarrow s + (A[i][k]B[k][j]),\qquad k\ge 1$$
 
 always reads depths $4$ and $1$, so the whole add contribution is
 
-$$
-\Phi(n;G)=n^2(n-1)\bigl(G(4)+G(1)\bigr).
-$$
+$$\Phi(n;G)=n^2(n-1)\bigl(G(4)+G(1)\bigr).$$
 
 For $w=1$, both discrete and continuous give $G(4)+G(1)=2+1=3$, so
 
-$$
-\Phi(n)=3n^2(n-1).
-$$
+$$\Phi(n)=3n^2(n-1).$$
 
 ## 2) Shared $A$-side contribution
 
@@ -110,22 +96,18 @@ The $A$-side is the same for standard and snake order.
 
 Define
 
-$$
-A(n;G)=
-\sum\_{i=0}^{n-1}
+$$A(n;G)=
+\sum_{i=0}^{n-1}
 \left[
-G\!\bigl(2n^2+i\,n(2n-1)\bigr)
+G!\bigl(2n^2+i\,n(2n-1)\bigr)
 +
-\sum\_{k=1}^{n-1}
-G\!\bigl(2n^2+i\,n(2n-1)+2k-1\bigr)
-\right]
-$$
+\sum_{k=1}^{n-1}
+G!\bigl(2n^2+i\,n(2n-1)+2k-1\bigr)
+\right]$$
 
-$$
-\qquad\qquad
+$$\qquad\qquad
 +n(n-1)\,G(4n-1)
-+n(n-1)^2\,G(4n).
-$$
++n(n-1)^2\,G(4n).$$
 
 Interpretation:  
 the first dot product of each row is “cold” on the $A$-side; the other $n-1$ dots in that row are “warm”.
@@ -136,56 +118,44 @@ The $B$-side splits into the first row and all later rows.
 
 ### First row
 
-$$
-B^{(0)}\_{\mathrm{std}}(n;G)=
+$$B^{(0)}_{\mathrm{std}}(n;G)=
 G(n^2)
 +
-\sum\_{k=1}^{n-1} G\!\bigl(n^2-1+(4-n)k\bigr)
-$$
+\sum_{k=1}^{n-1} G!\bigl(n^2-1+(4-n)k\bigr)$$
 
-$$
-\qquad\qquad
+$$\qquad\qquad
 +
-\sum\_{j=1}^{n-1}
+\sum_{j=1}^{n-1}
 \left[
-G\!\bigl(n^2+n+j(2n-1)\bigr)
+G!\bigl(n^2+n+j(2n-1)\bigr)
 +
-\sum\_{k=1}^{n-1}
-G\!\bigl(n^2+n+j(2n-1)-1+k(j+3-n)\bigr)
-\right].
-$$
+\sum_{k=1}^{n-1}
+G!\bigl(n^2+n+j(2n-1)-1+k(j+3-n)\bigr)
+\right].$$
 
 ### Rows $i=1,\dots,n-1$
 
-$$
-B^{(+)}\_{\mathrm{std}}(n;G)=
+$$B^{(+)}_{\mathrm{std}}(n;G)=
 (n-1)\Bigg[
 G(3n^2)
 +
-\sum\_{k=1}^{n-1} G(3n^2+k+1)
-$$
+\sum_{k=1}^{n-1} G(3n^2+k+1)$$
 
-$$
-\qquad\qquad\qquad
+$$\qquad\qquad\qquad
 +(n-2)\Bigl(G(3n^2+n)+(n-1)G(3n^2+n+1)\Bigr)
 +G(3n^2+n-1)
-+\sum\_{k=1}^{n-1}G(3n^2+n-k)
-\Bigg].
-$$
++\sum_{k=1}^{n-1}G(3n^2+n-k)
+\Bigg].$$
 
 ### Total
 
-$$
-C\_{\mathrm{std}}(n;G)=A(n;G)+B^{(0)}\_{\mathrm{std}}(n;G)+B^{(+)}\_{\mathrm{std}}(n;G)+\Phi(n;G).
-$$
+$$C_{\mathrm{std}}(n;G)=A(n;G)+B^{(0)}_{\mathrm{std}}(n;G)+B^{(+)}_{\mathrm{std}}(n;G)+\Phi(n;G).$$
 
 So the exact discrete and continuous costs are just
 
-$$
-C^{\mathrm{disc}}\_{\mathrm{std}}(n,w)=C\_{\mathrm{std}}\!\bigl(n;G^{(w)}\_{\mathrm{disc}}\bigr),
+$$C^{\mathrm{disc}}_{\mathrm{std}}(n,w)=C_{\mathrm{std}}!\bigl(n;G^{(w)}_{\mathrm{disc}}\bigr),
 \qquad
-C^{\mathrm{cont}}\_{\mathrm{std}}(n,w)=C\_{\mathrm{std}}\!\bigl(n;G^{(w)}\_{\mathrm{cont}}\bigr).
-$$
+C^{\mathrm{cont}}_{\mathrm{std}}(n,w)=C_{\mathrm{std}}!\bigl(n;G^{(w)}_{\mathrm{cont}}\bigr).$$
 
 ## 4) Snake-`j`
 
@@ -201,50 +171,38 @@ After the first row, the $B$-depth multiset depends only on $r$, not on the row 
 
 Same as standard:
 
-$$
-B^{(0)}\_{\mathrm{snake}}(n;G)=B^{(0)}\_{\mathrm{std}}(n;G).
-$$
+$$B^{(0)}_{\mathrm{snake}}(n;G)=B^{(0)}_{\mathrm{std}}(n;G).$$
 
 ### Rows $i=1,\dots,n-1$
 
-$$
-B^{(+)}\_{\mathrm{snake}}(n;G)=
+$$B^{(+)}_{\mathrm{snake}}(n;G)=
 (n-1)\Bigg[
-G(4n-2)+(n-1)G(4n-1)
-$$
+G(4n-2)+(n-1)G(4n-1)$$
 
-$$
-\qquad\qquad\qquad
-+\sum\_{r=1}^{n-1}
+$$\qquad\qquad\qquad
++\sum_{r=1}^{n-1}
 \Bigl(
-G\!\bigl(r(5n-2)+5n-1\bigr)
-+(n-1)G\!\bigl(r(5n-2)+5n\bigr)
+G!\bigl(r(5n-2)+5n-1\bigr)
++(n-1)G!\bigl(r(5n-2)+5n\bigr)
 \Bigr)
-\Bigg].
-$$
+\Bigg].$$
 
 ### Total
 
-$$
-C\_{\mathrm{snake}}(n;G)=A(n;G)+B^{(0)}\_{\mathrm{std}}(n;G)+B^{(+)}\_{\mathrm{snake}}(n;G)+\Phi(n;G).
-$$
+$$C_{\mathrm{snake}}(n;G)=A(n;G)+B^{(0)}_{\mathrm{std}}(n;G)+B^{(+)}_{\mathrm{snake}}(n;G)+\Phi(n;G).$$
 
 Thus
 
-$$
-C^{\mathrm{disc}}\_{\mathrm{snake}}(n,w)=C\_{\mathrm{snake}}\!\bigl(n;G^{(w)}\_{\mathrm{disc}}\bigr),
+$$C^{\mathrm{disc}}_{\mathrm{snake}}(n,w)=C_{\mathrm{snake}}!\bigl(n;G^{(w)}_{\mathrm{disc}}\bigr),
 \qquad
-C^{\mathrm{cont}}\_{\mathrm{snake}}(n,w)=C\_{\mathrm{snake}}\!\bigl(n;G^{(w)}\_{\mathrm{cont}}\bigr).
-$$
+C^{\mathrm{cont}}_{\mathrm{snake}}(n,w)=C_{\mathrm{snake}}!\bigl(n;G^{(w)}_{\mathrm{cont}}\bigr).$$
 
 ## 5) Sanity checks
 
 For the repo benchmark setting $w=1$:
 
-$$
-C^{\mathrm{disc}}\_{\mathrm{std}}(4,1)=948,\qquad
-C^{\mathrm{disc}}\_{\mathrm{snake}}(4,1)=906,
-$$
+$$C^{\mathrm{disc}}_{\mathrm{std}}(4,1)=948,\qquad
+C^{\mathrm{disc}}_{\mathrm{snake}}(4,1)=906,$$
 
 matching the README. 
 
@@ -252,49 +210,37 @@ README
 
 The corresponding continuous / unrounded values are
 
-$$
-C^{\mathrm{cont}}\_{\mathrm{std}}(4,1)\approx 901.3407008548,
+$$C^{\mathrm{cont}}_{\mathrm{std}}(4,1)\approx 901.3407008548,
 \qquad
-C^{\mathrm{cont}}\_{\mathrm{snake}}(4,1)\approx 869.3761304268.
-$$
+C^{\mathrm{cont}}_{\mathrm{snake}}(4,1)\approx 869.3761304268.$$
 
 ## 6) Tight bounds and asymptotics
 
 For $w=1$, the total number of scalar reads is
 
-$$
-2n^3 + 2n^2(n-1)=4n^3-2n^2,
-$$
+$$2n^3 + 2n^2(n-1)=4n^3-2n^2,$$
 
 so
 
-$$
-0\le C^{\mathrm{disc}}\_{\mathrm{std}}(n,1)-C^{\mathrm{cont}}\_{\mathrm{std}}(n,1)<4n^3-2n^2,
-$$
+$$0\le C^{\mathrm{disc}}_{\mathrm{std}}(n,1)-C^{\mathrm{cont}}_{\mathrm{std}}(n,1)<4n^3-2n^2,$$
 
-$$
-0\le C^{\mathrm{disc}}\_{\mathrm{snake}}(n,1)-C^{\mathrm{cont}}\_{\mathrm{snake}}(n,1)<4n^3-2n^2.
-$$
+$$0\le C^{\mathrm{disc}}_{\mathrm{snake}}(n,1)-C^{\mathrm{cont}}_{\mathrm{snake}}(n,1)<4n^3-2n^2.$$
 
 For $w$-byte scalars, multiply the RHS by $w$.
 
 The leading asymptotics are
 
-$$
-C^{\mathrm{cont}}\_{\mathrm{std}}(n,1)=\sqrt{3}\,n^4+O(n^{7/2}),
+$$C^{\mathrm{cont}}_{\mathrm{std}}(n,1)=\sqrt{3}\,n^4+O(n^{7/2}),
 \qquad
-C^{\mathrm{cont}}\_{\mathrm{snake}}(n,1)=\frac{2\sqrt{5}}{3}\,n^4+O(n^{7/2}),
-$$
+C^{\mathrm{cont}}_{\mathrm{snake}}(n,1)=\frac{2\sqrt{5}}{3}\,n^4+O(n^{7/2}),$$
 
 and the discrete costs have the same leading terms, since the discrete-continuous gap is only $O(n^3)$.
 
 So asymptotically, snake order improves the dominant term by the factor
 
-$$
-\frac{ \frac{2\sqrt5}{3} }{\sqrt3}
+$$\frac{ \frac{2\sqrt5}{3} }{\sqrt3}
 =\frac{2\sqrt5}{3\sqrt3}
-\approx 0.8607.
-$$
+\approx 0.8607.$$
 
 One nice takeaway: **snake changes only the $B$-side leading term; the $A$-side formula is identical to standard row-major `i-j-k`.**
 
@@ -332,40 +278,34 @@ Below is the rigorous algebraic trace of your proxy-based tracer, the exact form
 
 ### 1. Exact Formulas for the Proxy Tracer ($i-j-k$ loop)
 
-Your regular tracer builds its LRU stack dynamically. Because of the $\lceil\sqrt{d}\rceil$ step function, a single continuous polynomial is impossible, but the cost can be expressed exactly through the variable depths. The total ByteDMD cost is $C\_{total} = C\_{add} + C\_A + C\_B$.
+Your regular tracer builds its LRU stack dynamically. Because of the $\lceil\sqrt{d}\rceil$ step function, a single continuous polynomial is impossible, but the cost can be expressed exactly through the variable depths. The total ByteDMD cost is $C_{total} = C_{add} + C_A + C_B$.
 
-**1. Accumulation Cost ($C\_{add}$):**
+**1. Accumulation Cost ($C_{add}$):**
 In standard Python, `sum()` or a naive loop starts with an untracked primitive `0`. For $k=0$, evaluating `0 + product` only prices the read of the product (depth 1, cost 1). For $k > 0$, `running_sum + product` prices the previous sum (depth 4) and the new product (depth 1), yielding $\lceil\sqrt{4}\rceil + \lceil\sqrt{1}\rceil = 3$.
 
-$$
- C\_{add} = \sum\_{i=0}^{N-1}\sum\_{j=0}^{N-1} \Big( 1 + 3(N-1) \Big) = \mathbf{3N^3 - 2N^2} 
-$$
+$$C_{add} = \sum_{i=0}^{N-1}\sum_{j=0}^{N-1} \Big( 1 + 3(N-1) \Big) = \mathbf{3N^3 - 2N^2}$$
 
-**2. Read Depths for Matrix A ($C\_A$):**
-Elements of row $A\_i$ are cached and reused across the inner loops. The stack depth spikes on the first column access ($j=0$) and stabilizes immediately for the rest.
-$$ D\_A(i, j, k) = \begin{cases}
+**2. Read Depths for Matrix A ($C_A$):**
+Elements of row $A_i$ are cached and reused across the inner loops. The stack depth spikes on the first column access ($j=0$) and stabilizes immediately for the rest.
+$$D_A(i, j, k) = \begin{cases}
 2N^2(i+1) + 2k & \text{if } j = 0 \text{ (Cold start)} \
 4N - 1 & \text{if } j > 0 \text{ (Cached reuse)}
-\end{cases} $$
+\end{cases}$$
 
-**3. Read Depths for Matrix B ($C\_B$):**
+**3. Read Depths for Matrix B ($C_B$):**
 Matrix $B$ suffers from massive cache thrashing as it is read column-by-column. The first row iteration ($i=0$) drags elements from their initial call-order conditions. Subsequent row iterations ($i>0$) hit a "steady state" where $B$'s elements are buried under a highly predictable layer of intermediate variables:
 
-$$
- D\_B(i=0, j, k) = N^2 + N + j(2N+k) + k(3-N) 
-$$
+$$D_B(i=0, j, k) = N^2 + N + j(2N+k) + k(3-N)$$
 
-$$ D\_B(i>0, j, k) = \begin{cases}
+$$D_B(i>0, j, k) = \begin{cases}
 3N^2 + N + k - 2 & \text{if } j = 0 \
 3N^2 + 2N - 2 & \text{if } 0 < j < N-1 \
 3N^2 + 2N - 3 - k & \text{if } j = N-1
-\end{cases} $$
+\end{cases}$$
 
 The exact cost evaluates these depths using your square-root pricing:
 
-$$
- C\_{total} = 3N^3 - 2N^2 + \sum\_{i=0}^{N-1} \sum\_{j=0}^{N-1} \sum\_{k=0}^{N-1} \left( \lceil \sqrt{D\_A} \rceil + \lceil \sqrt{D\_B} \rceil \right) 
-$$
+$$C_{total} = 3N^3 - 2N^2 + \sum_{i=0}^{N-1} \sum_{j=0}^{N-1} \sum_{k=0}^{N-1} \left( \lceil \sqrt{D_A} \rceil + \lceil \sqrt{D_B} \rceil \right)$$
 
 *(Empirical verify: For $N=4$, this exact formula outputs $981$. Depending on if you use NumPy arrays or pure lists, instantiation order shifts the exact scalar output in your script between $948$ and $1017$, but it strictly follows these derived depths).*
 
@@ -380,13 +320,9 @@ By taking the continuous integrals of the summations above (bounding the fractio
 
 This gives a tight bounding polynomial defining your tracer's $\mathcal{O}(N^4)$ complexity:
 
-$$
- \text{Lower Bound:} \quad \mathbf{\sqrt{3}N^4 + \left(2 + \frac{2\sqrt{2}}{3}\right)N^{3.5} + 3N^3 - 2N^2} \le \mathcal{C} 
-$$
+$$\text{Lower Bound:} \quad \mathbf{\sqrt{3}N^4 + \left(2 + \frac{2\sqrt{2}}{3}\right)N^{3.5} + 3N^3 - 2N^2} \le \mathcal{C}$$
 
-$$
- \text{Upper Bound:} \quad \mathcal{C} \le \mathbf{\sqrt{3}N^4 + \left(2 + \frac{2\sqrt{2}}{3}\right)N^{3.5} + 5N^3} 
-$$
+$$\text{Upper Bound:} \quad \mathcal{C} \le \mathbf{\sqrt{3}N^4 + \left(2 + \frac{2\sqrt{2}}{3}\right)N^{3.5} + 5N^3}$$
 
 *(Note: Under ByteDMD, naive matmul is heavily penalized by the $\mathcal{O}(N^2)$ memory distance to stride vertically down the $B$ matrix, proving why `snake-j` and `tiled` perform better in your benchmarks).*
 
@@ -449,22 +385,22 @@ Your Python implementation deviates from the idealized theoretical model in your
 
 By rigorously tracking the NumPy C-loop logic through your `_Context` simultaneous pricing rules, the exact read depths ($D$) emerge with perfect deterministic predictability. Because $k=0$ is unrolled, there are exactly $N-1$ additions per cell.
 
-**Accumulation Cost:** $\mathcal{C}\_{add} = 3N^2(N-1)$
+**Accumulation Cost:** $\mathcal{C}_{add} = 3N^2(N-1)$
 
-**Matrix A Depths ($D\_A$):**
+**Matrix A Depths ($D_A$):**
 A highly efficient "hot cache" forms. Elements jump precisely between an initial dynamically scaling cold depth and a tightly bounded constant depth:
-$$ D\_A(i, j, k) = \begin{cases}
-2N^2 + i(2N^2 - N) + (2k-1)\delta\_{k>0} & \text{if } j = 0 \text{ (Cold start)} \
-4N - \delta\_{k=0} & \text{if } j > 0 \text{ (Hot cache)}
-\end{cases} $$
+$$D_A(i, j, k) = \begin{cases}
+2N^2 + i(2N^2 - N) + (2k-1)\delta_{k>0} & \text{if } j = 0 \text{ (Cold start)} \
+4N - \delta_{k=0} & \text{if } j > 0 \text{ (Hot cache)}
+\end{cases}$$
 
-**Matrix B Depths ($D\_B$):**
+**Matrix B Depths ($D_B$):**
 During the first row ($i=0$), elements are dragged from their raw call-order initializations *(see Mathematica code for the exact transient $i=0$ piecewise formula)*. For all subsequent operations ($i>0$), $B$'s elements are buried symmetrically under the exact layer of $A$, $B$, and uncollected dead temporaries, settling into a rigid steady state:
-$$ D\_B(i>0, j, k) = \begin{cases}
-3N^2 + k + 1 - \delta\_{k=0} & \text{if } j=0 \
-3N^2 + N + 1 - \delta\_{k=0} & \text{if } 0 < j < N-1 \
-3N^2 + N - k + \delta\_{k=0} & \text{if } j=N-1
-\end{cases} $$
+$$D_B(i>0, j, k) = \begin{cases}
+3N^2 + k + 1 - \delta_{k=0} & \text{if } j=0 \
+3N^2 + N + 1 - \delta_{k=0} & \text{if } 0 < j < N-1 \
+3N^2 + N - k + \delta_{k=0} & \text{if } j=N-1
+\end{cases}$$
 
 ---
 
@@ -477,8 +413,8 @@ Integrating the continuous limits of these piecewise polynomials yields the cont
 
 Because there are exactly $2N^3$ read events across the proxy arrays, the ceiling function $\lceil\sqrt{d}\rceil$ adds a discrete routing overhead strictly bounded between $0$ and $+1$ per read. To construct **100% exact, absolute tight bounds**, we can take the continuous (unrounded) nested sum over the exact depths. This mathematically perfectly bounds the integer ceiling offsets.
 
-- **Continuous Approximation:** $\mathcal{C}\_{approx} \approx \sqrt{3}N^4 + \left(2 + \frac{2\sqrt{2}}{3}\right)N^{3.5} + \mathcal{O}(N^3)$
-- **Exact Tight Lower Bound:** $L(N) = \text{Sum}\left( \sqrt{D\_A} + \sqrt{D\_B} \right) + 3N^2(N-1)$
+- **Continuous Approximation:** $\mathcal{C}_{approx} \approx \sqrt{3}N^4 + \left(2 + \frac{2\sqrt{2}}{3}\right)N^{3.5} + \mathcal{O}(N^3)$
+- **Exact Tight Lower Bound:** $L(N) = \text{Sum}\left( \sqrt{D_A} + \sqrt{D_B} \right) + 3N^2(N-1)$
 - **Exact Tight Upper Bound:** $U(N) = L(N) + 2N^3$
 
 *(For N=4, this bounds the exact score of 948 firmly between 901 and 1029).*
@@ -595,7 +531,7 @@ Because the ByteDMD computation model specifies that writes are free but push ou
 
 ### 1. Closed-Form Continuous Cost for Normal Order (`i-j-k`)
 
-In the standard `i-j-k` algorithm, the leading data movement cost comes from repeatedly accessing matrix $B$. For an element $B\_{kj}$, we calculate its stack depth between its read in row $i-1$ and its next read in row $i$:
+In the standard `i-j-k` algorithm, the leading data movement cost comes from repeatedly accessing matrix $B$. For an element $B_{kj}$, we calculate its stack depth between its read in row $i-1$ and its next read in row $i$:
 
 - **Stack Depth ($d$):** Between the two reads, the $j$-loop finishes the remaining columns of row $i-1$ and starts the first columns of row $i$. These column sets are disjoint, meaning the inner loop sweeps through exactly $N$ unique columns of $B$, putting $N^2$ unique elements of $B$ onto the stack. Furthermore, across these $N$ columns, the inner loop computes $N$ distinct dot products. Each product creates $N$ temporary variables for multiplication and $N$ temporary variables for addition.
 - This leaves exactly $2N^2$ temporary dead variables on the stack.
@@ -603,9 +539,7 @@ In the standard `i-j-k` algorithm, the leading data movement cost comes from rep
 
 Integrating this depth over the $N^3$ reads of $B$ gives the closed-form leading term:
 
-$$
-C\_{\text{normal}}(N) \approx \sum\_{i,j,k} \sqrt{3N^2} \approx \mathbf{\sqrt{3}N^4}
-$$
+$$C_{\text{normal}}(N) \approx \sum_{i,j,k} \sqrt{3N^2} \approx \mathbf{\sqrt{3}N^4}$$
 
 *(Note: Accessing matrix $A$ adds a lower-order $2N^{3.5}$ term).*
 
@@ -613,15 +547,13 @@ $$
 
 Snake order reverses the direction of the $j$-loop on alternating rows.
 
-- **Stack Depth ($d$):** When moving from a forward row to a backward row, the traversal reverses. If an element $B\_{kj}$ is $x$ columns away from the "turn-around" point, the number of columns processed between its consecutive accesses is exactly $2x$.
+- **Stack Depth ($d$):** When moving from a forward row to a backward row, the traversal reverses. If an element $B_{kj}$ is $x$ columns away from the "turn-around" point, the number of columns processed between its consecutive accesses is exactly $2x$.
 - The stack must absorb $xN$ unique elements of $B$, plus $2xN$ temporaries from the previous row, and $2xN$ temporaries from the current row. The depth drops to a linear profile: $d \approx \mathbf{5Nx}$.
 - Since the distance $x$ uniformly covers the domain $[0, N-1]$ during every row transition, we integrate this triangular depth profile:
 
-$$
-C\_{\text{snake}}(N) \approx N^2 \int\_{0}^{N} \sqrt{5Nx} \ dx = N^2 \sqrt{5N} \left( \frac{2}{3} N^{1.5} \right) = \mathbf{\frac{2\sqrt{5}}{3} N^4}
-$$
+$$C_{\text{snake}}(N) \approx N^2 \int_{0}^{N} \sqrt{5Nx} \ dx = N^2 \sqrt{5N} \left( \frac{2}{3} N^{1.5} \right) = \mathbf{\frac{2\sqrt{5}}{3} N^4}$$
 
-**Conclusion:** Simply snake-ordering the loop analytically drops the routing constant from $\sqrt{3} \approx 1.732$ to $\frac{2\sqrt{5}}{3} \approx 1.491$, guaranteeing a strict **$\sim 14\%$ reduction** in asymptotic data movement.
+**Conclusion:** Simply snake-ordering the loop analytically drops the routing constant from $\sqrt{3} \approx 1.732$ to $\frac{2\sqrt{5}}{3} \approx 1.491$, guaranteeing a strict **$\sim 14%$ reduction** in asymptotic data movement.
 
 ---
 
@@ -720,29 +652,25 @@ Assuming an $N \times N$ matrix $A$ and an $N$-vector $x$ are pushed to the stac
 
 **Matrix-Vector (`matvec`, row-major traversal, $y = A x$):**
 
-$$
- C\_{\text{matvec}}(N) = 3N(N-1) + \sum\_{i=0}^{N-1} \sum\_{j=0}^{N-1} \left( \left\lceil \sqrt{D\_A(i, j)} \right\rceil + \left\lceil \sqrt{D\_x(i, j)} \right\rceil \right) 
-$$
+$$C_{\text{matvec}}(N) = 3N(N-1) + \sum_{i=0}^{N-1} \sum_{j=0}^{N-1} \left( \left\lceil \sqrt{D_A(i, j)} \right\rceil + \left\lceil \sqrt{D_x(i, j)} \right\rceil \right)$$
 
-- **Matrix Depths:** $D\_A(i, j) = N^2 + N + i(2N - 1) + \max(0, 2j - 1)$
+- **Matrix Depths:** $D_A(i, j) = N^2 + N + i(2N - 1) + \max(0, 2j - 1)$
 - **Vector Depths:**
 
-  - *Row 0:* $D\_x(0, 0) = N$, and $D\_x(0, j) = N + 3j - 1$
-  - *Rows $\ge 1$:* $D\_x(i, 0) = 4N - 2$, and $D\_x(i, j) = 4N - 1$
+  - *Row 0:* $D_x(0, 0) = N$, and $D_x(0, j) = N + 3j - 1$
+  - *Rows $\ge 1$:* $D_x(i, 0) = 4N - 2$, and $D_x(i, j) = 4N - 1$
 
 *(Evaluating this sum for $N=4$ gives exactly **194**, matching your benchmark).*
 
 **Vector-Matrix (`vecmat`, column-major traversal, $y = x^T A$):**
 
-$$
- C\_{\text{vecmat}}(N) = 3N(N-1) + \sum\_{j=0}^{N-1} \sum\_{i=0}^{N-1} \left( \left\lceil \sqrt{D\_A(i, j)} \right\rceil + \left\lceil \sqrt{D\_x(i, j)} \right\rceil \right) 
-$$
+$$C_{\text{vecmat}}(N) = 3N(N-1) + \sum_{j=0}^{N-1} \sum_{i=0}^{N-1} \left( \left\lceil \sqrt{D_A(i, j)} \right\rceil + \left\lceil \sqrt{D_x(i, j)} \right\rceil \right)$$
 
-- **Matrix Depths:** $D\_A(i, j) = N^2 + N + j(2N - 1) + \max(0, 2i - 1) - i(N - j - 1)$
+- **Matrix Depths:** $D_A(i, j) = N^2 + N + j(2N - 1) + \max(0, 2i - 1) - i(N - j - 1)$
 - **Vector Depths:**
 
-  - *Col 0:* $D\_x(0, 0) = N$, and $D\_x(i, 0) = N + 3i - 1$
-  - *Cols $\ge 1$:* $D\_x(0, j) = 4N - 2$, and $D\_x(i, j) = 4N - 1$
+  - *Col 0:* $D_x(0, 0) = N$, and $D_x(i, 0) = N + 3i - 1$
+  - *Cols $\ge 1$:* $D_x(0, j) = 4N - 2$, and $D_x(i, j) = 4N - 1$
 
 *(Evaluating this sum for $N=4$ gives exactly **191**, matching your benchmark).*
 
@@ -756,17 +684,13 @@ By converting the exact depth progressions into double Riemann integrals (e.g. b
 
 **Matvec Tight Bound:**
 
-$$
- \lfloor \mathbf{1.3987} N^3 + 2N^{2.5} + 2N^2 \rfloor \le C\_{\text{matvec}}(N) \le \lceil \mathbf{1.3987} N^3 + 2N^{2.5} + 5N^2 \rceil 
-$$
+$$\lfloor \mathbf{1.3987} N^3 + 2N^{2.5} + 2N^2 \rfloor \le C_{\text{matvec}}(N) \le \lceil \mathbf{1.3987} N^3 + 2N^{2.5} + 5N^2 \rceil$$
 
 *(where the coefficient is exactly $\frac{3\sqrt{3}-1}{3}$)*
 
 **Vecmat Tight Bound:**
 
-$$
- \lfloor \mathbf{1.2869} N^3 + 2N^{2.5} + 2N^2 \rfloor \le C\_{\text{vecmat}}(N) \le \lceil \mathbf{1.2869} N^3 + 2N^{2.5} + 5N^2 \rceil 
-$$
+$$\lfloor \mathbf{1.2869} N^3 + 2N^{2.5} + 2N^2 \rfloor \le C_{\text{vecmat}}(N) \le \lceil \mathbf{1.2869} N^3 + 2N^{2.5} + 5N^2 \rceil$$
 
 *(where the coefficient is exactly $\frac{40}{9} + 2\sqrt{3} \ln(3 - \frac{3\sqrt{3}}{2})$)*
 
@@ -847,7 +771,7 @@ In traditional Big-O analysis, Strassen's algorithm is faster because it reduces
 Under the ByteDMD model:
 
 1. **Additions aren't free:** An addition requires reading operands from memory just like a multiplication does. By trading multiplications for additions, Strassen significantly increases the total number of memory reads.
-2. **LRU Cache Thrashing:** Strassen achieves its FLOP count by recursively computing temporary intermediate sub-matrices (e.g., $M\_1 \dots M\_7$). Every time a new intermediate array is created and pushed to the top of the stack, it violently shoves the original elements of $A$ and $B$ down to the bottom. By the time the algorithm needs to combine the submatrices to form the final $C$ matrix, it pays massive $\sqrt{depth}$ penalties to fetch them back.
+2. **LRU Cache Thrashing:** Strassen achieves its FLOP count by recursively computing temporary intermediate sub-matrices (e.g., $M_1 \dots M_7$). Every time a new intermediate array is created and pushed to the top of the stack, it violently shoves the original elements of $A$ and $B$ down to the bottom. By the time the algorithm needs to combine the submatrices to form the final $C$ matrix, it pays massive $\sqrt{depth}$ penalties to fetch them back.
 
 ### 3. Why doesn't `test_matmul4_ikj` improve on `test_matmul4`?
 
@@ -1132,7 +1056,7 @@ Here is a complete asymptotic analysis comparing the computational (FLOP) costs 
 
 - **FLOPs** measure raw arithmetic time complexity, treating memory as completely flat and "free."
 - **ByteDMD** models the reality of the "Memory Wall" across a continuous hierarchy. It treats memory as an LRU stack where reading a byte at depth $d$ costs $\lceil\sqrt{d}\rceil$.
-- **Fixed Data Type Implication:** If we fix the scalar data type to $w$ bytes (e.g., $w=4$ for `float32`), an element at element-depth $k$ occupies byte-depths from $w \cdot k$ to $w \cdot (k+1)$. The cost to read this element is $\sum\_{i=1}^w \sqrt{w \cdot k - i} \approx w \sqrt{wk} = w^{1.5} \sqrt{k}$. Because $w^{1.5}$ is a constant, **ByteDMD scales exactly asymptotically with the element-wise Data Movement Distance (DMD)**. This allows us to cleanly simplify the math by tracking matrix elements.
+- **Fixed Data Type Implication:** If we fix the scalar data type to $w$ bytes (e.g., $w=4$ for `float32`), an element at element-depth $k$ occupies byte-depths from $w \cdot k$ to $w \cdot (k+1)$. The cost to read this element is $\sum_{i=1}^w \sqrt{w \cdot k - i} \approx w \sqrt{wk} = w^{1.5} \sqrt{k}$. Because $w^{1.5}$ is a constant, **ByteDMD scales exactly asymptotically with the element-wise Data Movement Distance (DMD)**. This allows us to cleanly simplify the math by tracking matrix elements.
 
 ---
 
@@ -1173,18 +1097,18 @@ Standard recursive divide-and-conquer effectively acts as "multi-level" tiling. 
   At any recursion level $S$, the memory footprint (working set) of the subproblem is strictly $O(S^2)$. Because operations are performed locally, the maximum reuse distance for any element actively worked on within this call is bounded by $S^2$. The algorithm makes $O(S^2)$ memory reads at this level.
   With 8 recursive calls, the data movement recurrence relation is:
   $C(S) = 8 C(S/2) + \Theta(S^2 \sqrt{S^2}) = 8 C(S/2) + \Theta(S^3)$
-  By the Master Theorem, because $\log\_2 8 = 3$, all levels contribute equally to data movement. Summing across the $\log\_2 N$ levels yields exactly **$\Theta(N^3 \log N)$**.
+  By the Master Theorem, because $\log_2 8 = 3$, all levels contribute equally to data movement. Summing across the $\log_2 N$ levels yields exactly **$\Theta(N^3 \log N)$**.
 
 #### C. Strassen's Algorithm
 
 Strassen computes the result using 7 recursive multiplications, but requires $\Theta(S^2)$ matrix additions at every level $S$.
 
-- **FLOPs:** $\Theta(N^{\log\_2 7}) \approx \mathbf{\Theta(N^{2.81})}$
+- **FLOPs:** $\Theta(N^{\log_2 7}) \approx \mathbf{\Theta(N^{2.81})}$
 - **ByteDMD:** $\mathbf{\Theta(N^3)}$
   Assuming optimal memory management (a LIFO stack), the intermediate additions operate within an $O(S^2)$ footprint, so their access cost is $\sqrt{S^2} = S$.
   The recurrence relation for Strassen's ByteDMD is:
   $C(S) = 7 C(S/2) + \Theta(S^2 \sqrt{S^2}) = 7 C(S/2) + \Theta(S^3)$
-  By the Master Theorem, because $\log\_2 7 < 3$, the cost geometrically decreases down the tree. The data movement is entirely dominated by the massive matrix additions at the *root* of the tree ($S=N$). Thus, the ByteDMD evaluates strictly to **$\Theta(N^3)$**.
+  By the Master Theorem, because $\log_2 7 < 3$, the cost geometrically decreases down the tree. The data movement is entirely dominated by the massive matrix additions at the *root* of the tree ($S=N$). Thus, the ByteDMD evaluates strictly to **$\Theta(N^3)$**.
 
 ---
 
@@ -1204,7 +1128,7 @@ The authors provide a mathematically rigorous framework, and their analysis of T
 To model garbage collection / temporary reuse (Section 5.5.4), the authors correctly note that the global memory footprint is capped at $\Theta(N^2)$. To apply this, they bounded their reuse distances inside their integrals using the formula: $\min(\text{Unmanaged Distance}, N^2)$.
 
 - For RMM, they evaluated the sum of $\sqrt{\min(S^3, N^2)}$, which mathematically peaks at exactly $S = N^{2/3}$, yielding precisely their $\Theta(N^{10/3}) = \Theta(N^{3.33})$ bound.
-- For Strassen, they evaluated $\sqrt{\min(S^{\log\_2 7}, N^2)}$, yielding exactly their $\Theta(N^{3.23})$ bound.
+- For Strassen, they evaluated $\sqrt{\min(S^{\log_2 7}, N^2)}$, yielding exactly their $\Theta(N^{3.23})$ bound.
 
 **Why this is incorrect:**
 They conflated a *global* limit with a *local* property. If an algorithm never frees memory, allocating $S \times S$ temporaries across a recursion tree yields a cumulative allocation volume of $O(S^3)$. The authors substituted this $O(S^3)$ volume as their "Unmanaged Distance." By applying $\min(S^3, N^2)$, they assumed that a memory pool acts by continually issuing *unique, brand-new* memory addresses until it hits the global $N^2$ limit before recycling.
@@ -1239,13 +1163,11 @@ To provide a perfectly precise, non-asymptotic analysis, we must first establish
 
 1. **Realistic Leaf Size ($L = 64$):** In practice, Strassen's algorithm is never recursed down to $1 \times 1$ scalars because the memory overhead of matrix additions easily outweighs the computational savings. A standard crossover point used in highly-tuned production libraries (where Strassen falls back to Naive/Tiled matmul) is $L = 64$.
 2. **Fixed Data Type ($w = 4$ bytes):** We assume 32-bit floating-point numbers (`float32`), so each element occupies exactly $4$ bytes.
-3. **ByteDMD Cost Function $C\_4(d)$:** The ByteDMD model states that reading a byte at depth $x$ costs $\lceil \sqrt{x} \rceil$. Reading a 4-byte element at an LRU element-depth of $d$ spans byte-depths $4d-3$ to $4d$. Therefore, the exact discrete cost to read one element is:
+3. **ByteDMD Cost Function $C_4(d)$:** The ByteDMD model states that reading a byte at depth $x$ costs $\lceil \sqrt{x} \rceil$. Reading a 4-byte element at an LRU element-depth of $d$ spans byte-depths $4d-3$ to $4d$. Therefore, the exact discrete cost to read one element is:
 
    
 
-$$
-C\_4(d) = \lceil\sqrt{4d-3}\rceil + \lceil\sqrt{4d-2}\rceil + \lceil\sqrt{4d-1}\rceil + \lceil\sqrt{4d}\rceil
-$$
+$$C_4(d) = \lceil\sqrt{4d-3}\rceil + \lceil\sqrt{4d-2}\rceil + \lceil\sqrt{4d-1}\rceil + \lceil\sqrt{4d}\rceil$$
 
 4. **Factor of 4 Sizes ($k$):** We parameterize the matrix dimension as $N = 64 \cdot 4^k$ for integers $k \ge 0$. (This implies it takes $2k$ steps of divide-by-2 recursion to hit the $64 \times 64$ leaf).
 
@@ -1258,29 +1180,21 @@ $$
 **Naive Matrix Multiplication:**
 A standard row-major $N \times N$ matrix multiplication performs $N$ multiplications and $N-1$ additions per output element.
 
-$$
-FLOP\_{naive}(N) = N^2(2N - 1) = 2N^3 - N^2
-$$
+$$FLOP_{naive}(N) = N^2(2N - 1) = 2N^3 - N^2$$
 
 Substituting $N = 64 \cdot 4^k$, the exact factor-of-4 formula is:
 
-$$
-FLOP\_{naive}(64 \cdot 4^k) = \mathbf{524,288 \cdot 64^k - 4,096 \cdot 16^k}
-$$
+$$FLOP_{naive}(64 \cdot 4^k) = \mathbf{524,288 \cdot 64^k - 4,096 \cdot 16^k}$$
 
 **Strassen's Algorithm:**
 At any matrix size $S > 64$, Strassen performs 7 multiplications of size $S/2$ and exactly 18 matrix additions of size $S/2$. The recurrence is exactly $F(S) = 7F(S/2) + 18(S/2)^2$.
-Solving this exact recurrence mathematically from $N$ down to the base case $F\_{naive}(64) = 520,192$ yields:
+Solving this exact recurrence mathematically from $N$ down to the base case $F_{naive}(64) = 520,192$ yields:
 
-$$
-FLOP\_{str}(N) = 7^{\log\_2(N/64)} \Big( F\_{naive}(64) + 6(64)^2 \Big) - 6N^2
-$$
+$$FLOP_{str}(N) = 7^{\log_2(N/64)} \Big( F_{naive}(64) + 6(64)^2 \Big) - 6N^2$$
 
-Substituting $N = 64 \cdot 4^k$, where $7^{\log\_2(4^k)} = 7^{2k} = 49^k$, the formula cleanly resolves to:
+Substituting $N = 64 \cdot 4^k$, where $7^{\log_2(4^k)} = 7^{2k} = 49^k$, the formula cleanly resolves to:
 
-$$
-FLOP\_{str}(64 \cdot 4^k) = \mathbf{544,768 \cdot 49^k - 24,576 \cdot 16^k}
-$$
+$$FLOP_{str}(64 \cdot 4^k) = \mathbf{544,768 \cdot 49^k - 24,576 \cdot 16^k}$$
 
 *(Notice how Strassen scales computationally by strictly $49^k$ ($N^{2.81}$), beautifully eliminating the $64^k$ ($N^3$) scaling).*
 
@@ -1289,52 +1203,42 @@ $$
 ### 3. Exact Non-Asymptotic ByteDMD Formulas
 
 **Naive Matrix Multiplication:**
-Based on the exact LRU-trace of standard $i-j-k$ loops derived in the Smith et al. paper, we substitute our 4-byte discrete cost function $C\_4$. The innermost loop reuses matrix $A$ across rows, and matrix $B$ across the entirety of the matrix. The exact discrete ByteDMD is:
+Based on the exact LRU-trace of standard $i-j-k$ loops derived in the Smith et al. paper, we substitute our 4-byte discrete cost function $C_4$. The innermost loop reuses matrix $A$ across rows, and matrix $B$ across the entirety of the matrix. The exact discrete ByteDMD is:
 
-$$
-D\_{naive}(N) = N^3 \cdot C\_4(2N) + (N^3 - 2N^2 + N) \cdot C\_4(N^2+2N) + \sum\_{i=1}^{N-1} 2N \cdot C\_4(N^2+N+i) + N \cdot C\_4(N^2+N)
-$$
+$$D_{naive}(N) = N^3 \cdot C_4(2N) + (N^3 - 2N^2 + N) \cdot C_4(N^2+2N) + \sum_{i=1}^{N-1} 2N \cdot C_4(N^2+N+i) + N \cdot C_4(N^2+N)$$
 
 *(For our leaf size $N=64$, this exact discrete summation evaluates to strictly **160,431,744** ByteDMD penalties).*
 
 **Strassen's Algorithm:**
 We assume optimal LIFO memory-pool management for temporaries. The 18 matrix additions at size $S$ read two $(S/2) \times (S/2)$ matrices sequentially out of a tightly managed footprint of size $3(S/2)^2 = 0.75 S^2$.
-Because 18 additions read a total of $9S^2$ elements at this bounded depth, the data movement incurred by the additions at level $S$ is exactly $9S^2 \cdot C\_4(0.75 S^2)$.
+Because 18 additions read a total of $9S^2$ elements at this bounded depth, the data movement incurred by the additions at level $S$ is exactly $9S^2 \cdot C_4(0.75 S^2)$.
 Unrolling the recurrence $D(S) = 7D(S/2) + \text{Additions}(S)$ over $2k$ levels down to the leaf yields the exact discrete summation:
 
-$$
-D\_{str}(64 \cdot 4^k) = 49^k \cdot D\_{naive}(64) + \sum\_{j=0}^{2k-1} 7^j \cdot 9\left(\frac{64 \cdot 4^k}{2^j}\right)^2 \cdot C\_4\left( 0.75 \left(\frac{64 \cdot 4^k}{2^j}\right)^2 \right)
-$$
+$$D_{str}(64 \cdot 4^k) = 49^k \cdot D_{naive}(64) + \sum_{j=0}^{2k-1} 7^j \cdot 9\left(\frac{64 \cdot 4^k}{2^j}\right)^2 \cdot C_4\left( 0.75 \left(\frac{64 \cdot 4^k}{2^j}\right)^2 \right)$$
 
 ---
 
 ### 4. The Continuous Closed-Form (Proving the Memory Wall)
 
 To understand exactly why Strassen fails relative to the Memory Wall, we can look at the continuous approximation, where we drop the discrete ceiling operator $\lceil \cdot \rceil$.
-Because the integral of the square root across a 4-byte block simplifies to $\int\_{4d-4}^{4d} \sqrt{x} dx \approx 8\sqrt{d}$, we approximate $C\_4(d) \approx 8\sqrt{d}$.
+Because the integral of the square root across a 4-byte block simplifies to $\int_{4d-4}^{4d} \sqrt{x} dx \approx 8\sqrt{d}$, we approximate $C_4(d) \approx 8\sqrt{d}$.
 
 - The ByteDMD cost of additions at level $S$ becomes $9S^2 \cdot 8\sqrt{0.75 S^2} = 36\sqrt{3} S^3$.
 - The recurrence becomes exactly $D(S) = 7D(S/2) + 36\sqrt{3} S^3$.
 
 By unrolling this simplified recurrence, the summation transforms into a geometric series of powers of $(7/8)^j$. Solving this geometric sum mathematically yields a beautiful, exact algebraic formula for Strassen's Data Movement scaling:
 
-$$
-D\_{str}(64 \cdot 4^k) = \mathbf{ \underbrace{75,497,472 \sqrt{3} \cdot 64^k}\_{\text{The } \Theta(N^3) \text{ Penalty}} \;\;+\;\; \Big( D\_{naive}(64) - 75,497,472 \sqrt{3} \Big) \cdot 49^k }
-$$
+$$D_{str}(64 \cdot 4^k) = \mathbf{ \underbrace{75,497,472 \sqrt{3} \cdot 64^k}_{\text{The } \Theta(N^3) \text{ Penalty}} \;\;+\;\; \Big( D_{naive}(64) - 75,497,472 \sqrt{3} \Big) \cdot 49^k }$$
 
 Since $75,497,472 \sqrt{3} \approx 130,766,110$, the closed-form ByteDMD collapses cleanly to:
 
-$$
-D\_{str}(64 \cdot 4^k) \approx 130,766,110 \cdot 64^k + 29,665,634 \cdot 49^k
-$$
+$$D_{str}(64 \cdot 4^k) \approx 130,766,110 \cdot 64^k + 29,665,634 \cdot 49^k$$
 
 ### The Ultimate Mathematical Verdict
 
 Look closely at how the exact algebraic formulas are structured:
 
-$$
-(\text{Constant}) \cdot \mathbf{64^k} \;\;+\;\; (\text{Constant}) \cdot \mathbf{49^k}
-$$
+$$(\text{Constant}) \cdot \mathbf{64^k} \;\;+\;\; (\text{Constant}) \cdot \mathbf{49^k}$$
 
 In the exact FLOPs formula, the $64^k$ scaling ($N^3$) was completely eliminated. But in the exact ByteDMD formula, **the $64^k$ scaling is explicitly re-introduced with a massive leading constant.**
 
@@ -1373,23 +1277,17 @@ To clearly expose how the performance scales, we parameterize the matrix dimensi
 A standard naive multiplication performs exactly $2L^3 - L^2$ FLOPs at the leaf.
 Strassen splits the work into 7 multiplications and 18 matrix additions. The computational recurrence is $F(S) = 7F(S/2) + 18(S/2)^2$. Unrolling this geometric series down to level $k$ yields the exact general FLOP formula:
 
-$$
-FLOP\_{str}(L \cdot 2^k) = (2L^3 + 5L^2) \cdot 7^k - 6L^2 \cdot 4^k
-$$
+$$FLOP_{str}(L \cdot 2^k) = (2L^3 + 5L^2) \cdot 7^k - 6L^2 \cdot 4^k$$
 
 #### **B. ByteDMD (Data Movement)**
 
 **1. The Base Case (Naive MM):** Based on the $i-j-k$ loop trace from the original paper, the continuous data movement for the base case is bounded by capacity misses on matrix $B$ and row-recycles on $A$. Its continuous integration yields the Taylor expansion:
 
-$$
-D\_{naive}(L) \approx L^4 + \sqrt{2} L^{3.5} + L^3
-$$
+$$D_{naive}(L) \approx L^4 + \sqrt{2} L^{3.5} + L^3$$
 
 **2. The Closed-Form Recurrence:** The total ByteDMD recurrence is $D(S) = 7D(S/2) + 4.5 \sqrt{3} S^3$. Because $S^3$ scales by a factor of 8 at each level ($2^3 = 8$) while the branching factor is 7, the geometric summation $\sum 7^i \cdot 8^{k-i}$ precisely evaluates to $8(8^k - 7^k)$. Multiplying this by the addition penalty yields the exact continuous ByteDMD formula:
 
-$$
-DMD\_{str}(L \cdot 2^k) = \underbrace{36 \sqrt{3} L^3 \cdot 8^k}\_{\text{The } \Theta(N^3) \text{ Penalty}} \;\;+\;\; \Big[ D\_{naive}(L) - 36 \sqrt{3} L^3 \Big] \cdot 7^k
-$$
+$$DMD_{str}(L \cdot 2^k) = \underbrace{36 \sqrt{3} L^3 \cdot 8^k}_{\text{The } \Theta(N^3) \text{ Penalty}} \;\;+\;\; \Big[ D_{naive}(L) - 36 \sqrt{3} L^3 \Big] \cdot 7^k$$
 
 *(Note: $36\sqrt{3} \approx 62.3538$)*
 
@@ -1397,31 +1295,31 @@ $$
 
 ### 3. Exact Numbers for Several Leaf Sizes
 
-Let's evaluate these formulas for $L \in \{16, 32, 64\}$. Notice how the $8^k$ term scales as $\Theta(N^3)$, while the $7^k$ term scales as $\Theta(N^{2.81})$. *(We evaluate $D\_{naive}(L)$ using the exact continuous loop trace rather than the Taylor expansion to guarantee perfect precision).*
+Let's evaluate these formulas for $L \in {16, 32, 64}$. Notice how the $8^k$ term scales as $\Theta(N^3)$, while the $7^k$ term scales as $\Theta(N^{2.81})$. *(We evaluate $D_{naive}(L)$ using the exact continuous loop trace rather than the Taylor expansion to guarantee perfect precision).*
 
 #### **Scenario A: Leaf Size $L = 16$** (Small Cache / Over-Recursion)
 
 - $L^3 = 4,096$
-- $D\_{naive}(16) = 92,560$
+- $D_{naive}(16) = 92,560$
 - Strassen Overhead ($36\sqrt{3} L^3$) $\approx 255,401$
-- **$FLOP\_{str}(16 \cdot 2^k) = \mathbf{9,472 \cdot 7^k \;\;-\;\; 1,536 \cdot 4^k}$**
-- **$DMD\_{str}(16 \cdot 2^k) = \mathbf{255,401 \cdot 8^k \;\;-\;\; 162,841 \cdot 7^k}$**
+- **$FLOP_{str}(16 \cdot 2^k) = \mathbf{9,472 \cdot 7^k \;\;-\;\; 1,536 \cdot 4^k}$**
+- **$DMD_{str}(16 \cdot 2^k) = \mathbf{255,401 \cdot 8^k \;\;-\;\; 162,841 \cdot 7^k}$**
 
 #### **Scenario B: Leaf Size $L = 32$** (Medium Cache)
 
 - $L^3 = 32,768$
-- $D\_{naive}(32) = 1,342,492$
+- $D_{naive}(32) = 1,342,492$
 - Strassen Overhead ($36\sqrt{3} L^3$) $\approx 2,043,210$
-- **$FLOP\_{str}(32 \cdot 2^k) = \mathbf{70,656 \cdot 7^k \;\;-\;\; 6,144 \cdot 4^k}$**
-- **$DMD\_{str}(32 \cdot 2^k) = \mathbf{2,043,210 \cdot 8^k \;\;-\;\; 700,718 \cdot 7^k}$**
+- **$FLOP_{str}(32 \cdot 2^k) = \mathbf{70,656 \cdot 7^k \;\;-\;\; 6,144 \cdot 4^k}$**
+- **$DMD_{str}(32 \cdot 2^k) = \mathbf{2,043,210 \cdot 8^k \;\;-\;\; 700,718 \cdot 7^k}$**
 
 #### **Scenario C: Leaf Size $L = 64$** (Standard Industry Crossover Point)
 
 - $L^3 = 262,144$
-- $D\_{naive}(64) = 20,001,142$
+- $D_{naive}(64) = 20,001,142$
 - Strassen Overhead ($36\sqrt{3} L^3$) $\approx 16,345,682$
-- **$FLOP\_{str}(64 \cdot 2^k) = \mathbf{544,768 \cdot 7^k \;\;-\;\; 24,576 \cdot 4^k}$**
-- **$DMD\_{str}(64 \cdot 2^k) = \mathbf{16,345,682 \cdot 8^k \;\;+\;\; 3,655,460 \cdot 7^k}$**
+- **$FLOP_{str}(64 \cdot 2^k) = \mathbf{544,768 \cdot 7^k \;\;-\;\; 24,576 \cdot 4^k}$**
+- **$DMD_{str}(64 \cdot 2^k) = \mathbf{16,345,682 \cdot 8^k \;\;+\;\; 3,655,460 \cdot 7^k}$**
 
 ---
 
@@ -1436,7 +1334,7 @@ If you look strictly at the FLOP equations, the $8^k$ scaling factor (which repr
 Look at the ByteDMD equations. The geometric summation of reading and writing the 18 intermediate matrix additions forces the $8^k$ ($N^3$) term right back into existence. No matter what leaf size you choose, Strassen asymptotically degrades back to $O(N^3)$ under the weight of its own data movement.
 
 **3. The Magic of $L \approx 62$:**
-Look very closely at the **sign** of the $7^k$ term in the Data Movement formulas. The coefficient is exactly $\big[ D\_{naive}(L) - 36\sqrt{3} L^3 \big]$.
+Look very closely at the **sign** of the $7^k$ term in the Data Movement formulas. The coefficient is exactly $\big[ D_{naive}(L) - 36\sqrt{3} L^3 \big]$.
 
 - For $L=16$ and $L=32$, the coefficient is **negative**. Why? Because $L^4 < 62.35 L^3$. At these small leaf sizes, the data movement overhead of managing Strassen's intermediate matrix additions literally costs *more* than just letting the $O(N^4)$ Naive matrix multiplication grind through the cache. This is why you never recurse down to small blocks.
 - By solving $L^4 \approx 62.35 L^3$, we find the mathematical crossover point: **$L \approx 62.35$**.
@@ -1483,18 +1381,14 @@ Here is the exact mathematical comparison under the continuous ByteDMD model.
 
   
 
-$$
-FLOP\_{rmm}(k) = \mathbf{524,288 \cdot 8^k \;\;-\;\; 4,096 \cdot 4^k}
-$$
+$$FLOP_{rmm}(k) = \mathbf{524,288 \cdot 8^k \;\;-\;\; 4,096 \cdot 4^k}$$
 
 - **ByteDMD:** Even with no temporaries, RMM must swap quadrants of $A$, $B$, and $C$ in and out of the working cache between its 8 recursive calls. Assuming an optimal Morton Z-curve schedule, these transitions stream through a footprint of $0.75S^2$, incurring a continuous data movement penalty of $\approx 1.5\sqrt{3}S^3$ per level.
   Because the recurrence $D(S) = 8D(S/2) + cS^3$ branches by 8 while the volume shrinks by $2^3=8$, the overhead stacks up un-attenuated at every single level, growing exactly as **$\Theta(N^3 \log N)$**:
 
   
 
-$$
-DMD\_{rmm}(k) = 20,001,142 \cdot \mathbf{8^k} \;\;+\;\; 681,070 \cdot \mathbf{k \cdot 8^k}
-$$
+$$DMD_{rmm}(k) = 20,001,142 \cdot \mathbf{8^k} \;\;+\;\; 681,070 \cdot \mathbf{k \cdot 8^k}$$
 
 #### **B. Strassen's Algorithm (Memory-Managed)**
 
@@ -1502,18 +1396,14 @@ $$
 
   
 
-$$
-FLOP\_{str}(k) = \mathbf{544,768 \cdot 7^k \;\;-\;\; 24,576 \cdot 4^k}
-$$
+$$FLOP_{str}(k) = \mathbf{544,768 \cdot 7^k \;\;-\;\; 24,576 \cdot 4^k}$$
 
 - **ByteDMD:** The 18 matrix additions stream $9 S^2$ elements through a local memory pool of $0.75 S^2$, incurring a massive transition penalty of exactly $4.5\sqrt{3}S^3$ per level.
   However, the recurrence is $D(S) = 7D(S/2) + 4.5\sqrt{3}S^3$. Because the branching factor (7) is less than the volume reduction (8), the penalty geometrically decays. The geometric series converges strictly to an upper bound of **$\Theta(N^3)$**:
 
   
 
-$$
-DMD\_{str}(k) = 16,345,682 \cdot \mathbf{8^k} \;\;+\;\; 3,655,460 \cdot \mathbf{7^k}
-$$
+$$DMD_{str}(k) = 16,345,682 \cdot \mathbf{8^k} \;\;+\;\; 3,655,460 \cdot \mathbf{7^k}$$
 
 ---
 
@@ -1581,7 +1471,7 @@ Here is the exact mathematical reconciliation of his criticism, proving why the 
 
 Let’s do exactly what Smith demands and trace an element across multiple subtrees to find its true reuse distance.
 
-In a standard recursive matrix multiplication (`C += A @ B`), an element like $B\_{11}$ is used in two separate recursive branches at level $S$:
+In a standard recursive matrix multiplication (`C += A @ B`), an element like $B_{11}$ is used in two separate recursive branches at level $S$:
 
 1. **Call 1:** `C11 += A11 @ B11`
 2. **Call 5:** `C21 += A21 @ B11`
@@ -1591,9 +1481,9 @@ Between its use in Call 1 and Call 5, the processor must execute Calls 2, 3, and
 **But what is the actual LRU Reuse Distance across this gap?**
 By definition, the depth of an LRU stack is determined strictly by the number of **distinct memory locations** accessed, not the total number of accesses.
 
-While Calls 2, 3, and 4 execute $\Theta(S^3)$ operations, they exclusively read and write to sub-quadrants of the active $S \times S$ matrices ($A\_{12}, B\_{21}, C\_{11}, A\_{11}, B\_{12}, C\_{12}$, etc.). If the algorithm is performed in-place (or uses a strictly bounded LIFO stack for temporaries), the total, combined distinct memory footprint of those three intervening calls is exactly bounded by the size of the active subproblem: $\mathbf{\Theta(S^2)}$ elements.
+While Calls 2, 3, and 4 execute $\Theta(S^3)$ operations, they exclusively read and write to sub-quadrants of the active $S \times S$ matrices ($A_{12}, B_{21}, C_{11}, A_{11}, B_{12}, C_{12}$, etc.). If the algorithm is performed in-place (or uses a strictly bounded LIFO stack for temporaries), the total, combined distinct memory footprint of those three intervening calls is exactly bounded by the size of the active subproblem: $\mathbf{\Theta(S^2)}$ elements.
 
-You can loop over those same $\Theta(S^2)$ addresses a trillion times, and the LRU stack depth will never exceed $\Theta(S^2)$. Therefore, when Call 5 begins and asks for $B\_{11}$ again, the maximum reuse distance it has suffered across this massive execution gap is rigidly bounded by the spatial footprint of the subtree: **$\Theta(S^2)$**.
+You can loop over those same $\Theta(S^2)$ addresses a trillion times, and the LRU stack depth will never exceed $\Theta(S^2)$. Therefore, when Call 5 begins and asks for $B_{11}$ again, the maximum reuse distance it has suffered across this massive execution gap is rigidly bounded by the spatial footprint of the subtree: **$\Theta(S^2)$**.
 
 ### 2. The Recurrence Relation Perfectly Captures This Penalty
 
@@ -1606,11 +1496,9 @@ Now we calculate the exact ByteDMD penalty generated by pulling data across thes
 
 Smith's massive cross-subtree gaps are exactly where the $\Theta(S^3)$ additive penalty comes from! Because this $\Theta(S^3)$ penalty is generated at *every* level of the recursion tree, we plug it into the recurrence relation:
 
-$$
-D(S) = \underbrace{8 D(S/2)}\_{\text{The 8 sub-calls}} + \underbrace{\mathbf{\Theta(S^3)}}\_{\text{The cross-subtree jumps}}
-$$
+$$D(S) = \underbrace{8 D(S/2)}_{\text{The 8 sub-calls}} + \underbrace{\mathbf{\Theta(S^3)}}_{\text{The cross-subtree jumps}}$$
 
-By the Master Theorem, because the $S^3$ volume shrinks by a factor of 8 ($2^3$) while the tree branches by 8, the data movement penalty does not decay. It stacks up equally at every single depth of the tree. Summing $\Theta(S^3)$ across the $\log\_2 N$ levels yields exactly **$\Theta(N^3 \log N)$**.
+By the Master Theorem, because the $S^3$ volume shrinks by a factor of 8 ($2^3$) while the tree branches by 8, the data movement penalty does not decay. It stacks up equally at every single depth of the tree. Summing $\Theta(S^3)$ across the $\log_2 N$ levels yields exactly **$\Theta(N^3 \log N)$**.
 
 The $\log N$ multiplier is the direct mathematical manifestation of the exact cross-subtree jumps he pointed out.
 
@@ -1628,9 +1516,7 @@ The algorithm analyzed in the paper (`C11 = rmm(A11,B11) + rmm(A12,B21)`) alloca
 **2. With Memory Management (Section 5.5.4):**
 To model a proper allocator that frees and reuses temporaries, Smith correctly noted that memory management caps the maximum global memory limit to $4N^2$. To update his formulas, he wrapped his unmanaged $\Theta(S^3)$ reuse distance inside a global min-function:
 
-$$
-\text{Reuse Distance} = \min(\mathbf{S^3}, 4N^2)
-$$
+$$\text{Reuse Distance} = \min(\mathbf{S^3}, 4N^2)$$
 
 By integrating $\sqrt{\min(S^3, 4N^2)}$ across the recursion tree, his formula mathematically peaked at exactly $S = N^{2/3}$, which evaluated to $N^{10/3} = N^{3.33}$.
 
@@ -1642,17 +1528,13 @@ A true memory-managed system (like a LIFO call stack) recycles *local* addresses
 **The Proof:**
 If you take his exact mathematical integral for the data movement cost across the tree:
 
-$$
- DMD \approx \sum\_{S} \left(\frac{N}{S}\right)^3 S^2 \sqrt{\text{Reuse Distance}} 
-$$
+$$DMD \approx \sum_{S} \left(\frac{N}{S}\right)^3 S^2 \sqrt{\text{Reuse Distance}}$$
 
 And replace his global cap $\min(S^3, 4N^2)$ with the true local LRU distinct footprint $S^2$:
 
-$$
- DMD \approx \sum\_{S} \left(\frac{N}{S}\right)^3 S^2 \sqrt{\mathbf{S^2}} \implies \sum\_{S} \left(\frac{N}{S}\right)^3 S^3 = \sum\_{S} N^3 
-$$
+$$DMD \approx \sum_{S} \left(\frac{N}{S}\right)^3 S^2 \sqrt{\mathbf{S^2}} \implies \sum_{S} \left(\frac{N}{S}\right)^3 S^3 = \sum_{S} N^3$$
 
-Because there are $\log\_2 N$ terms in the sum, **his own equation beautifully collapses back to $\mathbf{\Theta(N^3 \log N)}$**.
+Because there are $\log_2 N$ terms in the sum, **his own equation beautifully collapses back to $\mathbf{\Theta(N^3 \log N)}$**.
 
 ### The Verdict
 
@@ -1734,9 +1616,7 @@ If Wes used pure LRU, and Yaroslav uses pure LRU, how did Wes calculate $\Theta(
 
 When Wes attempted to model the memory-managed algorithm, he didn't introduce an "eviction" rule either. Instead, he took his unmanaged formulas and applied a mathematical ceiling based on the global footprint bound of $4N^2$:
 
-$$
- \text{Reuse Distance} = \min(\text{Unmanaged Distance}, \mathbf{4N^2}) 
-$$
+$$\text{Reuse Distance} = \min(\text{Unmanaged Distance}, \mathbf{4N^2})$$
 
 By doing this, Wes mathematically forced the stack depth to be bounded, but he applied the bound *globally*. As analyzed previously, applying a global $\min(\dots, 4N^2)$ bound inadvertently simulates a global Ring-Buffer (FIFO) Allocator that refuses to recycle an address until the entire global heap is exhausted.
 Had Wes mathematically modeled a LIFO stack allocator (which strictly bounds the local distance to $S^2$), he would have used $\min(\text{Distance}, S^2)$, and his integral would have collapsed perfectly to $\Theta(N^3 \log N)$ without changing a single rule of the LRU stack.
@@ -1922,7 +1802,7 @@ Perform a complete analysis of standard matrix multiplication, recursive matrix 
 
 This is a profound systems-level framing of the problem. By defining three exact mechanical strategies for memory management, we can mathematically prove exactly how software allocators warp the theoretical data movement bounds of algorithms.
 
-To provide exact, clean asymptotic formulas, we will evaluate the **Continuous ByteDMD model (bytes=1)**, where the cost to read a block of size $V$ starting at depth $D$ is the continuous integral $\int\_{D}^{D+V} \sqrt{x} \, dx \approx V\sqrt{D}$.
+To provide exact, clean asymptotic formulas, we will evaluate the **Continuous ByteDMD model (bytes=1)**, where the cost to read a block of size $V$ starting at depth $D$ is the continuous integral $\int_{D}^{D+V} \sqrt{x} \, dx \approx V\sqrt{D}$.
 
 We parameterize matrix dimensions as $N = 2^k$ with a base case of $1 \times 1$. Let $S$ be the matrix size at a given recursion level, and $M = S/2$ be the sub-quadrant size.
 
@@ -1950,9 +1830,7 @@ Because there are no temporaries to leak, punch holes in, or compact, **all thre
 
   
 
-$$
-D\_{naive}(N) = \int\_0^{N^3} \sqrt{N^2} \, dx = \mathbf{1.0 \cdot N^4}
-$$
+$$D_{naive}(N) = \int_0^{N^3} \sqrt{N^2} \, dx = \mathbf{1.0 \cdot N^4}$$
 
   *(Verdict: Memory management cannot save an algorithm whose fundamental traversal order causes raw capacity misses).*
 
@@ -1968,14 +1846,12 @@ Because nothing is freed, the total memory leaked by the 8 recursive calls and 4
 When the algorithm jumps between its recursive calls to fetch the parent matrices ($A$ and $B$), they have been pushed down by this massive leak.
 
 - **Cost per level:** Fetching $S^2$ inputs from depth $c S^3$ costs exactly $S^2 \sqrt{c S^3} \propto S^{3.5}$.
-- **Recurrence:** $D(S) = 8 D(S/2) + c\_1 S^{3.5}$
+- **Recurrence:** $D(S) = 8 D(S/2) + c_1 S^{3.5}$
 - **Exact Asymptotic Limit:** Because the penalty shrinks slower ($2^{3.5} \approx 11.3$) than the branch factor ($8$), the total data movement is dominated overwhelmingly by the massive memory leaks at the root.
 
   
 
-$$
-D\_{RMM, 1}(N) = \mathbf{\Theta(N^{3.5})}
-$$
+$$D_{RMM, 1}(N) = \mathbf{\Theta(N^{3.5})}$$
 
 #### **Strategy 2: Traditional GC (The Optimal $\Theta(N^3 \log N)$)**
 
@@ -1983,26 +1859,22 @@ When temporaries are freed, they leave holes. The active working footprint of RM
 Because new allocations fill the holes, the parent matrices $A$ and $B$ sit *below* the holes, permanently pegged to depth $W$. When the next recursive call reads its inputs, it pays $\sqrt{\Theta(S^2)} \propto S$.
 
 - **Cost per level:** Fetching $S^2$ inputs from depth $\Theta(S^2)$ costs $S^2 \sqrt{\Theta(S^2)} \propto S^3$.
-- **Recurrence:** $D(S) = 8 D(S/2) + c\_2 S^3$
-- **Exact Asymptotic Limit:** Because $S^3$ scales exactly with the branching factor of 8 ($2^3 = 8$), the penalty does not decay. It stacks uniformly across all $\log\_2 N$ levels:
+- **Recurrence:** $D(S) = 8 D(S/2) + c_2 S^3$
+- **Exact Asymptotic Limit:** Because $S^3$ scales exactly with the branching factor of 8 ($2^3 = 8$), the penalty does not decay. It stacks uniformly across all $\log_2 N$ levels:
 
   
 
-$$
-D\_{RMM, 2}(N) = \mathbf{\Theta(N^3 \log\_2 N)}
-$$
+$$D_{RMM, 2}(N) = \mathbf{\Theta(N^3 \log_2 N)}$$
 
 #### **Strategy 3: Aggressive Compaction**
 
 When temporaries are freed, the holes collapse. The parent matrices $A$ and $B$ instantly slide up to shallower depths. When the next recursive call reads its inputs, it pulls them directly from the fastest possible cache (the instantaneously live inputs).
 
-- **Exact Asymptotic Limit:** While the leading constant $c\_3$ drops significantly compared to Strategy 2 (because the variables slide out from under the holes), the mathematical recurrence remains $D(S) = 8 D(S/2) + c\_3 S^3$.
+- **Exact Asymptotic Limit:** While the leading constant $c_3$ drops significantly compared to Strategy 2 (because the variables slide out from under the holes), the mathematical recurrence remains $D(S) = 8 D(S/2) + c_3 S^3$.
 
   
 
-$$
-D\_{RMM, 3}(N) = \mathbf{\Theta(N^3 \log\_2 N)}
-$$
+$$D_{RMM, 3}(N) = \mathbf{\Theta(N^3 \log_2 N)}$$
 
 ---
 
@@ -2012,18 +1884,16 @@ Strassen makes 7 recursive calls but performs 18 temporary matrix additions per 
 
 #### **Strategy 1: Unmanaged (The $\Theta(N^{3.4})$ Memory Thrash)**
 
-The 18 additions and 7 calls leak memory at a rate of $V(S) = 7 V(S/2) + \Theta(S^2)$, which mathematically solves to $V(S) = \Theta(S^{\log\_2 7}) \approx \Theta(S^{2.81})$.
+The 18 additions and 7 calls leak memory at a rate of $V(S) = 7 V(S/2) + \Theta(S^2)$, which mathematically solves to $V(S) = \Theta(S^{\log_2 7}) \approx \Theta(S^{2.81})$.
 The depth of the parent matrices is permanently defined by this massive leaked volume.
 
 - **Cost per level:** The 18 additions read $9S^2$ inputs from depth $S^{2.81}$. Cost = $9S^2 \sqrt{S^{2.81}} \propto S^{3.405}$.
-- **Recurrence:** $D(S) = 7 D(S/2) + c\_1 S^{3.405}$
+- **Recurrence:** $D(S) = 7 D(S/2) + c_1 S^{3.405}$
 - **Exact Asymptotic Limit:** Because $2^{3.405} \approx 10.6 > 7$, the root strictly dominates.
 
   
 
-$$
-D\_{str, 1}(N) = \mathbf{ \Theta(N^{2 + \frac{\log\_2 7}{2}}) } \approx \mathbf{\Theta(N^{3.405})}
-$$
+$$D_{str, 1}(N) = \mathbf{ \Theta(N^{2 + \frac{\log_2 7}{2}}) } \approx \mathbf{\Theta(N^{3.405})}$$
 
 #### **Strategy 2: Traditional GC (The $\Theta(N^3)$ Recovery)**
 
@@ -2031,14 +1901,12 @@ With traditional `free()`, the stack watermark never exceeds the active footprin
 The 18 additions read $9S^2$ inputs. Because the allocations fill the holes at the top of the stack, the operands for the additions are pulled from the high-water mark $\sqrt{\Theta(S^2)} \propto S$.
 
 - **Cost per level:** $9S^2 \times \Theta(S) \propto S^3$.
-- **Recurrence:** $D(S) = 7 D(S/2) + c\_2 S^3$
+- **Recurrence:** $D(S) = 7 D(S/2) + c_2 S^3$
 - **Exact Asymptotic Limit:** Because $S^3$ shrinks by a factor of 8 at each level, but we only branch 7 times, the geometric series violently decays! The data movement shrinks as you go down the tree, meaning it is entirely bounded by the root operations.
 
   
 
-$$
-D\_{str, 2}(N) = \mathbf{\Theta(N^3)}
-$$
+$$D_{str, 2}(N) = \mathbf{\Theta(N^3)}$$
 
 #### **Strategy 3: Aggressive Compaction (The Theoretical Maximum)**
 
@@ -2048,9 +1916,7 @@ Holes instantly collapse. The 18 additions execute exactly the same as in Strate
 
   
 
-$$
-D\_{str, 3}(N) = \mathbf{\Theta(N^3)}
-$$
+$$D_{str, 3}(N) = \mathbf{\Theta(N^3)}$$
 
 ---
 
@@ -2059,7 +1925,7 @@ $$
 | Algorithm | Strategy 1: Unmanaged (The Abstract Leak) | Strategy 2: Traditional GC (Tombstone Holes) | Strategy 3: Aggressive LRU (Instant Slide) |
 | --- | --- | --- | --- |
 | **Naive $i-j-k$** | $\mathbf{\Theta(N^4)}$ | $\mathbf{\Theta(N^4)}$ | $\mathbf{\Theta(N^4)}$ |
-| **Recursive MM** | $\mathbf{\Theta(N^{3.50})}$ | $\mathbf{\Theta(N^3 \log\_2 N)}$ | $\mathbf{\Theta(N^3 \log\_2 N)}$ |
+| **Recursive MM** | $\mathbf{\Theta(N^{3.50})}$ | $\mathbf{\Theta(N^3 \log_2 N)}$ | $\mathbf{\Theta(N^3 \log_2 N)}$ |
 | **Strassen's** | $\mathbf{\Theta(N^{3.40})}$ | $\mathbf{\Theta(N^3)}$ | $\mathbf{\Theta(N^3)}$ |
 
 ### The Ultimate Conclusion
@@ -2088,9 +1954,7 @@ To perform a complete and mathematically exact analysis of the three algorithms 
 
 When an algorithm reads a block of memory of volume $V$ that currently resides at an LRU stack depth $D$, the exact data movement penalty is the continuous definite integral:
 
-$$
-\text{Cost}(V, D) = \int\_{D}^{D+V} \sqrt{x} \, dx \approx V\sqrt{D + \frac{V}{2}}
-$$
+$$\text{Cost}(V, D) = \int_{D}^{D+V} \sqrt{x} \, dx \approx V\sqrt{D + \frac{V}{2}}$$
 
 Let the matrix dimension be $N = 2^k$. At any recursion level, let $S$ be the current matrix size and $M = S/2$ be the sub-quadrant size (volume $0.25 S^2$).
 
@@ -2114,9 +1978,7 @@ Because there are no temporaries to leak, punch holes in, or compact, **all thre
 
   
 
-$$
-D\_{naive}(N) = \int\_0^{N^3} \sqrt{N^2} \, dx = \mathbf{1.0 \cdot N^4}
-$$
+$$D_{naive}(N) = \int_0^{N^3} \sqrt{N^2} \, dx = \mathbf{1.0 \cdot N^4}$$
 
   *(Verdict: Memory management cannot save an algorithm whose fundamental traversal order dictates raw capacity misses).*
 
@@ -2126,11 +1988,11 @@ $$
 
 At level $S$, RMM makes 8 recursive calls and performs 4 matrix additions.
 
-- **Volume Read per level:** 8 calls read inputs ($8 \times 2M^2 = 4S^2$). 4 additions read two temporaries ($4 \times 2M^2 = 2S^2$). Total $V\_{read} = \mathbf{6 S^2}$.
+- **Volume Read per level:** 8 calls read inputs ($8 \times 2M^2 = 4S^2$). 4 additions read two temporaries ($4 \times 2M^2 = 2S^2$). Total $V_{read} = \mathbf{6 S^2}$.
 
 #### **Strategy 1: Unmanaged (The $\Theta(N^{3.5})$ Catastrophe)**
 
-Because nothing is freed, the volume leaked by the 8 calls and 4 additions follows $V\_{leak}(S) = 8 V\_{leak}(S/2) + 3S^2$, which solves exactly to $V\_{leak}(S) = 3S^3 - 3S^2$. The parent matrices $A$ and $B$ are buried under this massive continuous leak.
+Because nothing is freed, the volume leaked by the 8 calls and 4 additions follows $V_{leak}(S) = 8 V_{leak}(S/2) + 3S^2$, which solves exactly to $V_{leak}(S) = 3S^3 - 3S^2$. The parent matrices $A$ and $B$ are buried under this massive continuous leak.
 
 - **Cost per level:** Fetching $6S^2$ inputs from an average leaked depth of $\approx 1.5 S^3$ costs exactly $6S^2 \sqrt{1.5 S^3} \approx 7.35 S^{3.5}$.
 - **Recurrence:** $D(S) = 8 D(S/2) + 7.35 S^{3.5}$.
@@ -2138,9 +2000,7 @@ Because nothing is freed, the volume leaked by the 8 calls and 4 additions follo
 
   
 
-$$
-D\_{RMM, 1}(N) = 7.35 N^{3.5} \left(\frac{1}{1 - 8/11.31}\right) \approx \mathbf{25.1 \cdot N^{3.5}}
-$$
+$$D_{RMM, 1}(N) = 7.35 N^{3.5} \left(\frac{1}{1 - 8/11.31}\right) \approx \mathbf{25.1 \cdot N^{3.5}}$$
 
 #### **Strategy 2: Traditional GC (The Optimal $\Theta(N^3 \log N)$)**
 
@@ -2148,13 +2008,11 @@ Freed temporaries leave holes. The high-water mark of RMM consists of the live p
 
 - **Cost per level:** Fetching $6S^2$ inputs from a watermark depth of $4.25 S^2$ costs $6S^2 \sqrt{4.25 S^2} \approx 12.3 S^3$.
 - **Recurrence:** $D(S) = 8 D(S/2) + 12.3 S^3$.
-- **Exact Asymptotic Limit:** Because $S^3$ shrinks by exactly 8 ($2^3 = 8$), it perfectly matches the 8 recursive branches. The penalty stacks uniformly across all $\log\_2 N$ levels without decaying.
+- **Exact Asymptotic Limit:** Because $S^3$ shrinks by exactly 8 ($2^3 = 8$), it perfectly matches the 8 recursive branches. The penalty stacks uniformly across all $\log_2 N$ levels without decaying.
 
   
 
-$$
-D\_{RMM, 2}(N) \approx \mathbf{12.3 \cdot N^3 \log\_2 N}
-$$
+$$D_{RMM, 2}(N) \approx \mathbf{12.3 \cdot N^3 \log_2 N}$$
 
 #### **Strategy 3: Aggressive Compaction**
 
@@ -2165,9 +2023,7 @@ Holes collapse instantly. The dead temporaries vanish entirely. The depth of the
 
   
 
-$$
-D\_{RMM, 3}(N) \approx \mathbf{7.3 \cdot N^3 \log\_2 N}
-$$
+$$D_{RMM, 3}(N) \approx \mathbf{7.3 \cdot N^3 \log_2 N}$$
 
 ---
 
@@ -2175,11 +2031,11 @@ $$
 
 At level $S$, Strassen makes 7 recursive calls and executes 18 intermediate matrix additions.
 
-- **Volume Read per level:** 7 calls read inputs ($7 \times 2M^2 = 3.5S^2$). 18 additions read two operands ($18 \times 2M^2 = 9S^2$). Total $V\_{read} = \mathbf{12.5 S^2}$.
+- **Volume Read per level:** 7 calls read inputs ($7 \times 2M^2 = 3.5S^2$). 18 additions read two operands ($18 \times 2M^2 = 9S^2$). Total $V_{read} = \mathbf{12.5 S^2}$.
 
 #### **Strategy 1: Unmanaged (The Memory Thrash)**
 
-The 18 additions and 7 calls leak memory at a rate of $V\_{leak}(S) = 7 V\_{leak}(S/2) + 6.25S^2$, which mathematically solves to $V\_{leak}(S) \approx 8.33 \cdot S^{\log\_2 7} \approx 8.33 \cdot S^{2.807}$.
+The 18 additions and 7 calls leak memory at a rate of $V_{leak}(S) = 7 V_{leak}(S/2) + 6.25S^2$, which mathematically solves to $V_{leak}(S) \approx 8.33 \cdot S^{\log_2 7} \approx 8.33 \cdot S^{2.807}$.
 
 - **Cost per level:** The algorithm reads $12.5S^2$ inputs from an average depth of roughly $4.1 S^{2.807}$. Cost = $12.5S^2 \sqrt{4.1 S^{2.807}} \approx 25.3 S^{3.403}$.
 - **Recurrence:** $D(S) = 7 D(S/2) + 25.3 S^{3.403}$
@@ -2187,9 +2043,7 @@ The 18 additions and 7 calls leak memory at a rate of $V\_{leak}(S) = 7 V\_{leak
 
   
 
-$$
-D\_{str, 1}(N) = 25.3 N^{3.403} \left(\frac{1}{1 - 7/10.58}\right) \approx \mathbf{74.7 \cdot N^{3.403}}
-$$
+$$D_{str, 1}(N) = 25.3 N^{3.403} \left(\frac{1}{1 - 7/10.58}\right) \approx \mathbf{74.7 \cdot N^{3.403}}$$
 
 #### **Strategy 2: Traditional GC (The $\Theta(N^3)$ Recovery)**
 
@@ -2197,13 +2051,11 @@ With traditional `free()`, the stack watermark never exceeds the active footprin
 
 - **Cost per level:** The operations fetch $12.5S^2$ inputs from the high-water mark $4 S^2$. Cost = $12.5S^2 \sqrt{4S^2} = 25.0 S^3$.
 - **Recurrence:** $D(S) = 7 D(S/2) + 25.0 S^3$
-- **Exact Asymptotic Limit:** Here is the magic of Strassen: $S^3$ shrinks by a factor of 8 at each level, but we **only branch 7 times**. The geometric series violently decays! The data movement shrinks as you go down the tree, meaning it is strictly bounded by the Master Theorem constant $\sum\_{i=0}^{\infty} (7/8)^i = 8$.
+- **Exact Asymptotic Limit:** Here is the magic of Strassen: $S^3$ shrinks by a factor of 8 at each level, but we **only branch 7 times**. The geometric series violently decays! The data movement shrinks as you go down the tree, meaning it is strictly bounded by the Master Theorem constant $\sum_{i=0}^{\infty} (7/8)^i = 8$.
 
   
 
-$$
-D\_{str, 2}(N) = 25.0 N^3 \times 8 = \mathbf{200.0 \cdot N^3}
-$$
+$$D_{str, 2}(N) = 25.0 N^3 \times 8 = \mathbf{200.0 \cdot N^3}$$
 
 #### **Strategy 3: Aggressive Compaction (The Theoretical Maximum)**
 
@@ -2214,9 +2066,7 @@ Holes instantly collapse. The 18 additions execute exactly the same as in Strate
 
   
 
-$$
-D\_{str, 3}(N) = 17.6 N^3 \times 8 = \mathbf{140.8 \cdot N^3}
-$$
+$$D_{str, 3}(N) = 17.6 N^3 \times 8 = \mathbf{140.8 \cdot N^3}$$
 
 ---
 
@@ -2225,7 +2075,7 @@ $$
 | Algorithm | Strategy 1: Unmanaged (The Abstract Leak) | Strategy 2: Traditional GC (Tombstone Holes) | Strategy 3: Aggressive LRU (Instant Slide) |
 | --- | --- | --- | --- |
 | **Naive $i-j-k$** | $\mathbf{1.0 \cdot N^4}$ | $\mathbf{1.0 \cdot N^4}$ | $\mathbf{1.0 \cdot N^4}$ |
-| **Recursive MM** | $\mathbf{25.1 \cdot N^{3.5}}$ | $\mathbf{12.3 \cdot N^3 \log\_2 N}$ | $\mathbf{7.3 \cdot N^3 \log\_2 N}$ |
+| **Recursive MM** | $\mathbf{25.1 \cdot N^{3.5}}$ | $\mathbf{12.3 \cdot N^3 \log_2 N}$ | $\mathbf{7.3 \cdot N^3 \log_2 N}$ |
 | **Strassen's** | $\mathbf{74.7 \cdot N^{3.403}}$ | $\mathbf{200.0 \cdot N^3}$ | $\mathbf{140.8 \cdot N^3}$ |
 
 ### The Ultimate Engineering Conclusion
@@ -2267,9 +2117,7 @@ In 1981, Hong and Kung proved the absolute I/O lower bound for *any* algorithm p
 
 In the continuous ByteDMD model, the expected data movement penalty is the integral of this miss-rate against the marginal cost of pushing deeper into the cache $\left(\frac{d}{dM} \sqrt{M} = \frac{1}{2\sqrt{M}}\right)$:
 
-$$
- \text{Total ByteDMD} \propto \int\_{1}^{N^2} \left( \frac{N^3}{\sqrt{M}} \right) \cdot \left( \frac{1}{2\sqrt{M}} \right) dM = \frac{N^3}{2} \int\_{1}^{N^2} \frac{1}{M} dM = \mathbf{\Theta(N^3 \log N)} 
-$$
+$$\text{Total ByteDMD} \propto \int_{1}^{N^2} \left( \frac{N^3}{\sqrt{M}} \right) \cdot \left( \frac{1}{2\sqrt{M}} \right) dM = \frac{N^3}{2} \int_{1}^{N^2} \frac{1}{M} dM = \mathbf{\Theta(N^3 \log N)}$$
 
 **The Verdict:** It is mathematically impossible for *any* algorithm executing $O(N^3)$ FLOPs to beat the $\Theta(N^3 \log N)$ data movement wall. The 2D geometry of the cache dictates that the integral diverges.
 
@@ -2294,7 +2142,7 @@ We can sequence the 8 recursive calls to follow a 3D Gray Code path (a Morton Z-
 Because each matrix ($A, B, C$) depends on exactly two coordinates, changing one coordinate guarantees that exactly **one matrix stays perfectly hot in L1 cache**, and only two must be fetched!
 
 - e.g., Step 2: `001: C00 += A01 @ B10`
-- e.g., Step 3: `011: C01 += A01 @ B11` *(Coordinate $j$ changes, $A\_{01}$ stays perfectly hot!)*
+- e.g., Step 3: `011: C01 += A01 @ B11` *(Coordinate $j$ changes, $A_{01}$ stays perfectly hot!)*
 
 **The Impact:**
 The total number of sub-quadrant fetches drops from 20 down to exactly **17**.
@@ -2317,16 +2165,14 @@ In the realm of legacy FLOP counting, reducing 18 additions to 15 is a microscop
 
 **Performance Analysis (Under Aggressive Compaction GC):**
 
-- **Volume Read per level:** 7 recursive calls read inputs ($3.5S^2$). 15 additions read two operands ($15 \times 0.5S^2 = 7.5S^2$). Total $V\_{read} = \mathbf{11.0 S^2}$ (down from Strassen's $12.5S^2$).
+- **Volume Read per level:** 7 recursive calls read inputs ($3.5S^2$). 15 additions read two operands ($15 \times 0.5S^2 = 7.5S^2$). Total $V_{read} = \mathbf{11.0 S^2}$ (down from Strassen's $12.5S^2$).
 - **Instantaneous Depth:** Because there are fewer intermediate chains, the algorithm's active local footprint compresses tighter, dropping the depth penalty of the LRU stack from $\approx 2.0S^2$ to $\approx 1.5S^2$.
 - **Cost per level:** $11.0 S^2 \sqrt{1.5 S^2} \approx \mathbf{13.47 \cdot S^3}$.
-- **Recurrence Limit:** Because $S^3$ shrinks by a factor of 8 and the branch factor is 7, the geometric multiplier evaluates to exactly $\sum\_{i=0}^\infty (7/8)^i = 8$.
+- **Recurrence Limit:** Because $S^3$ shrinks by a factor of 8 and the branch factor is 7, the geometric multiplier evaluates to exactly $\sum_{i=0}^\infty (7/8)^i = 8$.
 
   
 
-$$
-D\_{wino}(N) = 13.47 N^3 \times 8 \approx \mathbf{107.7 \cdot N^3}
-$$
+$$D_{wino}(N) = 13.47 N^3 \times 8 \approx \mathbf{107.7 \cdot N^3}$$
 
 By algebraically eliminating 3 temporary matrix allocations per level, **Winograd's Variant cuts the total Data Movement of Strassen by nearly 25%**, making it the most ByteDMD-efficient practical algorithm in existence.
 
@@ -2339,8 +2185,8 @@ Here is the exact algorithmic hierarchy under optimal **Aggressive Compaction** 
 | Algorithm | FLOP Count | ByteDMD Limit | Why it performs this way |
 | --- | --- | --- | --- |
 | **1. Naive $i-j-k$** | $\mathbf{2.0 \cdot N^3}$ | $\mathbf{1.00 \cdot N^4}$ | Unoptimized memory strides force catastrophic raw capacity misses. |
-| **2. Standard In-Place RMM** | $\mathbf{2.0 \cdot N^3}$ | $\mathbf{6.12 \cdot N^3 \log\_2 N}$ | Cache-oblivious, but naive sub-call ordering wastes cache transitions. |
-| **3. Swizzled In-Place RMM** | $\mathbf{2.0 \cdot N^3}$ | $\mathbf{5.20 \cdot N^3 \log\_2 N}$ | **Theoretical Max for standard math.** Gray-code ordering guarantees maximal working set overlap. |
+| **2. Standard In-Place RMM** | $\mathbf{2.0 \cdot N^3}$ | $\mathbf{6.12 \cdot N^3 \log_2 N}$ | Cache-oblivious, but naive sub-call ordering wastes cache transitions. |
+| **3. Swizzled In-Place RMM** | $\mathbf{2.0 \cdot N^3}$ | $\mathbf{5.20 \cdot N^3 \log_2 N}$ | **Theoretical Max for standard math.** Gray-code ordering guarantees maximal working set overlap. |
 | **4. Standard Strassen's** | $\mathbf{\Theta(N^{2.81})}$ | $\mathbf{140.8 \cdot N^3}$ | Escapes the $\log N$ barrier, but 18 temporary additions artificially inflate the cache footprint. |
 | **5. Strassen-Winograd** | $\mathbf{\Theta(N^{2.81})}$ | $\mathbf{107.7 \cdot N^3}$ | **The Ultimate Champion.** Eliminating 3 temporary allocations collapses the peak memory footprint, dominating both FLOPs and ByteDMD. |
 
@@ -2387,7 +2233,7 @@ Imagine a recursive algorithm working on a sub-matrix of size $S \times S$.
 - The fundamental physical cost ($\text{Mass} \times \text{Distance}$) is: $S^2 \times S = \mathbf{S^3}$.
 
 **3. The "Resonance" of Standard 3D Arithmetic**
-Standard matrix multiplication ($C\_{ij} = \sum A\_{ik} B\_{kj}$) computes a **3D volume of arithmetic** ($i, j, k$) using 2D inputs. Because it is a 3D geometric cube, when you divide the matrix in half, you must compute exactly $2^3 = \mathbf{8}$ independent sub-problems.
+Standard matrix multiplication ($C_{ij} = \sum A_{ik} B_{kj}$) computes a **3D volume of arithmetic** ($i, j, k$) using 2D inputs. Because it is a 3D geometric cube, when you divide the matrix in half, you must compute exactly $2^3 = \mathbf{8}$ independent sub-problems.
 
 Let’s calculate the physical Data Movement tax you must pay at an arbitrary boundary $S$ of the memory hierarchy:
 
@@ -2399,7 +2245,7 @@ Let’s calculate the physical Data Movement tax you must pay at an arbitrary bo
 
 This creates an acoustic-like resonance. Because the arithmetic branches by exactly 8, and the 2D spatial cost shrinks by exactly 8, **the spatial relief perfectly cancels out the computational explosion.**
 
-Every single boundary in your memory hierarchy—from fetching massive blocks out of RAM, down to shuffling tiny blocks inside the L1 registers—experiences the exact same $N^3$ physical friction. Because the hierarchy subdivides by 2 at each step, there are $\log\_2 N$ levels of cache. Adding up an equal $N^3$ penalty across all $\log\_2 N$ levels yields the inescapable limit: **$\Theta(N^3 \log N)$**.
+Every single boundary in your memory hierarchy—from fetching massive blocks out of RAM, down to shuffling tiny blocks inside the L1 registers—experiences the exact same $N^3$ physical friction. Because the hierarchy subdivides by 2 at each step, there are $\log_2 N$ levels of cache. Adding up an equal $N^3$ penalty across all $\log_2 N$ levels yields the inescapable limit: **$\Theta(N^3 \log N)$**.
 
 *(Fun fact: If we could build true 3D volumetric memory chips, the distance to the edge would be $\sqrt[3]{M}$, the resonance would break, and standard math would naturally drop to $O(N^3)$ data movement!)*
 
@@ -2420,7 +2266,7 @@ What does this algebra physically do? Matrix addition is a purely 2D operation. 
 
 **2. Breaking the Resonance**
 Let's run the exact same spatial physics on the Winograd algorithm.
-Because the branching factor is 7, the total number of sub-problems across the whole matrix is no longer a 3D volume of $(N/S)^3$. It is $7^{\log\_2(N/S)} = \mathbf{(N/S)^{2.81}}$. We have effectively compressed the algorithm into a 2.81-dimensional fractal.
+Because the branching factor is 7, the total number of sub-problems across the whole matrix is no longer a 3D volume of $(N/S)^3$. It is $7^{\log_2(N/S)} = \mathbf{(N/S)^{2.81}}$. We have effectively compressed the algorithm into a 2.81-dimensional fractal.
 
 What is the physical Data Movement tax across the hierarchy now?
 
@@ -2431,7 +2277,7 @@ What is the physical Data Movement tax across the hierarchy now?
 **3. The Annihilation of the Logarithm**
 The resonance is broken. Look at the $S^{0.19}$ term: the exponent is positive. Because the algebraic dimension (2.81) is now strictly less than the spatial scaling ratio (3.0), the geometry no longer cancels out the arithmetic!
 
-Because we algebraically starved the inner loops of multiplications, the inner rings of the memory hierarchy (where $S$ is small, like the L1 cache) do almost no routing work. At every step down the cache hierarchy, the data movement physically drops by exactly $\frac{7}{8}$ ($12.5\%$):
+Because we algebraically starved the inner loops of multiplications, the inner rings of the memory hierarchy (where $S$ is small, like the L1 cache) do almost no routing work. At every step down the cache hierarchy, the data movement physically drops by exactly $\frac{7}{8}$ ($12.5%$):
 
 - Level 0 (RAM): $1.000 \cdot N^3$
 - Level 1 (L3 Cache): $0.875 \cdot N^3$
@@ -2577,7 +2423,7 @@ $$\lfloor 1.3987 N^3 + 2N^{2.5} + 2N^2 \rfloor \leq C_{\text{matvec}}(N) \leq \l
 
 $$\lfloor 1.2869 N^3 + 2N^{2.5} + 2N^2 \rfloor \leq C_{\text{vecmat}}(N) \leq \lceil 1.2869 N^3 + 2N^{2.5} + 5N^2 \rceil$$
 
-*(where the coefficient is exactly $\frac{\sqrt{40}}{9} + \frac{\sqrt{3}}{2}\ln\!\left(\frac{3 - 2\sqrt{3}\sqrt{3}}{3}\right)$)*
+*(where the coefficient is exactly $\frac{\sqrt{40}}{9} + \frac{\sqrt{3}}{2}\ln!\left(\frac{3 - 2\sqrt{3}\sqrt{3}}{3}\right)$)*
 
 **Why does vecmat score better?** The theoretical gap ($\sim 1.2869 N^3$ vs $\sim 1.3987 N^3$) demonstrates that vecmat systematically outperforms matvec under ByteDMD. Fetching elements column-by-column drags deeper rows to the top of the LRU stack out-of-order. Because ByteDMD lacks a concept of spatial "cache lines", this erratic thrashing acts as a pseudo-eviction buffer, mathematically compressing the average relative depth of trailing elements!
 
@@ -3960,21 +3806,21 @@ Cadd​=i=0∑N−1​j=0∑N−1​(1+3(N−1))=3N3−2N2
 
 2. Read Depths for Matrix A (CA​):
 Elements of row Ai​ are cached and reused across the inner loops. The stack depth spikes on the first column access (j=0) and stabilizes immediately for the rest.
-$$ D_A(i, j, k) = \begin{cases}
+$$D_A(i, j, k) = \begin{cases}
 2N^2(i+1) + 2k & \text{if } j = 0 \text{ (Cold start)} \
 4N - 1 & \text{if } j > 0 \text{ (Cached reuse)}
-\end{cases} $$
+\end{cases}$$
 
 3. Read Depths for Matrix B (CB​):
 Matrix B suffers from massive cache thrashing as it is read column-by-column. The first row iteration (i=0) drags elements from their initial call-order conditions. Subsequent row iterations (i>0) hit a "steady state" where B's elements are buried under a highly predictable layer of intermediate variables:
 
 DB​(i=0,j,k)=N2+N+j(2N+k)+k(3−N)
 
-$$ D_B(i>0, j, k) = \begin{cases}
+$$D_B(i>0, j, k) = \begin{cases}
 3N^2 + N + k - 2 & \text{if } j = 0 \
 3N^2 + 2N - 2 & \text{if } 0 < j < N-1 \
 3N^2 + 2N - 3 - k & \text{if } j = N-1
-\end{cases} $$
+\end{cases}$$
 
 The exact cost evaluates these depths using your square-root pricing:
 
@@ -4051,18 +3897,18 @@ Accumulation Cost: Cadd​=3N2(N−1)
 
 Matrix A Depths (DA​):
 A highly efficient "hot cache" forms. Elements jump precisely between an initial dynamically scaling cold depth and a tightly bounded constant depth:
-$$ D_A(i, j, k) = \begin{cases}
+$$D_A(i, j, k) = \begin{cases}
 2N^2 + i(2N^2 - N) + (2k-1)\delta_{k>0} & \text{if } j = 0 \text{ (Cold start)} \
 4N - \delta_{k=0} & \text{if } j > 0 \text{ (Hot cache)}
-\end{cases} $$
+\end{cases}$$
 
 Matrix B Depths (DB​):
 During the first row (i=0), elements are dragged from their raw call-order initializations (see Mathematica code for the exact transient i=0 piecewise formula). For all subsequent operations (i>0), B's elements are buried symmetrically under the exact layer of A, B, and uncollected dead temporaries, settling into a rigid steady state:
-$$ D_B(i>0, j, k) = \begin{cases}
+$$D_B(i>0, j, k) = \begin{cases}
 3N^2 + k + 1 - \delta_{k=0} & \text{if } j=0 \
 3N^2 + N + 1 - \delta_{k=0} & \text{if } 0 < j < N-1 \
 3N^2 + N - k + \delta_{k=0} & \text{if } j=N-1
-\end{cases} $$
+\end{cases}$$
 
 3. Tight Asymptotic Bounds
 
@@ -4265,18 +4111,19 @@ Here is the exact component breakdown, the number-theory proof of symmetry, the 
 
 **1\. The Stack Physics: "The Rule of 3"**
 
-To derive the exact bounds, we trace the size of the active memory universe just before the $k$-th multiplication step ($k \\in \[0, N^2-1\]$).
+To derive the exact bounds, we trace the size of the active memory universe just before the $k$-th multiplication step ($k \in \[0, N^2-1\]$).
 
 Except for the very first row, a mathematically perfect steady-state rhythm emerges:
 
-1. **$A\_{i,j}$ (Cold Miss):** Fetched from DRAM. Stack grows by \+1.  
-2. **$x\_j$ (Hot Hit):** Already on stack. Stack grows by \+0.  
+1. **$A_{i,j}$ (Cold Miss):** Fetched from DRAM. Stack grows by \+1.  
+2. **$x_j$ (Hot Hit):** Already on stack. Stack grows by \+0.  
 3. **mul result:** Temporary pushed. Stack grows by \+1.  
 4. **add result:** Temporary pushed. Stack grows by \+1.
 
-Because the stack grows by $\\approx 3$ items per step, we can statically define the **Pre-Instruction Stack Size ($L\_k$)**:
+Because the stack grows by $\approx 3$ items per step, we can statically define the **Pre-Instruction Stack Size ($L_k$)**:
 
-$$ L\_k \= 3k \- \\lceil k/N \\rceil \+ \\min(k, N) $$  
+$$L_k = 3k - \lceil k/N \rceil + \min(k, N)$$
+
 Every instruction is priced deterministically against this monotonically expanding boundary.
 
 ### ---
@@ -4285,58 +4132,65 @@ Every instruction is priced deterministically against this monotonically expandi
 
 The total cost is the exact sum of four physical components. This formula evaluates flawlessly to the exact integer output of your python script for **both** algorithms.
 
-$$ C\_{\\text{exact}}(N) \= C\_{\\text{add}} \+ C\_{x\\\_hot} \+ C\_{\\text{first\\\_row}} \+ C\_{A\\\_cold} $$  
-**A. ALU Additions ($C\_{\\text{add}}$):**
+$$C_{\text{exact}}(N) = C_{\text{add}} + C_{x\_hot} + C_{\text{first\-row}} + C_{A\_cold}$$
 
-Because you implemented simultaneous pricing, the add operation prices the immediate mul temporary (depth 1\) and the previous running sum (pushed down by exactly 3 elements to depth 4). The cost of addition is a strict, algorithmic invariant for all $N(N-1)$ additions: $\\lceil\\sqrt{1}\\rceil \+ \\lceil\\sqrt{4}\\rceil \= \\mathbf{3}$.
+**A. ALU Additions ($C_{\text{add}}$):**
 
-$$ C\_{\\text{add}} \= 3N(N-1) $$  
-**B. First Row Initialization ($C\_{\\text{first\\\_row}}$):**
+Because you implemented simultaneous pricing, the add operation prices the immediate mul temporary (depth 1\) and the previous running sum (pushed down by exactly 3 elements to depth 4). The cost of addition is a strict, algorithmic invariant for all $N(N-1)$ additions: $\lceil\sqrt{1}\rceil + \lceil\sqrt{4}\rceil = \mathbf{3}$.
+
+$$C_{\text{add}} = 3N(N-1)$$
+
+**B. First Row Initialization ($C_{\text{first\-row}}$):**
 
 In the first iteration, both $A$ and $x$ are pulled from DRAM as cold misses.
 
-$$ C\_{\\text{first\\\_row}} \= 3 \+ \\sum\_{k=1}^{N-1} \\left( \\lceil\\sqrt{4k}\\rceil \+ \\lceil\\sqrt{4k+1}\\rceil \\right) $$  
-**C. Matrix $A$ Cost \- The Expanding Graveyard ($C\_{A\\\_cold}$):**
+$$C_{\text{first\-row}} = 3 + \sum_{k=1}^{N-1} \left( \lceil\sqrt{4k}\rceil + \lceil\sqrt{4k+1}\rceil \right)$$
 
-For all subsequent rows, $A\_{i,j}$ is a cold miss evaluated against the expanding $L\_k$ boundary.
+**C. Matrix $A$ Cost \- The Expanding Graveyard ($C_{A\_cold}$):**
 
-$$ C\_{A\\\_cold} \= \\sum\_{k=N}^{N^2-1} \\left\\lceil \\sqrt{3k \- \\lceil k/N \\rceil \+ N \+ 1} \\right\\rceil $$  
-**D. Vector $x$ Cost \- The Hot Hits ($C\_{x\\\_hot}$):**
+For all subsequent rows, $A_{i,j}$ is a cold miss evaluated against the expanding $L_k$ boundary.
 
-After the first iteration, elements of $x$ float in the active cache. Because the inner loop repeats every $N$ steps, there are exactly $N$ computational steps between reads of $x\_j$. The steady-state injection of cold $A$ arrays and temporaries rigidly anchors $x\_j$ at depth **$4N-2$** (for $x\_0$) and **$4N-1$** (for all other $x\_j$).
+$$C_{A\_cold} = \sum_{k=N}^{N^2-1} \left\lceil \sqrt{3k - \lceil k/N \rceil + N + 1} \right\rceil$$
+
+**D. Vector $x$ Cost \- The Hot Hits ($C_{x\_hot}$):**
+
+After the first iteration, elements of $x$ float in the active cache. Because the inner loop repeats every $N$ steps, there are exactly $N$ computational steps between reads of $x_j$. The steady-state injection of cold $A$ arrays and temporaries rigidly anchors $x_j$ at depth **$4N-2$** (for $x_0$) and **$4N-1$** (for all other $x_j$).
 
 **The Number Theory Proof of Symmetry:**
 
-The ByteDMD cost function $\\lceil \\sqrt{z} \\rceil$ only changes value when $z$ crosses a boundary of the form $S^2 \+ 1$. For the depths of $x\_0$ and $x\_{j\>0}$ to yield different costs, $4N-1$ must equal a perfect square $S^2$.
+The ByteDMD cost function $\lceil \sqrt{z} \rceil$ only changes value when $z$ crosses a boundary of the form $S^2 + 1$. For the depths of $x_0$ and $x_{j>0}$ to yield different costs, $4N-1$ must equal a perfect square $S^2$.
 
-However, $S^2 \\equiv 3 \\pmod 4$ is a mathematical impossibility for integers. Because no perfect square can ever exist between $4N-2$ and $4N-1$, the ceiling function structurally flattens the difference\!
+However, $S^2 \equiv 3 \pmod 4$ is a mathematical impossibility for integers. Because no perfect square can ever exist between $4N-2$ and $4N-1$, the ceiling function structurally flattens the difference\!
 
-$$ \\lceil\\sqrt{4N-2}\\rceil \\equiv \\lceil\\sqrt{4N-1}\\rceil $$  
+$$\lceil\sqrt{4N-2}\rceil \equiv \lceil\sqrt{4N-1}\rceil$$
+
 This beautiful property collapses the hot vector cost into a single, identical block for both algorithms:
 
-$$ C\_{x\\\_hot} \= N(N-1) \\lceil \\sqrt{4N-1} \\rceil $$  
-*(Verification: For $N=4$, $C(4) \= 36 \+ 48 \+ 22 \+ 71 \= \\mathbf{177}$. Both your matvec and vecmat algorithms trace exactly to this integer).*
+$$C_{x\_hot} = N(N-1) \lceil \sqrt{4N-1} \rceil$$
+
+*(Verification: For $N=4$, $C(4) = 36 + 48 + 22 + 71 = \mathbf{177}$. Both your matvec and vecmat algorithms trace exactly to this integer).*
 
 ### ---
 
 **3\. Continuous Analytic Approximation (Tight Bounds)**
 
-By stripping away the integer ceiling constraints and converting the summations to definite geometric integrals ($\\int \\sqrt{cz} \\, dz \= \\frac{2}{3} \\sqrt{c} z^{1.5}$), the step-functions resolve into a highly precise continuous polynomial. Each term isolates a specific architectural complexity class:
+By stripping away the integer ceiling constraints and converting the summations to definite geometric integrals ($\int \sqrt{cz} \, dz = \frac{2}{3} \sqrt{c} z^{1.5}$), the step-functions resolve into a highly precise continuous polynomial. Each term isolates a specific architectural complexity class:
 
-1. **The $\\mathcal{O}(N^3)$ Bound (DRAM Matrix Volume):** Integrating the expanding universe of Matrix $A$ cold misses ($\\int\_0^{N^2} \\sqrt{3k} \\, dk$) yields exactly $\\mathbf{\\frac{2\\sqrt{3}}{3} N^3}$.  
-2. **The $\\mathcal{O}(N^{2.5})$ Bound (L1 Vector Working Set):** Approximating the $N^2$ hot reads of Vector $x$ rotating at a steady depth of $4N$ evaluates to exactly $N^2 \\sqrt{4N} \= \\mathbf{2 N^{2.5}}$.  
-3. **The $\\mathcal{O}(N^2)$ Bound (ALU Computations):** The local ALU addition operations and Taylor expansion remainders strict yield $\\mathbf{\\left(3 \+ \\frac{2\\sqrt{3}}{9}\\right) N^2}$.
+1. **The $\mathcal{O}(N^3)$ Bound (DRAM Matrix Volume):** Integrating the expanding universe of Matrix $A$ cold misses ($\int_0^{N^2} \sqrt{3k} \, dk$) yields exactly $\mathbf{\frac{2\sqrt{3}}{3} N^3}$.  
+2. **The $\mathcal{O}(N^{2.5})$ Bound (L1 Vector Working Set):** Approximating the $N^2$ hot reads of Vector $x$ rotating at a steady depth of $4N$ evaluates to exactly $N^2 \sqrt{4N} = \mathbf{2 N^{2.5}}$.  
+3. **The $\mathcal{O}(N^2)$ Bound (ALU Computations):** The local ALU addition operations and Taylor expansion remainders strict yield $\mathbf{\left(3 + \frac{2\sqrt{3}}{9}\right) N^2}$.
 
 Summing the integrated envelopes provides your flawless continuous approximation:
 
-$$ \\mathbf{ C(N) \\approx \\left(\\frac{2\\sqrt{3}}{3}\\right) N^3 \\;\\;+\\;\\; 2N^{2.5} \\;\\;+\\;\\; \\left(3 \+ \\frac{2\\sqrt{3}}{9}\\right) N^2 \\;\\;-\\;\\; \\frac{10}{9} N^{1.5} \\;\\;-\\;\\; 3N } $$  
-Using decimal coefficients for immediate $\\mathcal{O}(1)$ asymptotic profiling:
+$$\mathbf{ C(N) \approx \left(\frac{2\sqrt{3}}{3}\right) N^3 \;\;+\;\; 2N^{2.5} \;\;+\;\; \left(3 + \frac{2\sqrt{3}}{9}\right) N^2 \;\;-\;\; \frac{10}{9} N^{1.5} \;\;-\;\; 3N }$$
 
-$$ \\mathbf{ C(N) \\approx 1.1547\\, N^3 \+ 2.0\\, N^{2.5} \+ 3.385\\, N^2 \- 1.111\\, N^{1.5} \- 3.0\\, N } $$
+Using decimal coefficients for immediate $\mathcal{O}(1)$ asymptotic profiling:
+
+$$\mathbf{ C(N) \approx 1.1547\, N^3 + 2.0\, N^{2.5} + 3.385\, N^2 - 1.111\, N^{1.5} - 3.0\, N }$$
 
 ### **Algorithmic Conclusion**
 
-By fixing simultaneous pricing and utilizing Demand-Paging, you successfully stabilized the metric. Your formula proves that traversing a pure bipartite data flow graph through an ALU costs exactly $\\approx 1.15 N^3$ spatial routing energy. The $1.15$ coefficient explicitly demonstrates the cost of the "Infinite Graveyard": not evicting dead variables bloats the L1 working set and increases the routing distance to DRAM, scaling your baseline energy cost by exactly $\\frac{2\\sqrt{3}}{3}$.
+By fixing simultaneous pricing and utilizing Demand-Paging, you successfully stabilized the metric. Your formula proves that traversing a pure bipartite data flow graph through an ALU costs exactly $\approx 1.15 N^3$ spatial routing energy. The $1.15$ coefficient explicitly demonstrates the cost of the "Infinite Graveyard": not evicting dead variables bloats the L1 working set and increases the routing distance to DRAM, scaling your baseline energy cost by exactly $\frac{2\sqrt{3}}{3}$.
 
 ---
 
@@ -5288,8 +5142,8 @@ Here is exactly how this modification alters the asymptotic complexity of the th
 
 **1\. Naive Matrix Multiplication (i-j-k loops)**
 
-* **Original ByteDMD:** $\\mathcal{O}(N^4)$  
-* **Modified (With Liveness):** Remains **$\\mathcal{O}(N^4)$**
+* **Original ByteDMD:** $\mathcal{O}(N^4)$  
+* **Modified (With Liveness):** Remains **$\mathcal{O}(N^4)$**
 
 **Why it stays the same:**
 
@@ -5297,36 +5151,36 @@ The dominant penalty in naive matrix multiplication is not caused by dead tempor
 
 In the i-j-k loop, between consecutive reads of the same element $B\[k,j\]$ (across the outer i loop), the algorithm must complete a full pass over the rest of the inner loops. This means it physically traverses the entirety of matrix $B$. Even if you instantly evict all intermediate scalar temporaries inside the inner loop, all $N^2$ elements of $B$ are strictly required for future iterations and cannot be evicted.
 
-Because the active working set spanning the reuse cycle is $\\Theta(N^2)$, element $B\[k,j\]$ still sinks to a depth of $N^2$. The routing cost to fetch it remains $\\sqrt{N^2} \= N$. Across $N^3$ inner loop iterations, the data movement cost remains immutably **$\\mathcal{O}(N^4)$**.
+Because the active working set spanning the reuse cycle is $\Theta(N^2)$, element $B\[k,j\]$ still sinks to a depth of $N^2$. The routing cost to fetch it remains $\sqrt{N^2} = N$. Across $N^3$ inner loop iterations, the data movement cost remains immutably **$\mathcal{O}(N^4)$**.
 
 ### ---
 
 **2\. Recursive Matmul (Cache-Oblivious / Morton Z-Curve)**
 
-* **Original ByteDMD:** Degrades to $\\mathcal{O}(N^{3.5})$  
-* **Modified (With Liveness):** Restores to **$\\mathcal{O}(N^3 \\log N)$**
+* **Original ByteDMD:** Degrades to $\mathcal{O}(N^{3.5})$  
+* **Modified (With Liveness):** Restores to **$\mathcal{O}(N^3 \log N)$**
 
 **Why liveness fundamentally fixes it:**
 
 Recursive matrix multiplication evaluates $8$ branches.
 
-* **The Graveyard Penalty:** In the standard model, computing the first branch on a block of size $S$ ($C\_{11} \+= A\_{11} B\_{11}$) executes $\\mathcal{O}(S^3)$ operations, dumping $S^3$ dead variables onto the stack. When the algorithm needs to reuse inputs for the second branch, it must pull the $S^2$ elements out from underneath $S^3$ dead variables. The data movement cost is $S^2 \\times \\sqrt{S^3} \= \\mathcal{O}(S^{3.5})$, breaking the algorithm.  
-* **The Liveness Fix:** With liveness analysis, the dead variables generated by the sub-computations are instantly evaporated. The stack depth is strictly bounded to the active block footprint: $\\Theta(S^2)$. Reusing an input submatrix now only costs $S^2 \\times \\sqrt{S^2} \= S^3$. The algorithm's data-routing recurrence becomes $T(N) \= 8 T(N/2) \+ \\mathcal{O}(N^3)$. By the Master Theorem, this perfectly resolves to the famous Hong-Kung lower bound of **$\\mathcal{O}(N^3 \\log N)$**.
+* **The Graveyard Penalty:** In the standard model, computing the first branch on a block of size $S$ ($C_{11} += A_{11} B_{11}$) executes $\mathcal{O}(S^3)$ operations, dumping $S^3$ dead variables onto the stack. When the algorithm needs to reuse inputs for the second branch, it must pull the $S^2$ elements out from underneath $S^3$ dead variables. The data movement cost is $S^2 \times \sqrt{S^3} = \mathcal{O}(S^{3.5})$, breaking the algorithm.  
+* **The Liveness Fix:** With liveness analysis, the dead variables generated by the sub-computations are instantly evaporated. The stack depth is strictly bounded to the active block footprint: $\Theta(S^2)$. Reusing an input submatrix now only costs $S^2 \times \sqrt{S^2} = S^3$. The algorithm's data-routing recurrence becomes $T(N) = 8 T(N/2) + \mathcal{O}(N^3)$. By the Master Theorem, this perfectly resolves to the famous Hong-Kung lower bound of **$\mathcal{O}(N^3 \log N)$**.
 
 ### ---
 
 **3\. Strassen's Algorithm**
 
-* **Original ByteDMD:** Degrades to $\\approx \\mathcal{O}(N^{3.41})$  
-* **Modified (With Liveness):** Improves to exactly **$\\mathcal{O}(N^3)$**
+* **Original ByteDMD:** Degrades to $\approx \mathcal{O}(N^{3.41})$  
+* **Modified (With Liveness):** Improves to exactly **$\mathcal{O}(N^3)$**
 
 **Why liveness fundamentally fixes it:**
 
-Strassen circumvents scalar multiplications by aggressively allocating massive intermediate matrices ($M\_1 \\dots M\_7$). Over the entire recursion tree, it allocates a staggering $\\Theta(N^{\\log\_2 7}) \\approx \\Theta(N^{2.81})$ intermediate variables.
+Strassen circumvents scalar multiplications by aggressively allocating massive intermediate matrices ($M_1 \dots M_7$). Over the entire recursion tree, it allocates a staggering $\Theta(N^{\log_2 7}) \approx \Theta(N^{2.81})$ intermediate variables.
 
-* **The Graveyard Penalty:** The "Infinite Graveyard" accumulates all $N^{2.81}$ dead intermediate allocations. When the algorithm returns to the top level to perform its matrix additions, the base matrices have sunk beneath $N^{2.81}$ dead variables. The routing cost to fetch the variables for the addition becomes $N^2 \\times \\sqrt{N^{2.81}} \= \\mathcal{O}(N^{3.405})$. Because this $3.405$ exponent is much larger than the $2.81$ arithmetic limit, data movement completely ruins the algorithm.  
-* **The Liveness Fix:** Intermediate branches are aggressively freed the moment they are consumed. The peak live memory footprint of Strassen at any point is elegantly clamped to $\\mathcal{O}(N^2)$. Top-level matrix additions now only require fetching $N^2$ elements from a depth of $N^2$, bringing the addition step cost down to $N^2 \\times \\sqrt{N^2} \= N^3$.  
-  The recurrence relation updates to $T(N) \= 7 T(N/2) \+ \\mathcal{O}(N^3)$. Because $3 \> \\log\_2 7$, the $\\mathcal{O}(N^3)$ spatial routing cost of the additions strictly absorbs the recursive arithmetic. The algorithm operates at exactly the physical absolute lower bound of **$\\mathcal{O}(N^3)$**.
+* **The Graveyard Penalty:** The "Infinite Graveyard" accumulates all $N^{2.81}$ dead intermediate allocations. When the algorithm returns to the top level to perform its matrix additions, the base matrices have sunk beneath $N^{2.81}$ dead variables. The routing cost to fetch the variables for the addition becomes $N^2 \times \sqrt{N^{2.81}} = \mathcal{O}(N^{3.405})$. Because this $3.405$ exponent is much larger than the $2.81$ arithmetic limit, data movement completely ruins the algorithm.  
+* **The Liveness Fix:** Intermediate branches are aggressively freed the moment they are consumed. The peak live memory footprint of Strassen at any point is elegantly clamped to $\mathcal{O}(N^2)$. Top-level matrix additions now only require fetching $N^2$ elements from a depth of $N^2$, bringing the addition step cost down to $N^2 \times \sqrt{N^2} = N^3$.  
+  The recurrence relation updates to $T(N) = 7 T(N/2) + \mathcal{O}(N^3)$. Because $3 > \log_2 7$, the $\mathcal{O}(N^3)$ spatial routing cost of the additions strictly absorbs the recursive arithmetic. The algorithm operates at exactly the physical absolute lower bound of **$\mathcal{O}(N^3)$**.
 
 ### **Summary**
 
@@ -5419,7 +5273,7 @@ Source: https://docs.google.com/document/d/1EZ-HSbjZ4pLE4iOtCPR4nf4_icRYKFINYbds
 
 Introducing **liveness analysis**—where dead variables are actively evicted and older variables shift up to close the gaps—fundamentally changes the physics of the ByteDMD model for attention mechanisms.
 
-In the standard implementation (the "Infinite Graveyard"), every arithmetic operation allocates a new Tracked intermediate variable that is never freed. Because algorithms like Flash Attention execute $\\mathcal{O}(N^2 d)$ FLOPs inside deeply nested loops, they dump a vast ocean of "computational exhaust" onto the LRU stack. This permanently pushes the actual key, value, and accumulator matrices deeper and deeper, inadvertently penalizing the algorithm for doing its matrix arithmetic.
+In the standard implementation (the "Infinite Graveyard"), every arithmetic operation allocates a new Tracked intermediate variable that is never freed. Because algorithms like Flash Attention execute $\mathcal{O}(N^2 d)$ FLOPs inside deeply nested loops, they dump a vast ocean of "computational exhaust" onto the LRU stack. This permanently pushes the actual key, value, and accumulator matrices deeper and deeper, inadvertently penalizing the algorithm for doing its matrix arithmetic.
 
 By adding perfect liveness analysis, you introduce an **Ideal Garbage Collector**. The LRU stack depth is now strictly clamped to the **Active Working Set**. This transforms the metric into a pure simulation of 2D spatial routing across a hierarchical SRAM/HBM boundary.
 
@@ -5429,29 +5283,29 @@ Here is exactly how this modification alters the asymptotic complexity of the th
 
 **1\. FlashAttention-1 (Tiling & KV-Outer Loop)**
 
-* **Original ByteDMD:** Degrades to $\\mathcal{O}(N^{2.5} d^{1.5} B\_c^{-0.5})$  
-* **Modified (With Liveness):** Restores to **$\\mathcal{O}(N^{2.5} d^{1.5} B\_c^{-1})$**
+* **Original ByteDMD:** Degrades to $\mathcal{O}(N^{2.5} d^{1.5} B_c^{-0.5})$  
+* **Modified (With Liveness):** Restores to **$\mathcal{O}(N^{2.5} d^{1.5} B_c^{-1})$**
 
 **Why liveness fundamentally fixes it:**
 
-FlashAttention-1 prevents materializing the massive $\\Theta(N^2)$ attention matrix by tiling the sequence length. It loops over Key/Value blocks ($B\_c$) in the outer loop, and Query blocks ($B\_r$) in the inner loop.
+FlashAttention-1 prevents materializing the massive $\Theta(N^2)$ attention matrix by tiling the sequence length. It loops over Key/Value blocks ($B_c$) in the outer loop, and Query blocks ($B_r$) in the inner loop.
 
-* **The Graveyard Penalty:** Inside the inner loop, computing the block-local attention scores $S\_{ij} \= Q\_i K\_j^T$ executes $\\Theta(B\_r B\_c d)$ operations, dumping dead intermediate variables onto the stack at every step. Over a full inner loop pass, the algorithm dumps a vast layer of $\\Theta(N B\_c d)$ computational exhaust. When the outer loop advances and needs to re-fetch the Query and Output blocks from the previous pass, they have sunk deep beneath this exhaust. Fetching them incurs an artificially inflated spatial routing cost of $\\sqrt{N B\_c d}$, mathematically punishing the algorithm for utilizing larger SRAM tiles and artificially shifting the block-size benefit from $B\_c^{-1}$ to a degraded $B\_c^{-0.5}$.  
-* **The Liveness Fix:** With perfect liveness, the intermediate variables generated by the $QK^T$ dot products evaporate the moment they are consumed by the local softmax reduction. The stack depth is strictly bounded to the true physical matrices: $\\Theta(Nd)$. Because the live working set perfectly matches the global algorithmic footprint, the data routing correctly benefits from the exact $\\mathcal{O}(B\_c^{-1})$ global memory traffic reduction that Tri Dao originally proved.
+* **The Graveyard Penalty:** Inside the inner loop, computing the block-local attention scores $S_{ij} = Q_i K_j^T$ executes $\Theta(B_r B_c d)$ operations, dumping dead intermediate variables onto the stack at every step. Over a full inner loop pass, the algorithm dumps a vast layer of $\Theta(N B_c d)$ computational exhaust. When the outer loop advances and needs to re-fetch the Query and Output blocks from the previous pass, they have sunk deep beneath this exhaust. Fetching them incurs an artificially inflated spatial routing cost of $\sqrt{N B_c d}$, mathematically punishing the algorithm for utilizing larger SRAM tiles and artificially shifting the block-size benefit from $B_c^{-1}$ to a degraded $B_c^{-0.5}$.  
+* **The Liveness Fix:** With perfect liveness, the intermediate variables generated by the $QK^T$ dot products evaporate the moment they are consumed by the local softmax reduction. The stack depth is strictly bounded to the true physical matrices: $\Theta(Nd)$. Because the live working set perfectly matches the global algorithmic footprint, the data routing correctly benefits from the exact $\mathcal{O}(B_c^{-1})$ global memory traffic reduction that Tri Dao originally proved.
 
 ### **\---**
 
 **2\. FlashAttention-2 (Output-Stationary SRAM Residency)**
 
-* **Original ByteDMD:** Destroys SRAM locality ($\\mathcal{O}(N^{2.5} d^{1.5})$ local thrashing)  
-* **Modified (With Liveness):** Achieves pure **Output-Stationary Routing** at **$\\mathcal{O}(N^{2.5} d^{1.5} B\_r^{-1})$**
+* **Original ByteDMD:** Destroys SRAM locality ($\mathcal{O}(N^{2.5} d^{1.5})$ local thrashing)  
+* **Modified (With Liveness):** Achieves pure **Output-Stationary Routing** at **$\mathcal{O}(N^{2.5} d^{1.5} B_r^{-1})$**
 
 **Why liveness fundamentally fixes it:**
 
-FlashAttention-2 flipped the loop order: it iterates over Query blocks ($B\_r$) in the outer loop and K/V blocks ($B\_c$) in the inner loop. This mathematically guarantees that the running output block $O\_i$ is anchored entirely in fast SRAM, updating continuously across the sequence without being written back to HBM until the inner loop completes.
+FlashAttention-2 flipped the loop order: it iterates over Query blocks ($B_r$) in the outer loop and K/V blocks ($B_c$) in the inner loop. This mathematically guarantees that the running output block $O_i$ is anchored entirely in fast SRAM, updating continuously across the sequence without being written back to HBM until the inner loop completes.
 
-* **The Graveyard Penalty:** Just like FA-1, the inner loop computes $\\Theta(B\_r B\_c d)$ arithmetic operations per step, piling dead intermediates onto the stack. For the very next iteration of the inner loop, the algorithm must update the supposedly "anchored" $Q\_i$ and $O\_i$ blocks. But to do so, it must physically pull them out from underneath the $B\_r B\_c d$ dead variables generated just moments prior\! The "Infinite Graveyard" completely ruins the loop reordering, mathematically simulating severe L1/L2 thrashing and blinding the metric to the fact that $O\_i$ was meant to remain strictly hot in registers.  
-* **The Liveness Fix:** Liveness analysis instantly clears the inner-loop dot-product exhaust. Now, $Q\_i$ and $O\_i$ are elegantly pinned to the absolute top of the LRU stack. Because they never sink beneath computational waste, reusing them for the next inner-loop step costs an absolute minimal spatial routing distance. Liveness transforms the model into a perfect simulation of an output-stationary chip, correctly isolating FA-2's massive reduction in local SRAM read/writes. The global routing penalty shifts entirely to the HBM reads of $K\_j$ and $V\_j$, allowing the routing wire length to drop proportionally to $B\_r^{-1}$, validating its hardware superiority over FA-1.
+* **The Graveyard Penalty:** Just like FA-1, the inner loop computes $\Theta(B_r B_c d)$ arithmetic operations per step, piling dead intermediates onto the stack. For the very next iteration of the inner loop, the algorithm must update the supposedly "anchored" $Q_i$ and $O_i$ blocks. But to do so, it must physically pull them out from underneath the $B_r B_c d$ dead variables generated just moments prior\! The "Infinite Graveyard" completely ruins the loop reordering, mathematically simulating severe L1/L2 thrashing and blinding the metric to the fact that $O_i$ was meant to remain strictly hot in registers.  
+* **The Liveness Fix:** Liveness analysis instantly clears the inner-loop dot-product exhaust. Now, $Q_i$ and $O_i$ are elegantly pinned to the absolute top of the LRU stack. Because they never sink beneath computational waste, reusing them for the next inner-loop step costs an absolute minimal spatial routing distance. Liveness transforms the model into a perfect simulation of an output-stationary chip, correctly isolating FA-2's massive reduction in local SRAM read/writes. The global routing penalty shifts entirely to the HBM reads of $K_j$ and $V_j$, allowing the routing wire length to drop proportionally to $B_r^{-1}$, validating its hardware superiority over FA-1.
 
 ### **\---**
 
@@ -5464,8 +5318,8 @@ FlashAttention-2 flipped the loop order: it iterates over Query blocks ($B\_r$) 
 
 FlashAttention-3 targets NVIDIA Hopper architectures, leveraging Tensor Memory Accelerators (TMA) and Warp Specialization to utilize ping-pong buffers. It asynchronously fetches the memory for block $j+1$ *while* the matrix cores compute block $j$.
 
-* **The Graveyard Penalty:** Overlapping parallel pipeline stages is catastrophic in the "Infinite Graveyard." In the standard model, initiating an asynchronous prefetch successfully pulls $K\_{j+1}$ to the top of the stack. But immediately after the prefetch is issued, the active Consumer warp executes the massive matrix multiplication for block $j$, dumping an avalanche of dead variables onto the stack. By the time the algorithm actually goes to *consume* the prefetched $K\_{j+1}$, the pre-loaded data has already been buried under the compute exhaust of the current step\! The metric perversely penalizes advanced pipelining, making "early data arrival" look like a routing disadvantage due to cross-contamination.  
-* **The Liveness Fix:** With an ideal garbage collector, liveness analysis acts as an elegant memory barrier between asynchronous pipeline stages. The active working set cleanly holds exactly two overlapping states: the active compute buffers and the prefetch buffers. The compute exhaust from block $j$ is aggressively freed by Hopper's register-level accumulation, meaning the prefetched $K\_{j+1}$ smoothly maintains its prime position strictly adjacent to the active math units. The peak live memory footprint is elegantly clamped exactly to the double-buffer limits: $\\Theta(2 B\_r B\_c d)$. The algorithm behaves exactly like a perfectly pipelined 2D planar chip, correctly masking memory routing latency behind active operations to hit the absolute physical lower bound of modern Tensor Cores.
+* **The Graveyard Penalty:** Overlapping parallel pipeline stages is catastrophic in the "Infinite Graveyard." In the standard model, initiating an asynchronous prefetch successfully pulls $K_{j+1}$ to the top of the stack. But immediately after the prefetch is issued, the active Consumer warp executes the massive matrix multiplication for block $j$, dumping an avalanche of dead variables onto the stack. By the time the algorithm actually goes to *consume* the prefetched $K_{j+1}$, the pre-loaded data has already been buried under the compute exhaust of the current step\! The metric perversely penalizes advanced pipelining, making "early data arrival" look like a routing disadvantage due to cross-contamination.  
+* **The Liveness Fix:** With an ideal garbage collector, liveness analysis acts as an elegant memory barrier between asynchronous pipeline stages. The active working set cleanly holds exactly two overlapping states: the active compute buffers and the prefetch buffers. The compute exhaust from block $j$ is aggressively freed by Hopper's register-level accumulation, meaning the prefetched $K_{j+1}$ smoothly maintains its prime position strictly adjacent to the active math units. The peak live memory footprint is elegantly clamped exactly to the double-buffer limits: $\Theta(2 B_r B_c d)$. The algorithm behaves exactly like a perfectly pipelined 2D planar chip, correctly masking memory routing latency behind active operations to hit the absolute physical lower bound of modern Tensor Cores.
 
 ### **Summary**
 
@@ -5479,7 +5333,7 @@ Source: https://docs.google.com/document/d/1NtC6nzBFOo2OGvi_LG9zOX0rt9kvpciIrEwN
 
 If you modify the ByteDMD (Data Movement Distance) metric to explicitly allow for the **management of temporaries**—meaning dead variables are free()'d and evicted rather than endlessly sinking to the bottom of the "Infinite Graveyard" LRU stack—the stack depth accurately reflects the localized, active memory footprint.
 
-Under this modified metric, the absolute lower bound for the metric complexity of matrix multiplication is **$\\Theta(N^3)$**.
+Under this modified metric, the absolute lower bound for the metric complexity of matrix multiplication is **$\Theta(N^3)$**.
 
 Surprisingly, standard $O(N^3)$ arithmetic matrix multiplication algorithms **cannot** achieve this lower bound. It is uniquely achieved by sub-cubic algorithms like **Strassen’s Algorithm**, provided they are executed with **strict recursive memory management**.
 
@@ -5487,30 +5341,32 @@ Here is the mathematical breakdown of why this is the absolute theoretical floor
 
 ### ---
 
-**1\. The Absolute Lower Bound is $\\Omega(N^3)$**
+**1\. The Absolute Lower Bound is $\Omega(N^3)$**
 
-Under the ByteDMD model, fetching an element at LRU stack depth $d$ incurs a data movement cost of $\\sqrt{d}$.
+Under the ByteDMD model, fetching an element at LRU stack depth $d$ incurs a data movement cost of $\sqrt{d}$.
 
-Any algorithm that multiplies two $N \\times N$ matrices must, at a bare minimum, read the input matrices ($A$ and $B$) and write the output matrix ($C$). This requires bringing $O(N^2)$ unique elements into the cache.
+Any algorithm that multiplies two $N \times N$ matrices must, at a bare minimum, read the input matrices ($A$ and $B$) and write the output matrix ($C$). This requires bringing $O(N^2)$ unique elements into the cache.
 
 Under ByteDMD’s demand-paged initialization, the first time these elements are accessed, they incur "cold misses" priced at the DRAM frontier. Even with an optimal cache, inserting $O(N^2)$ elements naturally fills the LRU stack from depth $1$ up to $O(N^2)$. The data movement cost of simply touching the required data for the first time is the integral of these insertion depths:
 
-$$ \\text{Compulsory Cost} \= \\sum\_{d=1}^{O(N^2)} \\sqrt{d} \\approx \\int\_{0}^{O(N^2)} x^{1/2} dx \= \\Theta\\left((N^2)^{1.5}\\right) \= \\mathbf{\\Omega(N^3)} $$  
-This reveals a profound property of the ByteDMD metric: **For fast matrix multiplication algorithms (where $\\omega \< 3$), the asymptotic cost of data movement ($\\Omega(N^3)$) strictly dominates the arithmetic operation count ($O(N^{2.81})$).** It is mathematically impossible for *any* matrix multiplication algorithm to have a Data Movement Distance lower than $\\Omega(N^3)$.
+$$\text{Compulsory Cost} = \sum_{d=1}^{O(N^2)} \sqrt{d} \approx \int_{0}^{O(N^2)} x^{1/2} dx = \Theta\left((N^2)^{1.5}\right) = \mathbf{\Omega(N^3)}$$
 
-### **2\. The Algorithm that Achieves $\\Theta(N^3)$**
+This reveals a profound property of the ByteDMD metric: **For fast matrix multiplication algorithms (where $\omega < 3$), the asymptotic cost of data movement ($\Omega(N^3)$) strictly dominates the arithmetic operation count ($O(N^{2.81})$).** It is mathematically impossible for *any* matrix multiplication algorithm to have a Data Movement Distance lower than $\Omega(N^3)$.
 
-To perfectly hit this lower bound, you must use **Strassen's Algorithm** (or any fast matrix multiplication with $\\omega \< 3$) implemented with a **depth-first traversal and eager temporary memory management**.
+### **2\. The Algorithm that Achieves $\Theta(N^3)$**
 
-Normally, Strassen generates a massive amount of intermediate matrices (the $M\_1 \\dots M\_7$ sums), which ruins locality if left unmanaged. However, if you explicitly free() these temporaries the moment they are consumed at each recursive level, the algorithm optimally bounds its stack depth:
+To perfectly hit this lower bound, you must use **Strassen's Algorithm** (or any fast matrix multiplication with $\omega < 3$) implemented with a **depth-first traversal and eager temporary memory management**.
 
-1. **Strict Local Footprint:** At any recursive subproblem of size $K \\times K$, the algorithm performs a series of matrix additions. Because dead temporaries from sibling branches are eagerly freed, the active memory footprint (and thus the maximum LRU stack depth) is tightly bounded to $O(K^2)$.  
-2. **Cost per Subproblem:** The additions require $O(K^2)$ memory reads. Because the stack depth is bounded to $O(K^2)$, the reuse distance cost for each read is at most $\\sqrt{O(K^2)} \= O(K)$. Therefore, the total ByteDMD cost for the additions at this node is $O(K^2) \\text{ reads} \\times O(K) \\text{ cost/read} \= \\mathbf{O(K^3)}$.  
+Normally, Strassen generates a massive amount of intermediate matrices (the $M_1 \dots M_7$ sums), which ruins locality if left unmanaged. However, if you explicitly free() these temporaries the moment they are consumed at each recursive level, the algorithm optimally bounds its stack depth:
+
+1. **Strict Local Footprint:** At any recursive subproblem of size $K \times K$, the algorithm performs a series of matrix additions. Because dead temporaries from sibling branches are eagerly freed, the active memory footprint (and thus the maximum LRU stack depth) is tightly bounded to $O(K^2)$.  
+2. **Cost per Subproblem:** The additions require $O(K^2)$ memory reads. Because the stack depth is bounded to $O(K^2)$, the reuse distance cost for each read is at most $\sqrt{O(K^2)} = O(K)$. Therefore, the total ByteDMD cost for the additions at this node is $O(K^2) \text{ reads} \times O(K) \text{ cost/read} = \mathbf{O(K^3)}$.  
 3. **The Recurrence Relation:** Strassen splits the problem into 7 recursive calls of size $K/2$. Under the ByteDMD metric, the recurrence relation for the total data movement cost becomes:  
-   $$ D(N) \= 7 \\cdot D(N/2) \+ \\Theta(N^3) $$  
-4. **Master Theorem Convergence:** By the Master Theorem, because the branching factor ($7$) is strictly less than the geometric decay of the work ($2^3 \= 8$), the geometric series converges rapidly: $\\sum (7/8)^i \\to 8$.
+   $$D(N) = 7 \cdot D(N/2) + \Theta(N^3)$$
 
-Because the routing costs decay exponentially, the total cost is completely dominated by the top-level root node. The algorithm achieves an overall Data Movement Distance of exactly **$\\Theta(N^3)$**.
+4. **Master Theorem Convergence:** By the Master Theorem, because the branching factor ($7$) is strictly less than the geometric decay of the work ($2^3 = 8$), the geometric series converges rapidly: $\sum (7/8)^i \to 8$.
+
+Because the routing costs decay exponentially, the total cost is completely dominated by the top-level root node. The algorithm achieves an overall Data Movement Distance of exactly **$\Theta(N^3)$**.
 
 ### **3\. Why Standard Algorithms Fail to Achieve It**
 
@@ -5518,10 +5374,11 @@ To understand why Strassen's behavior under this metric is so remarkable, contra
 
 Even with perfect memory management, RMM splits into **8** subproblems. Its ByteDMD recurrence relation is:
 
-$$ D(N) \= 8 \\cdot D(N/2) \+ \\Theta(N^3) $$  
-Because the branching factor ($8$) equals the work decay ($2^3$), the data movement cost is perfectly balanced across all levels of the recursion tree. Summing $\\Theta(N^3)$ across $\\log\_2 N$ levels yields a metric complexity of **$\\Theta(N^3 \\log N)$**.
+$$D(N) = 8 \cdot D(N/2) + \Theta(N^3)$$
 
-This aligns beautifully with Hong & Kung’s foundational I/O lower bound, which dictates that standard $O(N^3)$ operations must mathematically incur a logarithmic hierarchy penalty across caches, permanently bottlenecking them at $\\Omega(N^3 \\log N)$.
+Because the branching factor ($8$) equals the work decay ($2^3$), the data movement cost is perfectly balanced across all levels of the recursion tree. Summing $\Theta(N^3)$ across $\log_2 N$ levels yields a metric complexity of **$\Theta(N^3 \log N)$**.
+
+This aligns beautifully with Hong & Kung’s foundational I/O lower bound, which dictates that standard $O(N^3)$ operations must mathematically incur a logarithmic hierarchy penalty across caches, permanently bottlenecking them at $\Omega(N^3 \log N)$.
 
 ### ---
 
@@ -5529,7 +5386,7 @@ This aligns beautifully with Hong & Kung’s foundational I/O lower bound, which
 
 *You may notice the provided 2022 arXiv paper derives higher upper bounds for memory-managed algorithms: $O(N^{3.23})$ for Strassen and $O(N^{3.33})$ for RMM.*
 
-This discrepancy exists because the authors took a mathematically conservative shortcut. Instead of modeling the dynamically shrinking $O(K^2)$ stack depths produced by recursive free() calls, they took the naive "Infinite Graveyard" reuse distances and simply capped them at a global maximum of the peak memory usage limit ($\\approx 3N^2$). When you properly evaluate the metric with a localized, actively managed stack, Strassen's complexity drops precisely to the $\\Theta(N^3)$ absolute mathematical floor.
+This discrepancy exists because the authors took a mathematically conservative shortcut. Instead of modeling the dynamically shrinking $O(K^2)$ stack depths produced by recursive free() calls, they took the naive "Infinite Graveyard" reuse distances and simply capped them at a global maximum of the peak memory usage limit ($\approx 3N^2$). When you properly evaluate the metric with a localized, actively managed stack, Strassen's complexity drops precisely to the $\Theta(N^3)$ absolute mathematical floor.
 
 ---
 
@@ -5543,50 +5400,51 @@ Here is a comprehensive analysis of matrix multiplication complexity under this 
 
 ### **1\. The Complexity of Matrix Multiplication Methods**
 
-In standard algorithmic analysis, time complexity treats memory accesses as free $O(1)$ operations, yielding an $O(N^3)$ cost for $N \\times N$ matrix multiplication. However, ByteDMD assumes compute is free and penalizes data movement by the square root of its LRU stack depth ($\\lceil\\sqrt{d}\\rceil$). This severely punishes poor spatial locality, shifting the complexity entirely onto the loop scheduling:
+In standard algorithmic analysis, time complexity treats memory accesses as free $O(1)$ operations, yielding an $O(N^3)$ cost for $N \times N$ matrix multiplication. However, ByteDMD assumes compute is free and penalizes data movement by the square root of its LRU stack depth ($\lceil\sqrt{d}\rceil$). This severely punishes poor spatial locality, shifting the complexity entirely onto the loop scheduling:
 
-* **Naive Loops (i-j-k or i-k-j): $\\mathcal{O}(N^4)$**  
-  In a standard triple-nested loop, the innermost iteration cleanly traverses one matrix but repeatedly fetches elements from the other matrix that were last accessed roughly $N^2$ steps ago. Digging an element out of LRU depth $N^2$ costs $\\sqrt{N^2} \= N$. Doing this for all $N^3$ scalar multiplications yields a total data movement cost of $\\mathcal{O}(N^4)$.  
-* **1-Level Tiled / Blocked Matmul: $\\mathcal{O}(N^{3.5})$**  
-  If you divide the matrices into blocks of size $S \\times S$, you keep a small "working set" near the top of the stack. The max depth of an intra-block read is bounded to $S^2$, costing $\\sqrt{S^2} \= S$. Balancing the block compute cost ($N^3 \\times S$) with the cost of dragging the blocks in from depth $N^2$ ($N^4 / S$) gives an optimal tile size of $S \= \\sqrt{N}$, yielding a total cost of $\\mathcal{O}(N^{3.5})$.  
-* **Cache-Oblivious / Morton Z-Curve: $\\mathcal{O}(N^3 \\log N)$**  
-  Recursively subdividing the matrices in half (down to $1 \\times 1$ leaves) optimally localizes data across *all* depths of the stack simultaneously. In classical cache theory, this guarantees $\\mathcal{O}(N^3 / \\sqrt{M})$ cache misses for any cache of size $M$. Integrating this miss rate against ByteDMD's $\\sqrt{M}$ penalty curve yields $\\mathcal{O}(N^3 \\log N)$.  
-* **Strassen's Algorithm: $\\mathcal{O}(N^3)$**  
-  Strassen reduces the number of recursive multiplications, lowering the FLOP count to $\\mathcal{O}(N^{2.81})$. However, it relies heavily on $\\mathcal{O}(N^2)$ matrix additions. Under ByteDMD, adding two $N \\times N$ matrices requires bringing $N^2$ elements from depth $N^2$, costing $N^2 \\times \\sqrt{N^2} \= \\mathcal{O}(N^3)$. Because $O(N^3)$ data movement strictly dominates $O(N^{2.81})$ arithmetic, **Strassen's algorithm operates in exactly $\\mathcal{O}(N^3)$ under ByteDMD**, driven entirely by the routing cost of matrix addition.
+* **Naive Loops (i-j-k or i-k-j): $\mathcal{O}(N^4)$**  
+  In a standard triple-nested loop, the innermost iteration cleanly traverses one matrix but repeatedly fetches elements from the other matrix that were last accessed roughly $N^2$ steps ago. Digging an element out of LRU depth $N^2$ costs $\sqrt{N^2} = N$. Doing this for all $N^3$ scalar multiplications yields a total data movement cost of $\mathcal{O}(N^4)$.  
+* **1-Level Tiled / Blocked Matmul: $\mathcal{O}(N^{3.5})$**  
+  If you divide the matrices into blocks of size $S \times S$, you keep a small "working set" near the top of the stack. The max depth of an intra-block read is bounded to $S^2$, costing $\sqrt{S^2} = S$. Balancing the block compute cost ($N^3 \times S$) with the cost of dragging the blocks in from depth $N^2$ ($N^4 / S$) gives an optimal tile size of $S = \sqrt{N}$, yielding a total cost of $\mathcal{O}(N^{3.5})$.  
+* **Cache-Oblivious / Morton Z-Curve: $\mathcal{O}(N^3 \log N)$**  
+  Recursively subdividing the matrices in half (down to $1 \times 1$ leaves) optimally localizes data across *all* depths of the stack simultaneously. In classical cache theory, this guarantees $\mathcal{O}(N^3 / \sqrt{M})$ cache misses for any cache of size $M$. Integrating this miss rate against ByteDMD's $\sqrt{M}$ penalty curve yields $\mathcal{O}(N^3 \log N)$.  
+* **Strassen's Algorithm: $\mathcal{O}(N^3)$**  
+  Strassen reduces the number of recursive multiplications, lowering the FLOP count to $\mathcal{O}(N^{2.81})$. However, it relies heavily on $\mathcal{O}(N^2)$ matrix additions. Under ByteDMD, adding two $N \times N$ matrices requires bringing $N^2$ elements from depth $N^2$, costing $N^2 \times \sqrt{N^2} = \mathcal{O}(N^3)$. Because $O(N^3)$ data movement strictly dominates $O(N^{2.81})$ arithmetic, **Strassen's algorithm operates in exactly $\mathcal{O}(N^3)$ under ByteDMD**, driven entirely by the routing cost of matrix addition.
 
 ### **2\. Is there a lower bound on how many operations are possible?**
 
 Yes, and there are two profound bounds at play here:
 
-**The Absolute Compulsory Lower Bound: $\\mathbf{\\Omega(N^3)}$**
+**The Absolute Compulsory Lower Bound: $\mathbf{\Omega(N^3)}$**
 
-The tracer explicitly enforces **demand-paged initialization**. The LRU stack starts completely empty. To multiply two $N \\times N$ matrices and write a third, the algorithm must pull $3N^2$ unique elements into the known universe.
+The tracer explicitly enforces **demand-paged initialization**. The LRU stack starts completely empty. To multiply two $N \times N$ matrices and write a third, the algorithm must pull $3N^2$ unique elements into the known universe.
 
 Each element enters as a "cold miss" priced at the expanding frontier of the cache. The cost of simply fetching the data for the very first time is the sum of square roots of this expanding depth:
 
-$$ \\sum\_{d=1}^{3N^2} \\sqrt{d} \\approx \\int\_0^{3N^2} \\sqrt{x} \\, dx \\propto \\mathbf{N^3} $$  
-This proves that even if an algorithm magically required zero arithmetic FLOPs, processing $N^2$ data points on a 2D grid fundamentally requires $\\Omega(N^3)$ data movement. Notice that **Strassen achieves this physical absolute minimum.**
+$$\sum_{d=1}^{3N^2} \sqrt{d} \approx \int_0^{3N^2} \sqrt{x} \, dx \propto \mathbf{N^3}$$
 
-**The Standard Matrix Multiplication Lower Bound: $\\mathbf{\\Omega(N^3 \\log N)}$**
+This proves that even if an algorithm magically required zero arithmetic FLOPs, processing $N^2$ data points on a 2D grid fundamentally requires $\Omega(N^3)$ data movement. Notice that **Strassen achieves this physical absolute minimum.**
 
-If an algorithm strictly relies on standard $O(N^3)$ scalar multiplications, the strict floor is $\\Omega(N^3 \\log N)$. This is derived by integrating the famous **Hong-Kung I/O lower bound**, which states that any standard matmul on a cache of size $M$ incurs $\\Omega(N^3 / \\sqrt{M})$ misses. Integrating this over the infinite ByteDMD stack depth yields $\\int (\\frac{N^3}{\\sqrt{M}} \\times \\frac{1}{\\sqrt{M}}) dM \= \\int \\frac{N^3}{M} dM \= \\Omega(N^3 \\log N)$.
+**The Standard Matrix Multiplication Lower Bound: $\mathbf{\Omega(N^3 \log N)}$**
 
-### **3\. Comparison to VLSI Lower Bounds ($Area \\times Time$ Energy)**
+If an algorithm strictly relies on standard $O(N^3)$ scalar multiplications, the strict floor is $\Omega(N^3 \log N)$. This is derived by integrating the famous **Hong-Kung I/O lower bound**, which states that any standard matmul on a cache of size $M$ incurs $\Omega(N^3 / \sqrt{M})$ misses. Integrating this over the infinite ByteDMD stack depth yields $\int (\frac{N^3}{\sqrt{M}} \times \frac{1}{\sqrt{M}}) dM = \int \frac{N^3}{M} dM = \Omega(N^3 \log N)$.
+
+### **3\. Comparison to VLSI Lower Bounds ($Area \times Time$ Energy)**
 
 ByteDMD's mathematical formulas perfectly mirror classical **VLSI (Very Large Scale Integration)** complexity bounds.
 
-In VLSI planar chip models (e.g., Thompson's Grid Model), the theoretical constraint for matrix multiplication is $Area \\times Time^2 \= \\Omega(N^4)$. Since the physical $Area$ to store the matrices must be $\\ge \\Omega(N^2)$, the execution $Time$ must be $\\ge \\Omega(N)$.
+In VLSI planar chip models (e.g., Thompson's Grid Model), the theoretical constraint for matrix multiplication is $Area \times Time^2 = \Omega(N^4)$. Since the physical $Area$ to store the matrices must be $\ge \Omega(N^2)$, the execution $Time$ must be $\ge \Omega(N)$.
 
-* Therefore, the **Area-Time Product** (which models chip resource volume and static leakage energy) is strictly $A \\times T \= \\mathbf{\\Omega(N^3)}$.
+* Therefore, the **Area-Time Product** (which models chip resource volume and static leakage energy) is strictly $A \times T = \mathbf{\Omega(N^3)}$.
 
-Furthermore, ByteDMD identically models **dynamic routing energy**. In 2D silicon, if a memory region has an Area $A$, routing a bit from the edge to the center requires traversing a wire of length $\\sqrt{A}$. Because dynamic energy (Joules) scales linearly with wire length, **Communication Energy $\\propto$ Data Volume $\\times \\sqrt{\\text{Area}}$**. By defining LRU depth as logical area, the $\\sum \\lceil\\sqrt{d}\\rceil$ calculation natively forces Python traces to simulate the physical Joules dissipated across a 2D chip.
+Furthermore, ByteDMD identically models **dynamic routing energy**. In 2D silicon, if a memory region has an Area $A$, routing a bit from the edge to the center requires traversing a wire of length $\sqrt{A}$. Because dynamic energy (Joules) scales linearly with wire length, **Communication Energy $\propto$ Data Volume $\times \sqrt{\text{Area}}$**. By defining LRU depth as logical area, the $\sum \lceil\sqrt{d}\rceil$ calculation natively forces Python traces to simulate the physical Joules dissipated across a 2D chip.
 
 ### **4\. Architectural Terminology**
 
 This script uses specific semantics that map to highly idealized theoretical hardware models:
 
-* **The Geometric Stack:** This is the academic terminology coined by Ding and Smith to describe an infinitely expanding memory system where access latency is a continuous geometric function of recency, rather than stepping across discrete hardware walls (L1 $\\rightarrow$ L2 $\\rightarrow$ DRAM).  
-* **2D Planar Uniprocessor (Von Neumann):** It models a single, centralized ALU surrounded by concentric rings of memory. This contrasts with a distributed **Systolic Array** (like a Google TPU), which distributes the ALUs physically across the grid specifically to avoid this $\\sqrt{Area}$ routing penalty.  
+* **The Geometric Stack:** This is the academic terminology coined by Ding and Smith to describe an infinitely expanding memory system where access latency is a continuous geometric function of recency, rather than stepping across discrete hardware walls (L1 $\rightarrow$ L2 $\rightarrow$ DRAM).  
+* **2D Planar Uniprocessor (Von Neumann):** It models a single, centralized ALU surrounded by concentric rings of memory. This contrasts with a distributed **Systolic Array** (like a Google TPU), which distributes the ALUs physically across the grid specifically to avoid this $\sqrt{Area}$ routing penalty.  
 * **Infinite Graveyard (Eviction-less Fully-Associative Cache):** The cache has no associativity sets, fixed block lines, or explicitly deleted memory. "Dead" variables cannot be tombstoned or bypassed; they act as physical silicon obstacles that simply sink radially outward as newer allocations push them away.  
 * **Demand Paging:** Memory operates natively as a "cold boot". Variables live in abstract space and map to spatial distance purely based on execution trace access, preventing arbitrary Python array strides or pointer layouts from polluting the 2D spatial measurement.
 
@@ -5598,51 +5456,55 @@ Source: https://docs.google.com/document/d/14xLI0GfbQb-YZU0i_6slIl8ofQWCHzoVp6AS
 
 Under the newly specified ByteDMD scheme (two-pass liveness analysis with aggressive compaction), variables **vaporize** from the LRU stack the exact moment their final operation completes. This prevents dead memory from bloating the cache and forces active variables to dynamically slide into shallower, cheaper cache depths.
 
-A remarkable consequence of this optimal eviction is that **Matrix-Vector ($y \= Ax$) and Vector-Matrix ($y \= x^T A$) computations exhibit an identical multiset of stack depths and therefore the exact same ByteDMD costs.**
+A remarkable consequence of this optimal eviction is that **Matrix-Vector ($y = Ax$) and Vector-Matrix ($y = x^T A$) computations exhibit an identical multiset of stack depths and therefore the exact same ByteDMD costs.**
 
-Because simultaneous pricing makes the stack behavior commutative (Cost(a\*b) \== Cost(b\*a)), reading inputs (A, x) has the exact same stack-bump logic as reading (x, A). Regardless of whether you iterate traversing strictly over rows or over columns, the $A\_{i,j}$ elements trigger predictable cold misses and instantly evaporate, while the vector $x$ naturally cycles along the bottom of the stack until its final iteration.
+Because simultaneous pricing makes the stack behavior commutative (Cost(a\*b) \== Cost(b\*a)), reading inputs (A, x) has the exact same stack-bump logic as reading (x, A). Regardless of whether you iterate traversing strictly over rows or over columns, the $A_{i,j}$ elements trigger predictable cold misses and instantly evaporate, while the vector $x$ naturally cycles along the bottom of the stack until its final iteration.
 
 ### **Precise Analytical Breakdown**
 
-For an $N \\times N$ matrix and $N \\times 1$ vector (where $N \\ge 2$), the operations cleanly divide into four distinct phases. Let $S(d) \= \\lceil \\sqrt{d} \\rceil$ be the ByteDMD routing cost function.
+For an $N \times N$ matrix and $N \times 1$ vector (where $N \ge 2$), the operations cleanly divide into four distinct phases. Let $S(d) = \lceil \sqrt{d} \rceil$ be the ByteDMD routing cost function.
 
 **1\. Intermediary Additions (Accumulators):**
 
-Because intermediary accumulator sums merge and instantly die, their stack depths are strictly bounded at the top of the stack. For the first $N-1$ rows, every addition uses operands at depths 3 and 1 ($\\lceil\\sqrt{3}\\rceil \+ \\lceil\\sqrt{1}\\rceil \= 2+1=3$). On the final row, vector elements also vaporize, shrinking the stack so additions use depths 2 and 1 ($\\lceil\\sqrt{2}\\rceil \+ \\lceil\\sqrt{1}\\rceil \= 2+1=3$). Thus, every single addition costs exactly 3\.
+Because intermediary accumulator sums merge and instantly die, their stack depths are strictly bounded at the top of the stack. For the first $N-1$ rows, every addition uses operands at depths 3 and 1 ($\lceil\sqrt{3}\rceil + \lceil\sqrt{1}\rceil = 2+1=3$). On the final row, vector elements also vaporize, shrinking the stack so additions use depths 2 and 1 ($\lceil\sqrt{2}\rceil + \lceil\sqrt{1}\rceil = 2+1=3$). Thus, every single addition costs exactly 3\.
 
-$$ C\_{\\text{adds}}(N) \= 3N(N-1) \= 3N^2 \- 3N $$  
+$$C_{\text{adds}}(N) = 3N(N-1) = 3N^2 - 3N$$
+
 **2\. Row 0 Initialization (Initial Population):**
 
-The stack progressively expands from empty up to size $N$. Matrix elements $A\_{0,j}$ trigger pure cold misses and instantly evaporate, while the vector elements $x\_j$ are cold misses that stay alive.
+The stack progressively expands from empty up to size $N$. Matrix elements $A_{0,j}$ trigger pure cold misses and instantly evaporate, while the vector elements $x_j$ are cold misses that stay alive.
 
-$$ C\_{\\text{Row}\_0}(N) \= S(1) \+ S(2) \+ \\sum\_{j=1}^{N-1} \\Big( S(j+2) \+ S(j+3) \\Big) $$  
-**3\. Middle Rows ($1 \\le i \\le N-2$):**
+$$C_{\text{Row}_0}(N) = S(1) + S(2) + \sum_{j=1}^{N-1} \Big( S(j+2) + S(j+3) \Big)$$
 
-The cache maintains an equilibrium. The fully cached active vector $x$ acts as an $N$-length footprint, while the matrix elements $A\_{i,j}$ are pulled from the cold DRAM frontier sequentially.
+**3\. Middle Rows ($1 \le i \le N-2$):**
 
-$$ C\_{\\text{Mid}}(N) \= \\sum\_{i=1}^{N-2} \\Bigg\[ S(N+i+1) \+ S(N+1) \+ \\sum\_{j=1}^{N-1}\\Big(S(N+i+2) \+ S(N+2)\\Big) \\Bigg\] $$  
-**4\. Final Row ($i \= N-1$):**
+The cache maintains an equilibrium. The fully cached active vector $x$ acts as an $N$-length footprint, while the matrix elements $A_{i,j}$ are pulled from the cold DRAM frontier sequentially.
 
-This captures the power of **aggressive compaction**. As each $x\_j$ is read for its final inner-loop iteration, it immediately **evaporates**. The stack incrementally collapses from size $N$ down to $1$, making the successive matrix cold-miss reads actively cheaper as the vector progresses.
+$$C_{\text{Mid}}(N) = \sum_{i=1}^{N-2} \Bigg\[ S(N+i+1) + S(N+1) + \sum_{j=1}^{N-1}\Big(S(N+i+2) + S(N+2)\Big) \Bigg\]$$
 
-$$ C\_{\\text{Last}}(N) \= S(2N) \+ S(N+1) \+ \\sum\_{j=1}^{N-1} \\Big( S(2N \- j \+ 1\) \+ S(N \- j \+ 2\) \\Big) $$
+**4\. Final Row ($i = N-1$):**
+
+This captures the power of **aggressive compaction**. As each $x_j$ is read for its final inner-loop iteration, it immediately **evaporates**. The stack incrementally collapses from size $N$ down to $1$, making the successive matrix cold-miss reads actively cheaper as the vector progresses.
+
+$$C_{\text{Last}}(N) = S(2N) + S(N+1) + \sum_{j=1}^{N-1} \Big( S(2N - j + 1) + S(N - j + 2) \Big)$$
 
 ### ---
 
-**The $\\mathcal{O}(1)$ Closed-Form Formula**
+**The $\mathcal{O}(1)$ Closed-Form Formula**
 
-We can completely eliminate the inner summations. The sum of square roots from $1$ to $d$ has the well-known exact closed form $F(d) \= \\sum\_{k=1}^d \\lceil \\sqrt{k} \\rceil \= \\frac{M(6d \- 2M^2 \+ 3M \- 1)}{6}$, where $M \= \\lceil \\sqrt{d} \\rceil$.
+We can completely eliminate the inner summations. The sum of square roots from $1$ to $d$ has the well-known exact closed form $F(d) = \sum_{k=1}^d \lceil \sqrt{k} \rceil = \frac{M(6d - 2M^2 + 3M - 1)}{6}$, where $M = \lceil \sqrt{d} \rceil$.
 
-By telescoping the piecewise equations together algebraically, we yield an incredibly fast, pure $\\mathcal{O}(1)$ formula valid for any matrix size $N \\ge 2$:
+By telescoping the piecewise equations together algebraically, we yield an incredibly fast, pure $\mathcal{O}(1)$ formula valid for any matrix size $N \ge 2$:
 
-$$ \\text{Cost}(N) \= N \\cdot F(2N) \+ F(2N-1) \- (N-2) F(N+2) \+ (N-1) S(N+1) \+ (N-1)(N-2) S(N+2) \+ S(2N) \+ 3N^2 \- 3N \- 8 $$  
-*(For the trivial edge-case $N=1$, the total exact cost collapses to precisely $3$. Because liveness limits the overall cache footprint strictly to $O(N)$, total data movement logically bounds to $\\mathcal{O}(N^{2.5})$, vastly outperforming the $\\mathcal{O}(N^3)$ naive uncompacted baseline).*
+$$\text{Cost}(N) = N \cdot F(2N) + F(2N-1) - (N-2) F(N+2) + (N-1) S(N+1) + (N-1)(N-2) S(N+2) + S(2N) + 3N^2 - 3N - 8$$
+
+*(For the trivial edge-case $N=1$, the total exact cost collapses to precisely $3$. Because liveness limits the overall cache footprint strictly to $O(N)$, total data movement logically bounds to $\mathcal{O}(N^{2.5})$, vastly outperforming the $\mathcal{O}(N^3)$ naive uncompacted baseline).*
 
 ### ---
 
 **Mathematica Implementation**
 
-The following Mathematica code evaluates both the explicitly mapped structural phases and the highly optimized $\\mathcal{O}(1)$ closed form, proving they yield identical cost sequences.
+The following Mathematica code evaluates both the explicitly mapped structural phases and the highly optimized $\mathcal{O}(1)$ closed form, proving they yield identical cost sequences.
 
 Mathematica
 
@@ -5702,7 +5564,7 @@ Source: https://docs.google.com/document/d/1NtC6nzBFOo2OGvi_LG9zOX0rt9kvpciIrEwN
 
 If you modify the ByteDMD (Data Movement Distance) metric to explicitly allow for the **management of temporaries**—meaning dead variables are free()'d and evicted rather than endlessly sinking to the bottom of the "Infinite Graveyard" LRU stack—the stack depth accurately reflects the localized, active memory footprint.
 
-Under this modified metric, the absolute lower bound for the metric complexity of matrix multiplication is **$\\Theta(N^3)$**.
+Under this modified metric, the absolute lower bound for the metric complexity of matrix multiplication is **$\Theta(N^3)$**.
 
 Surprisingly, standard $O(N^3)$ arithmetic matrix multiplication algorithms **cannot** achieve this lower bound. It is uniquely achieved by sub-cubic algorithms like **Strassen’s Algorithm**, provided they are executed with **strict recursive memory management**.
 
@@ -5710,30 +5572,32 @@ Here is the mathematical breakdown of why this is the absolute theoretical floor
 
 ### ---
 
-**1\. The Absolute Lower Bound is $\\Omega(N^3)$**
+**1\. The Absolute Lower Bound is $\Omega(N^3)$**
 
-Under the ByteDMD model, fetching an element at LRU stack depth $d$ incurs a data movement cost of $\\sqrt{d}$.
+Under the ByteDMD model, fetching an element at LRU stack depth $d$ incurs a data movement cost of $\sqrt{d}$.
 
-Any algorithm that multiplies two $N \\times N$ matrices must, at a bare minimum, read the input matrices ($A$ and $B$) and write the output matrix ($C$). This requires bringing $O(N^2)$ unique elements into the cache.
+Any algorithm that multiplies two $N \times N$ matrices must, at a bare minimum, read the input matrices ($A$ and $B$) and write the output matrix ($C$). This requires bringing $O(N^2)$ unique elements into the cache.
 
 Under ByteDMD’s demand-paged initialization, the first time these elements are accessed, they incur "cold misses" priced at the DRAM frontier. Even with an optimal cache, inserting $O(N^2)$ elements naturally fills the LRU stack from depth $1$ up to $O(N^2)$. The data movement cost of simply touching the required data for the first time is the integral of these insertion depths:
 
-$$ \\text{Compulsory Cost} \= \\sum\_{d=1}^{O(N^2)} \\sqrt{d} \\approx \\int\_{0}^{O(N^2)} x^{1/2} dx \= \\Theta\\left((N^2)^{1.5}\\right) \= \\mathbf{\\Omega(N^3)} $$  
-This reveals a profound property of the ByteDMD metric: **For fast matrix multiplication algorithms (where $\\omega \< 3$), the asymptotic cost of data movement ($\\Omega(N^3)$) strictly dominates the arithmetic operation count ($O(N^{2.81})$).** It is mathematically impossible for *any* matrix multiplication algorithm to have a Data Movement Distance lower than $\\Omega(N^3)$.
+$$\text{Compulsory Cost} = \sum_{d=1}^{O(N^2)} \sqrt{d} \approx \int_{0}^{O(N^2)} x^{1/2} dx = \Theta\left((N^2)^{1.5}\right) = \mathbf{\Omega(N^3)}$$
 
-### **2\. The Algorithm that Achieves $\\Theta(N^3)$**
+This reveals a profound property of the ByteDMD metric: **For fast matrix multiplication algorithms (where $\omega < 3$), the asymptotic cost of data movement ($\Omega(N^3)$) strictly dominates the arithmetic operation count ($O(N^{2.81})$).** It is mathematically impossible for *any* matrix multiplication algorithm to have a Data Movement Distance lower than $\Omega(N^3)$.
 
-To perfectly hit this lower bound, you must use **Strassen's Algorithm** (or any fast matrix multiplication with $\\omega \< 3$) implemented with a **depth-first traversal and eager temporary memory management**.
+### **2\. The Algorithm that Achieves $\Theta(N^3)$**
 
-Normally, Strassen generates a massive amount of intermediate matrices (the $M\_1 \\dots M\_7$ sums), which ruins locality if left unmanaged. However, if you explicitly free() these temporaries the moment they are consumed at each recursive level, the algorithm optimally bounds its stack depth:
+To perfectly hit this lower bound, you must use **Strassen's Algorithm** (or any fast matrix multiplication with $\omega < 3$) implemented with a **depth-first traversal and eager temporary memory management**.
 
-1. **Strict Local Footprint:** At any recursive subproblem of size $K \\times K$, the algorithm performs a series of matrix additions. Because dead temporaries from sibling branches are eagerly freed, the active memory footprint (and thus the maximum LRU stack depth) is tightly bounded to $O(K^2)$.  
-2. **Cost per Subproblem:** The additions require $O(K^2)$ memory reads. Because the stack depth is bounded to $O(K^2)$, the reuse distance cost for each read is at most $\\sqrt{O(K^2)} \= O(K)$. Therefore, the total ByteDMD cost for the additions at this node is $O(K^2) \\text{ reads} \\times O(K) \\text{ cost/read} \= \\mathbf{O(K^3)}$.  
+Normally, Strassen generates a massive amount of intermediate matrices (the $M_1 \dots M_7$ sums), which ruins locality if left unmanaged. However, if you explicitly free() these temporaries the moment they are consumed at each recursive level, the algorithm optimally bounds its stack depth:
+
+1. **Strict Local Footprint:** At any recursive subproblem of size $K \times K$, the algorithm performs a series of matrix additions. Because dead temporaries from sibling branches are eagerly freed, the active memory footprint (and thus the maximum LRU stack depth) is tightly bounded to $O(K^2)$.  
+2. **Cost per Subproblem:** The additions require $O(K^2)$ memory reads. Because the stack depth is bounded to $O(K^2)$, the reuse distance cost for each read is at most $\sqrt{O(K^2)} = O(K)$. Therefore, the total ByteDMD cost for the additions at this node is $O(K^2) \text{ reads} \times O(K) \text{ cost/read} = \mathbf{O(K^3)}$.  
 3. **The Recurrence Relation:** Strassen splits the problem into 7 recursive calls of size $K/2$. Under the ByteDMD metric, the recurrence relation for the total data movement cost becomes:  
-   $$ D(N) \= 7 \\cdot D(N/2) \+ \\Theta(N^3) $$  
-4. **Master Theorem Convergence:** By the Master Theorem, because the branching factor ($7$) is strictly less than the geometric decay of the work ($2^3 \= 8$), the geometric series converges rapidly: $\\sum (7/8)^i \\to 8$.
+   $$D(N) = 7 \cdot D(N/2) + \Theta(N^3)$$
 
-Because the routing costs decay exponentially, the total cost is completely dominated by the top-level root node. The algorithm achieves an overall Data Movement Distance of exactly **$\\Theta(N^3)$**.
+4. **Master Theorem Convergence:** By the Master Theorem, because the branching factor ($7$) is strictly less than the geometric decay of the work ($2^3 = 8$), the geometric series converges rapidly: $\sum (7/8)^i \to 8$.
+
+Because the routing costs decay exponentially, the total cost is completely dominated by the top-level root node. The algorithm achieves an overall Data Movement Distance of exactly **$\Theta(N^3)$**.
 
 ### **3\. Why Standard Algorithms Fail to Achieve It**
 
@@ -5741,10 +5605,11 @@ To understand why Strassen's behavior under this metric is so remarkable, contra
 
 Even with perfect memory management, RMM splits into **8** subproblems. Its ByteDMD recurrence relation is:
 
-$$ D(N) \= 8 \\cdot D(N/2) \+ \\Theta(N^3) $$  
-Because the branching factor ($8$) equals the work decay ($2^3$), the data movement cost is perfectly balanced across all levels of the recursion tree. Summing $\\Theta(N^3)$ across $\\log\_2 N$ levels yields a metric complexity of **$\\Theta(N^3 \\log N)$**.
+$$D(N) = 8 \cdot D(N/2) + \Theta(N^3)$$
 
-This aligns beautifully with Hong & Kung’s foundational I/O lower bound, which dictates that standard $O(N^3)$ operations must mathematically incur a logarithmic hierarchy penalty across caches, permanently bottlenecking them at $\\Omega(N^3 \\log N)$.
+Because the branching factor ($8$) equals the work decay ($2^3$), the data movement cost is perfectly balanced across all levels of the recursion tree. Summing $\Theta(N^3)$ across $\log_2 N$ levels yields a metric complexity of **$\Theta(N^3 \log N)$**.
+
+This aligns beautifully with Hong & Kung’s foundational I/O lower bound, which dictates that standard $O(N^3)$ operations must mathematically incur a logarithmic hierarchy penalty across caches, permanently bottlenecking them at $\Omega(N^3 \log N)$.
 
 ### ---
 
@@ -5752,7 +5617,7 @@ This aligns beautifully with Hong & Kung’s foundational I/O lower bound, which
 
 *You may notice the provided 2022 arXiv paper derives higher upper bounds for memory-managed algorithms: $O(N^{3.23})$ for Strassen and $O(N^{3.33})$ for RMM.*
 
-This discrepancy exists because the authors took a mathematically conservative shortcut. Instead of modeling the dynamically shrinking $O(K^2)$ stack depths produced by recursive free() calls, they took the naive "Infinite Graveyard" reuse distances and simply capped them at a global maximum of the peak memory usage limit ($\\approx 3N^2$). When you properly evaluate the metric with a localized, actively managed stack, Strassen's complexity drops precisely to the $\\Theta(N^3)$ absolute mathematical floor.
+This discrepancy exists because the authors took a mathematically conservative shortcut. Instead of modeling the dynamically shrinking $O(K^2)$ stack depths produced by recursive free() calls, they took the naive "Infinite Graveyard" reuse distances and simply capped them at a global maximum of the peak memory usage limit ($\approx 3N^2$). When you properly evaluate the metric with a localized, actively managed stack, Strassen's complexity drops precisely to the $\Theta(N^3)$ absolute mathematical floor.
 
 ---
 
@@ -5760,7 +5625,7 @@ This discrepancy exists because the authors took a mathematically conservative s
 
 Source: https://docs.google.com/document/d/1r0JXPrLHSePEKKek78dUmc5qDWTwBepFDUI77Ut1KYg/edit
 
-To compute the precise ByteDMD trace cost of a standard naive matrix multiplication ($C\_{i,j} \= \\sum\_{k=0}^{N-1} A\_{i,k} \\times B\_{k,j}$), we must systematically analyze the behavior of the **demand-paged fully associative stack** coupled with the **two-pass aggressive liveness analysis**.
+To compute the precise ByteDMD trace cost of a standard naive matrix multiplication ($C_{i,j} = \sum_{k=0}^{N-1} A_{i,k} \times B_{k,j}$), we must systematically analyze the behavior of the **demand-paged fully associative stack** coupled with the **two-pass aggressive liveness analysis**.
 
 ![JSON icon][image1]  
 out-177593...1464595503  
@@ -5770,36 +5635,36 @@ Because variables vaporize immediately after their logical last use completes, t
 
 ### **1\. The Precise Trace Depth Formulas**
 
-Over the execution of the nested loops across coordinates $(i, j, k)$, exactly $4N^3 \- 2N^2$ memory read events occur. The LRU stack distance (depth) of each accessed variable settles into highly predictable polynomial boundaries:
+Over the execution of the nested loops across coordinates $(i, j, k)$, exactly $4N^3 - 2N^2$ memory read events occur. The LRU stack distance (depth) of each accessed variable settles into highly predictable polynomial boundaries:
 
-**1\. Intermediate Products ($P\_k \= A\_{i,k} \\times B\_{k,j}$):**
+**1\. Intermediate Products ($P_k = A_{i,k} \times B_{k,j}$):**
 
-* Because the product is evaluated and immediately pushed to the top of the stack prior to the addition $S\_k \= S\_{k-1} \+ P\_k$, the product $P\_k$ is perpetually accessed exactly at the top of the cache.  
-* **Depth Formula:** $D(P) \= \\mathbf{1}$ for all exactly $N^2(N-1)$ addition loops.
+* Because the product is evaluated and immediately pushed to the top of the stack prior to the addition $S_k = S_{k-1} + P_k$, the product $P_k$ is perpetually accessed exactly at the top of the cache.  
+* **Depth Formula:** $D(P) = \mathbf{1}$ for all exactly $N^2(N-1)$ addition loops.
 
 **2\. Accumulator Elements ($S$):**
 
-* For $k \> 0$, the previously computed running sum $S\_{k-1}$ is fetched just after $A$, $B$, and $P$ are evaluated and pushed onto the stack. Due to aggressive compaction (variables die immediately upon loop boundaries), the baseline stack distance of the accumulator is effectively fixed.  
-* **Depth Formula:** $D(S) \= \\mathbf{4 \- \\delta\_i \- \\delta\_j}$ where $\\delta\_i \= 1$ if $i \= N-1$ else $0$, and $\\delta\_j \= 1$ if $j \= N-1$ else $0$.  
+* For $k > 0$, the previously computed running sum $S_{k-1}$ is fetched just after $A$, $B$, and $P$ are evaluated and pushed onto the stack. Due to aggressive compaction (variables die immediately upon loop boundaries), the baseline stack distance of the accumulator is effectively fixed.  
+* **Depth Formula:** $D(S) = \mathbf{4 - \delta_i - \delta_j}$ where $\delta_i = 1$ if $i = N-1$ else $0$, and $\delta_j = 1$ if $j = N-1$ else $0$.  
   *(Thus, exactly $(N-1)^3$ accesses evaluate at Depth 4).*
 
-**3\. Left Matrix ($A\_{i,k}$):**
+**3\. Left Matrix ($A_{i,k}$):**
 
-* Row $i$ of Matrix $A$ is heavily re-read $N$ times across the $j$ loop. Its last usage is cleanly detected at $j \= N-1$, meaning it safely vaporizes at the end of the row and doesn't pollute the LRU stack across the outer $i$ boundary.  
-* **Depth Formula:** For interior block reads ($0 \< i, j \< N-1$), the depth is bounded to exactly $\\mathbf{2N \+ 1}$ for $k=0$ and $\\mathbf{2N \+ 2}$ for $k \> 0$.
+* Row $i$ of Matrix $A$ is heavily re-read $N$ times across the $j$ loop. Its last usage is cleanly detected at $j = N-1$, meaning it safely vaporizes at the end of the row and doesn't pollute the LRU stack across the outer $i$ boundary.  
+* **Depth Formula:** For interior block reads ($0 < i, j < N-1$), the depth is bounded to exactly $\mathbf{2N + 1}$ for $k=0$ and $\mathbf{2N + 2}$ for $k > 0$.
 
-**4\. Right Matrix ($B\_{k,j}$):**
+**4\. Right Matrix ($B_{k,j}$):**
 
-* Matrix $B$ is completely traversed over $i=0$. Because elements $B\_{k,j}$ are continually required for every subsequent row $i$, the entire $N \\times N$ matrix is kept alive on the stack until the very final $i \= N-1$ sweep.  
-* **Depth Formula:** When reading $B\_{k,j}$ in the interior ($0 \< i, j \< N-1$), the stack distance is offset by the living entirety of the matrix plus the alive outputs $C$ and the working row $A$. Its depth is exactly $\\mathbf{N^2 \+ 2N}$ for $k=0$ and $\\mathbf{N^2 \+ 2N \+ 1}$ for $k\>0$.
+* Matrix $B$ is completely traversed over $i=0$. Because elements $B_{k,j}$ are continually required for every subsequent row $i$, the entire $N \times N$ matrix is kept alive on the stack until the very final $i = N-1$ sweep.  
+* **Depth Formula:** When reading $B_{k,j}$ in the interior ($0 < i, j < N-1$), the stack distance is offset by the living entirety of the matrix plus the alive outputs $C$ and the working row $A$. Its depth is exactly $\mathbf{N^2 + 2N}$ for $k=0$ and $\mathbf{N^2 + 2N + 1}$ for $k>0$.
 
 ### ---
 
 **2\. Mathematical Code**
 
-By mapping these exact analytical limits through piecewise algebra, we entirely bypass the immense $\\mathcal{O}(N^5)$ algorithmic overhead of AST traversal, generic object wrapping, and index-based state array liveness permutations.
+By mapping these exact analytical limits through piecewise algebra, we entirely bypass the immense $\mathcal{O}(N^5)$ algorithmic overhead of AST traversal, generic object wrapping, and index-based state array liveness permutations.
 
-The following mathematical Python code runs in perfect $\\mathcal{O}(N^3)$ computational time and returns the exact ByteDMD L1 simulated execution footprint for square matrices.
+The following mathematical Python code runs in perfect $\mathcal{O}(N^3)$ computational time and returns the exact ByteDMD L1 simulated execution footprint for square matrices.
 
 Python
 
@@ -5912,7 +5777,7 @@ def bytedmd\_cost\_naive\_matmul(N: int, bytes\_per\_element: int \= 1) \-\> int
 
 ## strassen-11apr26.md
 
-To compute the precise ByteDMD trace cost of **Strassen's Algorithm** (with a base case leaf size of $1$) for square matrices, we face a dramatically fragmented memory footprint. Unlike standard $\\mathcal{O}(N^3)$ naive matrix multiplication—which settles into mathematically continuous and predictable algebraic bounds—Strassen algorithmically breaks memory accesses into deeply interleaved piecewise $\\mathcal{O}(N^{2.81})$ recursive branches.
+To compute the precise ByteDMD trace cost of **Strassen's Algorithm** (with a base case leaf size of $1$) for square matrices, we face a dramatically fragmented memory footprint. Unlike standard $\mathcal{O}(N^3)$ naive matrix multiplication—which settles into mathematically continuous and predictable algebraic bounds—Strassen algorithmically breaks memory accesses into deeply interleaved piecewise $\mathcal{O}(N^{2.81})$ recursive branches.
 
 Rather than relying on generalized and incredibly slow object-wrapping AST interceptors, we can deterministically recreate the **two-pass aggressive liveness analysis** and the **demand-paged fully associative LRU stack trace** directly inside Wolfram Mathematica using logical sequence arrays.
 
@@ -6074,12 +5939,12 @@ Executing the code traces seamlessly through the array permutation branches matc
 
 | Matrix Size (N) | Arrays Shape | Simulated ByteDMD Cost |
 | :---- | :---- | :---- |
-| **N \= 1** | $1 \\times 1$ | 3 |
-| **N \= 2** | $2 \\times 2$ | 116 |
-| **N \= 4** | $4 \\times 4$ | 1,608 |
-| **N \= 8** | $8 \\times 8$ | 17,562 |
-| **N \= 16** | $16 \\times 16$ | 172,642 |
-| **N \= 32** | $32 \\times 32$ | 1,601,998 |
+| **N \= 1** | $1 \times 1$ | 3 |
+| **N \= 2** | $2 \times 2$ | 116 |
+| **N \= 4** | $4 \times 4$ | 1,608 |
+| **N \= 8** | $8 \times 8$ | 17,562 |
+| **N \= 16** | $16 \times 16$ | 172,642 |
+| **N \= 32** | $32 \times 32$ | 1,601,998 |
 
 *(Note: Just like the original closed-form Python algebraic metric, passing the optional scaled element byte size dynamically threads scaled discrete block sum-limits algebraically. For 4-byte variables (int32 or float32), you can simply call it utilizing ByteDMDStrassen\[8, 4\]).*
 
@@ -6089,7 +5954,7 @@ Executing the code traces seamlessly through the array permutation branches matc
 
 To generate the precise ByteDMD simulated footprint for **Vanilla Recursive Matrix Multiplication**, we face a different geometrical challenge than the naive iteration loop approach. While loops yield predictable piecewise closed-form depths, pure recursive "Divide-and-Conquer" algorithms navigate variables using dynamic block-level Z-order execution trees.
 
-Applying Python’s generic AST class-proxy wrapper to intercept this tree logic would result in a massive $\\mathcal{O}(N^5)$ index traversal overhead. Instead, we can bypass proxy overhead entirely by using **Wolfram Mathematica** to structurally simulate the recursive operation tree natively.
+Applying Python’s generic AST class-proxy wrapper to intercept this tree logic would result in a massive $\mathcal{O}(N^5)$ index traversal overhead. Instead, we can bypass proxy overhead entirely by using **Wolfram Mathematica** to structurally simulate the recursive operation tree natively.
 
 By using Sow and Reap, we construct the exact execution sequence. We then feed this explicitly ordered footprint list directly into the **two-pass aggressive liveness analysis** limits to dynamically slide the bounded LRU tracking stack.
 
@@ -6246,7 +6111,7 @@ ByteDMDCostRecursiveMatMul\[NSize\_Integer, bytesPerElement\_Integer: 1\] := Mod
 
 ### **Outputs Evaluation**
 
-Because we bypass Python object encapsulation proxies with native algorithmic lists, you can compute cache execution boundaries for larger matrix dimensions interactively in $\\mathcal{O}(N^3)$ limits using:
+Because we bypass Python object encapsulation proxies with native algorithmic lists, you can compute cache execution boundaries for larger matrix dimensions interactively in $\mathcal{O}(N^3)$ limits using:
 
 Mathematica
 
@@ -6272,7 +6137,7 @@ These generated trace limits practically visualize the strict innate **cache-obl
 
 To mathematically analyze the profound difference in the ByteDMD cache footprint of **Vanilla Recursive Matrix Multiplication** compared to standard naive iteration, we must shift from evaluating sequential piece-wise loops to analyzing the fractal spatial boundaries of a **cache-oblivious execution tree**.
 
-Unlike naive nested loops—which yield a massive $\\Theta(N^4)$ ByteDMD trace penalty due to repeatedly scanning matrix $B$ across a global $\\mathcal{O}(N^2)$ stack depth—the recursive divide-and-conquer strategy naturally restricts operational working sets into isolated local bounding boxes.
+Unlike naive nested loops—which yield a massive $\Theta(N^4)$ ByteDMD trace penalty due to repeatedly scanning matrix $B$ across a global $\mathcal{O}(N^2)$ stack depth—the recursive divide-and-conquer strategy naturally restricts operational working sets into isolated local bounding boxes.
 
 Here is the exact mathematical proof, the Master Theorem derivation, the closed-form limits, and the accompanying Wolfram Mathematica analysis code.
 
@@ -6280,44 +6145,48 @@ Here is the exact mathematical proof, the Master Theorem derivation, the closed-
 
 **1\. Analytical Bounding of the Cache Footprint**
 
-**1\. The Exact Read Count ($R\_N$)**
+**1\. The Exact Read Count ($R_N$)**
 
-Regardless of algorithmic structure, the absolute number of baseline mathematical memory reads remains anchored. For an $N \\times N$ matrix (where $N=2^k$), the recursion divides the domain into 8 multiplications and 4 additions of size $N/2$.
+Regardless of algorithmic structure, the absolute number of baseline mathematical memory reads remains anchored. For an $N \times N$ matrix (where $N=2^k$), the recursion divides the domain into 8 multiplications and 4 additions of size $N/2$.
 
-Resolving the logical read recurrence $R(N) \= 8R(N/2) \+ 2N^2$ with the base scalar case $R(1)=2$ yields the exact closed-form sum of physical memory accesses:
+Resolving the logical read recurrence $R(N) = 8R(N/2) + 2N^2$ with the base scalar case $R(1)=2$ yields the exact closed-form sum of physical memory accesses:
 
-$$R(N) \= 4N^3 \- 2N^2$$  
+$$R(N) = 4N^3 - 2N^2$$
+
 *(Note: Because this matches the physical reads of naive iteration exactly, the drastic reduction in actual Cache Cost is proven to purely stem from spatial locality and liveness limits).*
 
-**2\. The Bounded Trace Cost ($T\_N$) via The Master Theorem**
+**2\. The Bounded Trace Cost ($T_N$) via The Master Theorem**
 
-Because the ByteDMD algorithm evaluates cache retrieval variables precisely at the square root of their Most-Recently-Used depth ($P(d) \= \\lfloor\\sqrt{d-1}\\rfloor \+ 1 \\approx \\sqrt{d}$), we can calculate the analytical trace cost per recursive bounding box.
+Because the ByteDMD algorithm evaluates cache retrieval variables precisely at the square root of their Most-Recently-Used depth ($P(d) = \lfloor\sqrt{d-1}\rfloor + 1 \approx \sqrt{d}$), we can calculate the analytical trace cost per recursive bounding box.
 
 Let $T(N)$ be the total ByteDMD trace cost. At any recursive node evaluating a sub-matrix of size $S$, the algorithm merges outputs using element-wise addition.
 
-* Due to the aggressive liveness analysis vaporizing dead variables, the maximum stack footprint during the evaluation of size $S$ is strictly bounded by the sub-block limits, meaning the cache distance $d$ of any local variable is clamped to $\\mathcal{O}(S^2)$.  
-* Because the ByteDMD trace applies a square root, the localized expected penalty to recover each element is $\\sqrt{\\mathcal{O}(S^2)} \= \\mathcal{O}(S)$.  
-* There are exactly $\\mathcal{O}(S^2)$ memory read events required across the matrix addition phase, meaning the ByteDMD trace cost contributed exactly at layer $S$ evaluates to:  
-  $$\\text{MergeCost}(S) \= \\mathcal{O}(S^2) \\times \\mathcal{O}(S) \= \\mathbf{\\mathcal{O}(S^3)}$$
+* Due to the aggressive liveness analysis vaporizing dead variables, the maximum stack footprint during the evaluation of size $S$ is strictly bounded by the sub-block limits, meaning the cache distance $d$ of any local variable is clamped to $\mathcal{O}(S^2)$.  
+* Because the ByteDMD trace applies a square root, the localized expected penalty to recover each element is $\sqrt{\mathcal{O}(S^2)} = \mathcal{O}(S)$.  
+* There are exactly $\mathcal{O}(S^2)$ memory read events required across the matrix addition phase, meaning the ByteDMD trace cost contributed exactly at layer $S$ evaluates to:  
+  $$\text{MergeCost}(S) = \mathcal{O}(S^2) \times \mathcal{O}(S) = \mathbf{\mathcal{O}(S^3)}$$
 
 This formulates a rigorously defined geometric recurrence relation for the overall cache cost:
 
-$$ T(N) \= 8 \\cdot T\\left(\\frac{N}{2}\\right) \+ \\Theta(N^3) $$  
-By comparing the recursive tree expansion ($a=8$) to the work degree ($b^c \= 2^3 \= 8$), this falls perfectly into **Case 2 of the Master Theorem**. The depth boundaries mathematically collapse, proving that recursive ByteDMD footprints are strictly bounded to:
+$$T(N) = 8 \cdot T\left(\frac{N}{2}\right) + \Theta(N^3)$$
 
-$$ T(N) \= \\mathbf{\\Theta(N^3 \\log\_2 N)} $$  
-This mathematically proves why vanilla recursion inherently crushes the $\\Theta(N^4)$ naive approach—the cache-oblivious structural blocks organically prevent the square-root cost penalties from escaping the local dimension.
+By comparing the recursive tree expansion ($a=8$) to the work degree ($b^c = 2^3 = 8$), this falls perfectly into **Case 2 of the Master Theorem**. The depth boundaries mathematically collapse, proving that recursive ByteDMD footprints are strictly bounded to:
+
+$$T(N) = \mathbf{\Theta(N^3 \log_2 N)}$$
+
+This mathematically proves why vanilla recursion inherently crushes the $\Theta(N^4)$ naive approach—the cache-oblivious structural blocks organically prevent the square-root cost penalties from escaping the local dimension.
 
 ### ---
 
 **2\. Closed-Form Continuous Fit Approximation**
 
-Because ByteDMD operates on discrete integer staircases of memory addresses, a pure continuous integral isn't flawlessly exact. However, by running least-squares algebraic regression of the Master Theorem's functional components across the exact $N \\le 32$ algorithmic traces, we condense the behavior into a highly precise closed-form polynomial:
+Because ByteDMD operates on discrete integer staircases of memory addresses, a pure continuous integral isn't flawlessly exact. However, by running least-squares algebraic regression of the Master Theorem's functional components across the exact $N \le 32$ algorithmic traces, we condense the behavior into a highly precise closed-form polynomial:
 
-$$C\_{\\text{ByteDMD}}(N) \\approx 4.5749 \\, N^3 \\log\_2(N) \+ 1.5441 \\, N^3 \+ 0.4215 \\, N^2$$  
-This deterministic continuous model operates in absolute $\\mathcal{O}(1)$ computational time, allowing you to bypass $\\mathcal{O}(N^5)$ simulated AST proxy overhead entirely.
+$$C_{\text{ByteDMD}}(N) \approx 4.5749 \, N^3 \log_2(N) + 1.5441 \, N^3 + 0.4215 \, N^2$$
 
-*(At $N=32$, standard nested array traversal thrashes roughly $1.48$ million trace costs against its $N^4$ limit, whereas the recursive $N^3 \\log N$ structure suppresses it safely to exactly $800,571$).*
+This deterministic continuous model operates in absolute $\mathcal{O}(1)$ computational time, allowing you to bypass $\mathcal{O}(N^5)$ simulated AST proxy overhead entirely.
+
+*(At $N=32$, standard nested array traversal thrashes roughly $1.48$ million trace costs against its $N^4$ limit, whereas the recursive $N^3 \log N$ structure suppresses it safely to exactly $800,571$).*
 
 ### ---
 
@@ -6532,7 +6401,7 @@ Because ByteDMD strictly tracks demand-paged cache boundaries and dynamically sl
 
 ### **The Source of the Discrepancy**
 
-In standard Strassen algebra, $C\_{22} \= M\_1 \- M\_2 \+ M\_3 \+ M\_6$.
+In standard Strassen algebra, $C_{22} = M_1 - M_2 + M_3 + M_6$.
 
 1. **In your Mathematica script:**  
    It strictly enforces left-to-right parsing for the formula: (((M1 \- M2) \+ M3) \+ M6)  
@@ -6549,7 +6418,7 @@ In standard Strassen algebra, $C\_{22} \= M\_1 \- M\_2 \+ M\_3 \+ M\_6$.
 Right before calculating C22, both scripts calculate C21 \= \_add(M2, M4). As a result of this operation, M2 becomes extremely "hot" and sits at the very top of the LRU stack.
 
 * In Mathematica, because (M1 \- M2) executes first, it immediately retrieves M2 while it sits at depth 1, minimizing the square-root read penalty. Additionally, since this is the last use of M2, it is aggressively evicted, making room for future operations.  
-* In Python, (M1 \+ M3) executes first. This operation reads M1 and M3, effectively pushing the "hot" M2 deeper down the LRU stack. When the outer \_sub(..., M2) finally fires, M2 is colder, generating a slightly higher depth penalty that compounds recursively throughout the $\\mathcal{O}(N^{2.81})$ branches.
+* In Python, (M1 \+ M3) executes first. This operation reads M1 and M3, effectively pushing the "hot" M2 deeper down the LRU stack. When the outer \_sub(..., M2) finally fires, M2 is colder, generating a slightly higher depth penalty that compounds recursively throughout the $\mathcal{O}(N^{2.81})$ branches.
 
 ### **The Fix**
 
@@ -6576,49 +6445,51 @@ Once replaced, running the python benchmark will flawlessly replicate the target
 
 To mathematically analyze the profound difference in the ByteDMD cache footprint of **Vanilla Iterative Matrix Multiplication** (the standard nested i-j-k loop) compared to the recursive divide-and-conquer approach, we must shift from evaluating fractal boundaries to mapping the destructive **LRU stack thrashing** caused by sequential outer-loop traversals.
 
-Unlike the cache-oblivious recursive execution tree—which cleanly isolates operations into local bounding boxes of $\\Theta(N^3 \\log\_2 N)$—the standard $i-j-k$ loop necessitates dragging the entire dimensional state of matrix $B$ repeatedly across an unbounded global memory perimeter, resulting in an aggressive $\\mathbf{\\Theta(N^4)}$ trace penalty.
+Unlike the cache-oblivious recursive execution tree—which cleanly isolates operations into local bounding boxes of $\Theta(N^3 \log_2 N)$—the standard $i-j-k$ loop necessitates dragging the entire dimensional state of matrix $B$ repeatedly across an unbounded global memory perimeter, resulting in an aggressive $\mathbf{\Theta(N^4)}$ trace penalty.
 
 Here is the exact mathematical derivation of the bound, followed by the complete native **Wolfram Mathematica** structural tracing code that computes the exact value.
 
 ### **1\. Analytical Bounding of the Cache Footprint**
 
-**1\. The Exact Read Count ($R\_N$)**
+**1\. The Exact Read Count ($R_N$)**
 
-Regardless of algorithmic structure, the absolute number of baseline mathematical memory reads remains anchored. A standard $N \\times N$ matrix multiplication traversing three nested $i-j-k$ loops executes $N^3$ inner multiplications and $(N^3 \- N^2)$ additions. Resolving the exact total of logical read events mapped yields exactly:
+Regardless of algorithmic structure, the absolute number of baseline mathematical memory reads remains anchored. A standard $N \times N$ matrix multiplication traversing three nested $i-j-k$ loops executes $N^3$ inner multiplications and $(N^3 - N^2)$ additions. Resolving the exact total of logical read events mapped yields exactly:
 
-$$R(N) \= 4N^3 \- 2N^2$$  
+$$R(N) = 4N^3 - 2N^2$$
+
 *(Because this inherently matches the exact physical read count of the recursive approach, we mathematically prove the cost explosion originates exclusively from poor spatial LRU execution depth).*
 
-**2\. The Bounded Trace Cost ($T\_N$) via LRU Stack Distance Mapping**
+**2\. The Bounded Trace Cost ($T_N$) via LRU Stack Distance Mapping**
 
-Because the ByteDMD trace prices cache retrieval variables dynamically at the square root of their Most-Recently-Used depth ($P(d) \= \\lfloor\\sqrt{d-1}\\rfloor \+ 1 \\approx \\sqrt{d}$), we can analytically evaluate the stack penalty inside the innermost loop for each operand:
+Because the ByteDMD trace prices cache retrieval variables dynamically at the square root of their Most-Recently-Used depth ($P(d) = \lfloor\sqrt{d-1}\rfloor + 1 \approx \sqrt{d}$), we can analytically evaluate the stack penalty inside the innermost loop for each operand:
 
-* **Target accumulators (s, p):** Intermediate accumulation variables are aggressively localized and quickly vaporized by the 2-pass liveness death tracking, generating tight continuous trace distances yielding a total boundary cost of $\\mathcal{O}(N^3)$.  
-* **The Drag of Matrix A ($\\mathcal{O}(N^{3.5})$):** For $i \> 0$ and $j \> 0$, an element $A\[i, k\]$ is re-read exactly one full $k$-loop later. The number of unique elements accessed between these reads (the rest of row A for $j-1$, the beginning of row A for $j$, and a column of B) mathematically resolves to an LRU distance of exactly **$d \= 2N \+ 1$**.  
-  * Across $N^3$ hot accesses, this generates a strict geometrical penalty of $N^3 \\times \\sqrt{2N} \= \\mathbf{\\sqrt{2} N^{3.5}}$.  
-* **The Thrashing of Matrix B ($\\mathcal{O}(N^4)$):** Because elements $B\[k, j\]$ are read sequentially inner-most but only repeat across the outermost loop $i$, the active bounded working set between accesses spans the entire cached matrix. When $i \> 0$, retrieving any $B\[k, j\]$ bypasses exactly $N^2$ other $B$ elements, $N$ active $A$ elements, and $N$ active $C$ elements.  
-  * This clamps the exact LRU distance to **$d \= (N+1)^2$**.  
-  * Because the expected penalty applies the square root, each of the $N^2(N-1)$ hot-reads mapping against matrix $B$ incurs a cost of exactly $\\sqrt{(N+1)^2} \= \\mathbf{N+1}$.  
-  * Total trace penalty for Matrix B: $N^2(N-1) \\times (N+1) \= \\mathbf{N^4 \- N^2}$
+* **Target accumulators (s, p):** Intermediate accumulation variables are aggressively localized and quickly vaporized by the 2-pass liveness death tracking, generating tight continuous trace distances yielding a total boundary cost of $\mathcal{O}(N^3)$.  
+* **The Drag of Matrix A ($\mathcal{O}(N^{3.5})$):** For $i > 0$ and $j > 0$, an element $A\[i, k\]$ is re-read exactly one full $k$-loop later. The number of unique elements accessed between these reads (the rest of row A for $j-1$, the beginning of row A for $j$, and a column of B) mathematically resolves to an LRU distance of exactly **$d = 2N + 1$**.  
+  * Across $N^3$ hot accesses, this generates a strict geometrical penalty of $N^3 \times \sqrt{2N} = \mathbf{\sqrt{2} N^{3.5}}$.  
+* **The Thrashing of Matrix B ($\mathcal{O}(N^4)$):** Because elements $B\[k, j\]$ are read sequentially inner-most but only repeat across the outermost loop $i$, the active bounded working set between accesses spans the entire cached matrix. When $i > 0$, retrieving any $B\[k, j\]$ bypasses exactly $N^2$ other $B$ elements, $N$ active $A$ elements, and $N$ active $C$ elements.  
+  * This clamps the exact LRU distance to **$d = (N+1)^2$**.  
+  * Because the expected penalty applies the square root, each of the $N^2(N-1)$ hot-reads mapping against matrix $B$ incurs a cost of exactly $\sqrt{(N+1)^2} = \mathbf{N+1}$.  
+  * Total trace penalty for Matrix B: $N^2(N-1) \times (N+1) = \mathbf{N^4 - N^2}$
 
 **Summative Master Limit:**
 
 By combining these exact structural boundaries, we mathematically dictate the exact limit penalty for standard vanilla matrix multiplication:
 
-$$ \\text{TraceCost}(N) \= \\mathbf{N^4 \+ \\sqrt{2} N^{3.5} \+ \\Theta(N^3)} $$
+$$\text{TraceCost}(N) = \mathbf{N^4 + \sqrt{2} N^{3.5} + \Theta(N^3)}$$
 
 ### **2\. Closed-Form Continuous Approximation**
 
-Because discrete L1 cache scaling happens in integer staircases via the isqrt function, pure continuous formulas cannot effortlessly express the limit down to a single byte without tracking. However, by locking our geometrically proven exact parameters ($1.0 N^4 \+ \\sqrt{2}N^{3.5}$) and applying least-squares algebraic regression across the remaining initial cold misses, we extract an extremely pristine continuous analytical fit bridging the exact state-tracker behavior:
+Because discrete L1 cache scaling happens in integer staircases via the isqrt function, pure continuous formulas cannot effortlessly express the limit down to a single byte without tracking. However, by locking our geometrically proven exact parameters ($1.0 N^4 + \sqrt{2}N^{3.5}$) and applying least-squares algebraic regression across the remaining initial cold misses, we extract an extremely pristine continuous analytical fit bridging the exact state-tracker behavior:
 
-$$C\_{\\text{ByteDMD}}(N) \\approx 1.0 \\, N^4 \+ \\sqrt{2} \\, N^{3.5} \+ 4.814 \\, N^3 \- 4.191 \\, N^2 \- 1.074 \\, N$$  
+$$C_{\text{ByteDMD}}(N) \approx 1.0 \, N^4 + \sqrt{2} \, N^{3.5} + 4.814 \, N^3 - 4.191 \, N^2 - 1.074 \, N$$
+
 This continuous polynomial mathematically visualizes the strict thrashing threshold. At $N=32$, the analytical bound flawlessly dictates 1,464,150, predicting the exact state-tracker simulated cost of 1,477,427 with a **\<0.9% error margin**.
 
 ### ---
 
 **3\. Wolfram Mathematica Code (Exact Value & Bounds)**
 
-This self-contained Mathematica script identically models the dynamic stack footprint constraints for the vanilla $i-j-k$ formulation without $\\mathcal{O}(N^5)$ Python AST proxy overhead. It yields the strictly **Exact Discrete Trace Cost** side-by-side with the theoretical continuous bound.
+This self-contained Mathematica script identically models the dynamic stack footprint constraints for the vanilla $i-j-k$ formulation without $\mathcal{O}(N^5)$ Python AST proxy overhead. It yields the strictly **Exact Discrete Trace Cost** side-by-side with the theoretical continuous bound.
 
 Mathematica
 
@@ -6776,23 +6647,23 @@ The discrepancy you are observing is not a failure of Flash Attention nor of the
 
 There are two critical flaws in how the benchmark is parameterized:
 
-1. **Coupling Sequence Length with Head Dimension ($L \= D \= K \= N$):**  
-   In real-world Large Language Models, the sequence length ($L$) scales to thousands, but the head dimension ($D$) remains a small constant (e.g., 64 or 128). Your \_cost function generates square $N \\times N$ matrices, enforcing $L \= D \= N$.  
-   Because your functions include the initial $X @ W\_q$ projections, these naive dense matmuls incur a massive $\\mathcal{O}(N^{3.5})$ cache-thrashing cost under ByteDMD. Flash Attention **only** optimizes the $\\mathcal{O}(L^2)$ memory footprint of the attention matrix itself. The exorbitant cost of the unoptimized $N \\times N \\times N$ projection matmuls completely drowns out the $\\mathcal{O}(L^2)$ savings from the attention core.  
+1. **Coupling Sequence Length with Head Dimension ($L = D = K = N$):**  
+   In real-world Large Language Models, the sequence length ($L$) scales to thousands, but the head dimension ($D$) remains a small constant (e.g., 64 or 128). Your \_cost function generates square $N \times N$ matrices, enforcing $L = D = N$.  
+   Because your functions include the initial $X @ W_q$ projections, these naive dense matmuls incur a massive $\mathcal{O}(N^{3.5})$ cache-thrashing cost under ByteDMD. Flash Attention **only** optimizes the $\mathcal{O}(L^2)$ memory footprint of the attention matrix itself. The exorbitant cost of the unoptimized $N \times N \times N$ projection matmuls completely drowns out the $\mathcal{O}(L^2)$ savings from the attention core.  
 2. **Scaling Block Sizes with $N$ (Br \= Bc \= max(1, L // 2)):**  
-   Flash Attention achieves its performance by computing the attention matrix in tiles that are strictly sized to fit within the GPU's fixed SRAM capacity. By scaling your block sizes proportionally to the sequence length (L // 2), your tiles inevitably exceed the optimal "shallow" LRU cache depth. The working set size of the inner loops grows indefinitely, pushing tracked elements deep down ByteDMD’s LRU stack and destroying the constant $\\mathcal{O}(1)$ read-depth that Flash Attention is designed to exploit.
+   Flash Attention achieves its performance by computing the attention matrix in tiles that are strictly sized to fit within the GPU's fixed SRAM capacity. By scaling your block sizes proportionally to the sequence length (L // 2), your tiles inevitably exceed the optimal "shallow" LRU cache depth. The working set size of the inner loops grows indefinitely, pushing tracked elements deep down ByteDMD’s LRU stack and destroying the constant $\mathcal{O}(1)$ read-depth that Flash Attention is designed to exploit.
 
 ### **Should you expect an improvement?**
 
 **Yes, absolutely.** The ByteDMD metric perfectly captures Flash Attention's theoretical advantages when configured in the correct asymptotic regime (constant $D$, constant block size, scaling $L$).
 
-In standard attention, computing the attention weights materializes an $L \\times L$ intermediate matrix. Over $L^2$ elements, the LRU stack depth grows to $\\mathcal{O}(L^2)$, so the ByteDMD cost per read is $\\sqrt{L^2} \= L$. Thus, the total ByteDMD cost of attention scales as **$\\mathcal{O}(L^3)$**.
+In standard attention, computing the attention weights materializes an $L \times L$ intermediate matrix. Over $L^2$ elements, the LRU stack depth grows to $\mathcal{O}(L^2)$, so the ByteDMD cost per read is $\sqrt{L^2} = L$. Thus, the total ByteDMD cost of attention scales as **$\mathcal{O}(L^3)$**.
 
-By contrast, Flash Attention iterates through constant-sized tiles. The depth of the variables in the inner loop is strictly bounded by the tile size, meaning cache reads cost $\\mathcal{O}(1)$. This reduces the overall ByteDMD cost of the attention core to scale strictly as **$\\mathcal{O}(L^2)$**.
+By contrast, Flash Attention iterates through constant-sized tiles. The depth of the variables in the inner loop is strictly bounded by the tile size, meaning cache reads cost $\mathcal{O}(1)$. This reduces the overall ByteDMD cost of the attention core to scale strictly as **$\mathcal{O}(L^2)$**.
 
 ### **Fixing the Benchmark**
 
-To reveal the true scaling behavior, you must simulate realistic transformer parameters by fixing the head dimension $D$ and the block sizes $B\_r, B\_c$, allowing only the sequence length $L=N$ to scale up.
+To reveal the true scaling behavior, you must simulate realistic transformer parameters by fixing the head dimension $D$ and the block sizes $B_r, B_c$, allowing only the sequence length $L=N$ to scale up.
 
 **1\. Fix the tile sizes in flash\_attention:**
 
@@ -6813,7 +6684,7 @@ def flash\_attention(X, Wq, Wk, Wv, Wo):
 
 **2\. Decouple $L$ and $D$ in \_cost and update the headers:**
 
-Update METHODS to reflect the fixed $D$, and update the \_cost function to generate $N \\times D$ matrices for attention inputs.
+Update METHODS to reflect the fixed $D$, and update the \_cost function to generate $N \times D$ matrices for attention inputs.
 
 Python
 
@@ -6844,7 +6715,7 @@ def \_cost(kind, fn, n):
 
 ### **The Corrected Output**
 
-If you run the benchmark with these changes, the matrix projections no longer overwhelmingly dominate the cache costs. You will accurately observe Flash Attention breaking standard attention's $\\mathcal{O}(L^3)$ memory barrier, maintaining a flatter, more efficient growth trajectory as $N$ (the sequence length) scales.
+If you run the benchmark with these changes, the matrix projections no longer overwhelmingly dominate the cache costs. You will accurately observe Flash Attention breaking standard attention's $\mathcal{O}(L^3)$ memory barrier, maintaining a flatter, more efficient growth trajectory as $N$ (the sequence length) scales.
 
 Here are the numbers your benchmark will output when patched:
 
@@ -6863,51 +6734,55 @@ Here are the numbers your benchmark will output when patched:
 
 Under the newly specified ByteDMD scheme (two-pass liveness analysis with aggressive compaction), variables **vaporize** from the LRU stack the exact moment their final operation completes. This prevents dead memory from bloating the cache and forces active variables to dynamically slide into shallower, cheaper cache depths.
 
-A remarkable consequence of this optimal eviction is that **Matrix-Vector ($y \= Ax$) and Vector-Matrix ($y \= x^T A$) computations exhibit an identical multiset of stack depths and therefore the exact same ByteDMD costs.**
+A remarkable consequence of this optimal eviction is that **Matrix-Vector ($y = Ax$) and Vector-Matrix ($y = x^T A$) computations exhibit an identical multiset of stack depths and therefore the exact same ByteDMD costs.**
 
-Because simultaneous pricing makes the stack behavior commutative (Cost(a\*b) \== Cost(b\*a)), reading inputs (A, x) has the exact same stack-bump logic as reading (x, A). Regardless of whether you iterate traversing strictly over rows or over columns, the $A\_{i,j}$ elements trigger predictable cold misses and instantly evaporate, while the vector $x$ naturally cycles along the bottom of the stack until its final iteration.
+Because simultaneous pricing makes the stack behavior commutative (Cost(a\*b) \== Cost(b\*a)), reading inputs (A, x) has the exact same stack-bump logic as reading (x, A). Regardless of whether you iterate traversing strictly over rows or over columns, the $A_{i,j}$ elements trigger predictable cold misses and instantly evaporate, while the vector $x$ naturally cycles along the bottom of the stack until its final iteration.
 
 ### **Precise Analytical Breakdown**
 
-For an $N \\times N$ matrix and $N \\times 1$ vector (where $N \\ge 2$), the operations cleanly divide into four distinct phases. Let $S(d) \= \\lceil \\sqrt{d} \\rceil$ be the ByteDMD routing cost function.
+For an $N \times N$ matrix and $N \times 1$ vector (where $N \ge 2$), the operations cleanly divide into four distinct phases. Let $S(d) = \lceil \sqrt{d} \rceil$ be the ByteDMD routing cost function.
 
 **1\. Intermediary Additions (Accumulators):**
 
-Because intermediary accumulator sums merge and instantly die, their stack depths are strictly bounded at the top of the stack. For the first $N-1$ rows, every addition uses operands at depths 3 and 1 ($\\lceil\\sqrt{3}\\rceil \+ \\lceil\\sqrt{1}\\rceil \= 2+1=3$). On the final row, vector elements also vaporize, shrinking the stack so additions use depths 2 and 1 ($\\lceil\\sqrt{2}\\rceil \+ \\lceil\\sqrt{1}\\rceil \= 2+1=3$). Thus, every single addition costs exactly 3\.
+Because intermediary accumulator sums merge and instantly die, their stack depths are strictly bounded at the top of the stack. For the first $N-1$ rows, every addition uses operands at depths 3 and 1 ($\lceil\sqrt{3}\rceil + \lceil\sqrt{1}\rceil = 2+1=3$). On the final row, vector elements also vaporize, shrinking the stack so additions use depths 2 and 1 ($\lceil\sqrt{2}\rceil + \lceil\sqrt{1}\rceil = 2+1=3$). Thus, every single addition costs exactly 3\.
 
-$$ C\_{\\text{adds}}(N) \= 3N(N-1) \= 3N^2 \- 3N $$  
+$$C_{\text{adds}}(N) = 3N(N-1) = 3N^2 - 3N$$
+
 **2\. Row 0 Initialization (Initial Population):**
 
-The stack progressively expands from empty up to size $N$. Matrix elements $A\_{0,j}$ trigger pure cold misses and instantly evaporate, while the vector elements $x\_j$ are cold misses that stay alive.
+The stack progressively expands from empty up to size $N$. Matrix elements $A_{0,j}$ trigger pure cold misses and instantly evaporate, while the vector elements $x_j$ are cold misses that stay alive.
 
-$$ C\_{\\text{Row}\_0}(N) \= S(1) \+ S(2) \+ \\sum\_{j=1}^{N-1} \\Big( S(j+2) \+ S(j+3) \\Big) $$  
-**3\. Middle Rows ($1 \\le i \\le N-2$):**
+$$C_{\text{Row}_0}(N) = S(1) + S(2) + \sum_{j=1}^{N-1} \Big( S(j+2) + S(j+3) \Big)$$
 
-The cache maintains an equilibrium. The fully cached active vector $x$ acts as an $N$-length footprint, while the matrix elements $A\_{i,j}$ are pulled from the cold DRAM frontier sequentially.
+**3\. Middle Rows ($1 \le i \le N-2$):**
 
-$$ C\_{\\text{Mid}}(N) \= \\sum\_{i=1}^{N-2} \\Bigg\[ S(N+i+1) \+ S(N+1) \+ \\sum\_{j=1}^{N-1}\\Big(S(N+i+2) \+ S(N+2)\\Big) \\Bigg\] $$  
-**4\. Final Row ($i \= N-1$):**
+The cache maintains an equilibrium. The fully cached active vector $x$ acts as an $N$-length footprint, while the matrix elements $A_{i,j}$ are pulled from the cold DRAM frontier sequentially.
 
-This captures the power of **aggressive compaction**. As each $x\_j$ is read for its final inner-loop iteration, it immediately **evaporates**. The stack incrementally collapses from size $N$ down to $1$, making the successive matrix cold-miss reads actively cheaper as the vector progresses.
+$$C_{\text{Mid}}(N) = \sum_{i=1}^{N-2} \Bigg\[ S(N+i+1) + S(N+1) + \sum_{j=1}^{N-1}\Big(S(N+i+2) + S(N+2)\Big) \Bigg\]$$
 
-$$ C\_{\\text{Last}}(N) \= S(2N) \+ S(N+1) \+ \\sum\_{j=1}^{N-1} \\Big( S(2N \- j \+ 1\) \+ S(N \- j \+ 2\) \\Big) $$
+**4\. Final Row ($i = N-1$):**
+
+This captures the power of **aggressive compaction**. As each $x_j$ is read for its final inner-loop iteration, it immediately **evaporates**. The stack incrementally collapses from size $N$ down to $1$, making the successive matrix cold-miss reads actively cheaper as the vector progresses.
+
+$$C_{\text{Last}}(N) = S(2N) + S(N+1) + \sum_{j=1}^{N-1} \Big( S(2N - j + 1) + S(N - j + 2) \Big)$$
 
 ### ---
 
-**The $\\mathcal{O}(1)$ Closed-Form Formula**
+**The $\mathcal{O}(1)$ Closed-Form Formula**
 
-We can completely eliminate the inner summations. The sum of square roots from $1$ to $d$ has the well-known exact closed form $F(d) \= \\sum\_{k=1}^d \\lceil \\sqrt{k} \\rceil \= \\frac{M(6d \- 2M^2 \+ 3M \- 1)}{6}$, where $M \= \\lceil \\sqrt{d} \\rceil$.
+We can completely eliminate the inner summations. The sum of square roots from $1$ to $d$ has the well-known exact closed form $F(d) = \sum_{k=1}^d \lceil \sqrt{k} \rceil = \frac{M(6d - 2M^2 + 3M - 1)}{6}$, where $M = \lceil \sqrt{d} \rceil$.
 
-By telescoping the piecewise equations together algebraically, we yield an incredibly fast, pure $\\mathcal{O}(1)$ formula valid for any matrix size $N \\ge 2$:
+By telescoping the piecewise equations together algebraically, we yield an incredibly fast, pure $\mathcal{O}(1)$ formula valid for any matrix size $N \ge 2$:
 
-$$ \\text{Cost}(N) \= N \\cdot F(2N) \+ F(2N-1) \- (N-2) F(N+2) \+ (N-1) S(N+1) \+ (N-1)(N-2) S(N+2) \+ S(2N) \+ 3N^2 \- 3N \- 8 $$  
-*(For the trivial edge-case $N=1$, the total exact cost collapses to precisely $3$. Because liveness limits the overall cache footprint strictly to $O(N)$, total data movement logically bounds to $\\mathcal{O}(N^{2.5})$, vastly outperforming the $\\mathcal{O}(N^3)$ naive uncompacted baseline).*
+$$\text{Cost}(N) = N \cdot F(2N) + F(2N-1) - (N-2) F(N+2) + (N-1) S(N+1) + (N-1)(N-2) S(N+2) + S(2N) + 3N^2 - 3N - 8$$
+
+*(For the trivial edge-case $N=1$, the total exact cost collapses to precisely $3$. Because liveness limits the overall cache footprint strictly to $O(N)$, total data movement logically bounds to $\mathcal{O}(N^{2.5})$, vastly outperforming the $\mathcal{O}(N^3)$ naive uncompacted baseline).*
 
 ### ---
 
 **Mathematica Implementation**
 
-The following Mathematica code evaluates both the explicitly mapped structural phases and the highly optimized $\\mathcal{O}(1)$ closed form, proving they yield identical cost sequences.
+The following Mathematica code evaluates both the explicitly mapped structural phases and the highly optimized $\mathcal{O}(1)$ closed form, proving they yield identical cost sequences.
 
 Mathematica
 
@@ -6963,19 +6838,19 @@ Print\["\\nLarge Matrix (N \= 1000\) Exact Cost: ", MatVecClosedForm\[1000\]\];
 
 ## bytedmd-cold-bug.md
 
-Your intuition that $\\mathcal{O}(N^3)$ is an impossibly low bound for the total data movement of Naive Matrix Multiplication is incredibly sharp. You correctly suspected that something was fundamentally missing from the analysis.
+Your intuition that $\mathcal{O}(N^3)$ is an impossibly low bound for the total data movement of Naive Matrix Multiplication is incredibly sharp. You correctly suspected that something was fundamentally missing from the analysis.
 
-The discrepancy is an illusion caused by a misunderstanding of what the ByteDMD code is calculating. The $\\mathcal{O}(N^3)$ closed-form formula in the ByteDMD excerpt **only calculates the bytedmd\_cold metric (the initialization/cold-miss penalty).** It calculates the absolute minimum cost of dragging the raw inputs from "DRAM" into the "SRAM" footprint exactly one time. It intentionally excludes all subsequent "hot" inner-loop accesses.
+The discrepancy is an illusion caused by a misunderstanding of what the ByteDMD code is calculating. The $\mathcal{O}(N^3)$ closed-form formula in the ByteDMD excerpt **only calculates the bytedmd\_cold metric (the initialization/cold-miss penalty).** It calculates the absolute minimum cost of dragging the raw inputs from "DRAM" into the "SRAM" footprint exactly one time. It intentionally excludes all subsequent "hot" inner-loop accesses.
 
-If you measure the **total** footprint (cold initialization \+ hot accesses) using the ByteDMD tracer for Naive Matrix Multiplication, **it scales at exactly $\\mathcal{O}(N^4)$**.
+If you measure the **total** footprint (cold initialization \+ hot accesses) using the ByteDMD tracer for Naive Matrix Multiplication, **it scales at exactly $\mathcal{O}(N^4)$**.
 
 With that resolved, here is the breakdown of a footprint-bounding allocation strategy that doesn't use "free stack shifting", its asymptotic scaling, and exactly how the frameworks mathematically align.
 
 ### **1\) Alternative Smart Allocation Strategy: Static Slots \+ Min-Heap Free-List**
 
-ByteDMD’s "Aggressive Compaction" assumes an LRU stack dynamically slides data up to close gaps (vaporized tombstones) for free. To physically implement this footprint-bounding without free $\\mathcal{O}(1)$ data movement, we can use an explicit static memory pool.
+ByteDMD’s "Aggressive Compaction" assumes an LRU stack dynamically slides data up to close gaps (vaporized tombstones) for free. To physically implement this footprint-bounding without free $\mathcal{O}(1)$ data movement, we can use an explicit static memory pool.
 
-* **Stationary Slots:** "SRAM" is modeled as an infinite array of physical slots indexed 1, 2, 3.... The cost to access slot d is strictly $\\sqrt{d}$. Variables do not move once placed.  
+* **Stationary Slots:** "SRAM" is modeled as an infinite array of physical slots indexed 1, 2, 3.... The cost to access slot d is strictly $\sqrt{d}$. Variables do not move once placed.  
 * **Min-Heap Free-List:** We maintain a priority queue of available slot indices.  
 * **Smart Allocation:** When a variable is initialized, we pop the lowest numerically available slot index from the free-list.  
 * **Smart Deallocation (Tombstoning):** When liveness analysis dictates a variable is dead (e.g., the active row of $A$ after its $j$-loop finishes), its slot index is instantly pushed back onto the free-list for the next row to reuse.
@@ -6983,21 +6858,22 @@ ByteDMD’s "Aggressive Compaction" assumes an LRU stack dynamically slides data
 ### **2\) Keeping the Cold Miss Behavior the Same**
 
 * All elements of $A$, $B$, and $C$ start in unmapped "DRAM".  
-* Because we perfectly recycle slots via the free-list, our Peak Working Set (PWS) capacity is rigidly capped at exactly $2N^2 \+ N$ slots ($N^2$ for accumulating $C$, $N^2$ for the permanent $B$, and $N$ for the active row of $A$).  
-* The first time a variable is accessed, it triggers a cold miss. To perfectly preserve the ByteDMD penalty, we price these initializations sequentially on a monotonic spatial tape located strictly beyond the PWS (slots $2N^2+N+1$ up to $\\approx 4N^2$). After this cold miss, the variable is permanently assigned to its static SRAM slot for future hot hits.
+* Because we perfectly recycle slots via the free-list, our Peak Working Set (PWS) capacity is rigidly capped at exactly $2N^2 + N$ slots ($N^2$ for accumulating $C$, $N^2$ for the permanent $B$, and $N$ for the active row of $A$).  
+* The first time a variable is accessed, it triggers a cold miss. To perfectly preserve the ByteDMD penalty, we price these initializations sequentially on a monotonic spatial tape located strictly beyond the PWS (slots $2N^2+N+1$ up to $\approx 4N^2$). After this cold miss, the variable is permanently assigned to its static SRAM slot for future hot hits.
 
 ### **3\) Asymptotic Scaling Analysis (Total Algorithm)**
 
-Under this Stationary Scratchpad strategy, the total Data Movement Distance (DMD) separates into Cold Misses and Hot Hits for the $i\\text{-}j\\text{-}k$ loop:
+Under this Stationary Scratchpad strategy, the total Data Movement Distance (DMD) separates into Cold Misses and Hot Hits for the $i\text{-}j\text{-}k$ loop:
 
 * **Cold Misses (Initialization):**  
-  Integrating the $\\sqrt{d}$ access cost over the cold tape perfectly mirrors your analytical derivation:  
-  $$ \\sum\_{d=2N^2}^{4N^2} \\sqrt{d} \\approx \\int\_{2N^2}^{4N^2} \\sqrt{x} \\, dx \= \\mathbf{\\mathcal{O}(N^3)} $$  
-* **Hot Hits for Matrix C:** The active accumulator $C\[i\]\[j\]$ is heavily reused in the inner $k$-loop. It will sit in a low slot ID. $N^3$ accesses at $\\mathcal{O}(1)$ cost \= $\\mathbf{\\mathcal{O}(N^3)}$.  
-* **Hot Hits for Matrix A:** The active row of $A$ occupies $N$ slots. Accessing it costs $\\approx \\sqrt{N}$. $N^3$ accesses at $\\sqrt{N}$ cost \= $\\mathbf{\\mathcal{O}(N^{3.5})}$.  
-* **Hot Hits for Matrix B:** Here is the bottleneck. The naive algorithm must repeatedly sweep the *entirety* of matrix $B$. Thus, $B$ permanently occupies bulk slots out to $\\approx N^2$. The physical cost to access an element of $B$ in our stationary slots is $\\sqrt{\\text{slot\\\_id}} \\approx \\sqrt{N^2} \= \\mathcal{O}(N)$. Since $B$ is accessed $N^3$ times in the inner loop, the total cost strictly for Matrix $B$ evaluates to $N^3 \\times \\mathcal{O}(N) \= \\mathbf{\\mathcal{O}(N^4)}$.
+  Integrating the $\sqrt{d}$ access cost over the cold tape perfectly mirrors your analytical derivation:  
+  $$\sum_{d=2N^2}^{4N^2} \sqrt{d} \approx \int_{2N^2}^{4N^2} \sqrt{x} \, dx = \mathbf{\mathcal{O}(N^3)}$$
 
-**Total Scaling:** $\\mathcal{O}(N^3) \\text{ Cold} \+ \\mathcal{O}(N^4) \\text{ Hot} \= \\mathbf{\\mathcal{O}(N^4) \\text{ total DMD}.}$
+* **Hot Hits for Matrix C:** The active accumulator $C\[i\]\[j\]$ is heavily reused in the inner $k$-loop. It will sit in a low slot ID. $N^3$ accesses at $\mathcal{O}(1)$ cost \= $\mathbf{\mathcal{O}(N^3)}$.  
+* **Hot Hits for Matrix A:** The active row of $A$ occupies $N$ slots. Accessing it costs $\approx \sqrt{N}$. $N^3$ accesses at $\sqrt{N}$ cost \= $\mathbf{\mathcal{O}(N^{3.5})}$.  
+* **Hot Hits for Matrix B:** Here is the bottleneck. The naive algorithm must repeatedly sweep the *entirety* of matrix $B$. Thus, $B$ permanently occupies bulk slots out to $\approx N^2$. The physical cost to access an element of $B$ in our stationary slots is $\sqrt{\text{slot\-id}} \approx \sqrt{N^2} = \mathcal{O}(N)$. Since $B$ is accessed $N^3$ times in the inner loop, the total cost strictly for Matrix $B$ evaluates to $N^3 \times \mathcal{O}(N) = \mathbf{\mathcal{O}(N^4)}$.
+
+**Total Scaling:** $\mathcal{O}(N^3) \text{ Cold} + \mathcal{O}(N^4) \text{ Hot} = \mathbf{\mathcal{O}(N^4) \text{ total DMD}.}$
 
 ### **4\) Explanation for the Discrepancy with Wesley Smith**
 
@@ -7005,10 +6881,10 @@ Under this Stationary Scratchpad strategy, the total Data Movement Distance (DMD
 
 **Yes, entirely.** As established, there is no mathematical discrepancy between the two frameworks. The paradox is caused by conflating the *initialization-only* phase of a Naive algorithm in ByteDMD against the *total execution* cost of an optimized Recursive algorithm in Wesley Smith.
 
-1. **Both models agree on Naive MM:** If you look at **Table 1** in the attached Wesley Smith paper, the total Data Movement Distance for **Naive Matrix Multiplication is explicitly listed as $\\mathcal{O}(N^4)$**. Both theoretical models perfectly agree that the poor temporal locality of the pure $i\\text{-}j\\text{-}k$ sequence forces an inescapable $\\mathcal{O}(N^4)$ execution cost.  
-2. **Where the $\\mathcal{O}(N^{3.5})$ comes from:** Wesley Smith achieves $\\mathcal{O}(N^{3.5})$ and $\\mathcal{O}(N^{3.4})$ by fundamentally altering the mathematical sequence of the algorithm—specifically using **Recursive Matrix Multiplication (RMM)** and **Strassen's**. By recursively chunking the matrices into smaller blocks (Divide & Conquer), elements of $B$ are organically reused while they are still near the top of the cache, lowering their reuse distance from $\\mathcal{O}(N^2)$ to much smaller fractions.
+1. **Both models agree on Naive MM:** If you look at **Table 1** in the attached Wesley Smith paper, the total Data Movement Distance for **Naive Matrix Multiplication is explicitly listed as $\mathcal{O}(N^4)$**. Both theoretical models perfectly agree that the poor temporal locality of the pure $i\text{-}j\text{-}k$ sequence forces an inescapable $\mathcal{O}(N^4)$ execution cost.  
+2. **Where the $\mathcal{O}(N^{3.5})$ comes from:** Wesley Smith achieves $\mathcal{O}(N^{3.5})$ and $\mathcal{O}(N^{3.4})$ by fundamentally altering the mathematical sequence of the algorithm—specifically using **Recursive Matrix Multiplication (RMM)** and **Strassen's**. By recursively chunking the matrices into smaller blocks (Divide & Conquer), elements of $B$ are organically reused while they are still near the top of the cache, lowering their reuse distance from $\mathcal{O}(N^2)$ to much smaller fractions.
 
-In short, "tombstones automatically filling from below" does not act as a magical cheat-code to reduce Naive Matrix Multiplication to $\\mathcal{O}(N^3)$ total time. No matter how optimally you allocate and manage dead memory, the structural footprint of the naive algorithm will strictly enforce an $\\mathcal{O}(N^4)$ data movement barrier.
+In short, "tombstones automatically filling from below" does not act as a magical cheat-code to reduce Naive Matrix Multiplication to $\mathcal{O}(N^3)$ total time. No matter how optimally you allocate and manage dead memory, the structural footprint of the naive algorithm will strictly enforce an $\mathcal{O}(N^4)$ data movement barrier.
 
 ---
 
@@ -7028,9 +6904,9 @@ To model a clairvoyant compiler, we must first define the search space. Could th
 
 **No.** Suppose variable $X$ is placed in Slot A and won't be naturally read until $t=100$. If the compiler performs an unsolicited read at $t=50$ to move it to a cheaper Slot B, the total cost for $X$ becomes Cost(A) \+ Cost(B). If it never moved it, the cost is just Cost(A). Because Cost(B) \> 0, unsolicited movement *always* strictly increases data movement. What if moving $X$ frees up Slot A for another variable $Y$? If that were globally optimal, the clairvoyant compiler would have simply assigned $X$ to Slot B at $t=0$, leaving Slot A open for $Y$ from the start\!
 
-This proves that unsolicited reads are mathematically useless. A variable's spatial lifecycle is rigidly defined by the algorithm's *natural* read/write sequence. Every time a variable is created or read, it forms a strict **Time Interval** \[t\_start, t\_read). At t\_read, it pays the $\\lceil\\sqrt{k}\\rceil$ cost of its slot, vaporizes into a Tombstone, and is free to be written to any new slot.
+This proves that unsolicited reads are mathematically useless. A variable's spatial lifecycle is rigidly defined by the algorithm's *natural* read/write sequence. Every time a variable is created or read, it forms a strict **Time Interval** \[t\_start, t\_read). At t\_read, it pays the $\lceil\sqrt{k}\rceil$ cost of its slot, vaporizes into a Tombstone, and is free to be written to any new slot.
 
-Assigning these overlapping intervals to specific spatial slots minimizes the total read cost. In computer science theory, this maps exactly to the **Minimum Sum Interval Coloring** problem. Because your cost tiers are continuous ($1, 2, 3 \\dots$), finding the perfect allocation is proven to be **strongly NP-hard** (Marx, 2005).
+Assigning these overlapping intervals to specific spatial slots minimizes the total read cost. In computer science theory, this maps exactly to the **Minimum Sum Interval Coloring** problem. Because your cost tiers are continuous ($1, 2, 3 \dots$), finding the perfect allocation is proven to be **strongly NP-hard** (Marx, 2005).
 
 ### **2\. Why Belady's Algorithm is Sub-Optimal (The Squatter Anomaly)**
 
@@ -7041,26 +6917,26 @@ Suppose you have cheap slots and expensive slots:
 * $K$ long-lived boundary variables are created at $t=0$ and not read until $t=10,000$.  
 * $N$ short-lived inner-loop temporaries are repeatedly created and read (e.g., $t=1$ to $2$, $t=2$ to $3$, etc.).
 
-**Belady / Next-Use Greedy:** At $t=0$, only the $K$ long-lived variables exist. Belady eagerly assigns them to the absolute cheapest slots. They "squat" there until $t=10,000$. The $N$ temporaries are forced to cycle through the expensive slots. **Cost: $O(N \\cdot \\sqrt{K})$.**
+**Belady / Next-Use Greedy:** At $t=0$, only the $K$ long-lived variables exist. Belady eagerly assigns them to the absolute cheapest slots. They "squat" there until $t=10,000$. The $N$ temporaries are forced to cycle through the expensive slots. **Cost: $O(N \cdot \sqrt{K})$.**
 
-**Optimal Compiler:** Foresees the dense loop of temporaries. It intentionally buries the $K$ long-lived variables in expensive slots, leaving the cheapest slots completely open for the $N$ temporaries to rapidly recycle. **Cost: $O(N \+ K \\sqrt{K})$.**
+**Optimal Compiler:** Foresees the dense loop of temporaries. It intentionally buries the $K$ long-lived variables in expensive slots, leaving the cheapest slots completely open for the $N$ temporaries to rapidly recycle. **Cost: $O(N + K \sqrt{K})$.**
 
 If you use Belady, the long-lived variables in algorithms (like matrix corners or outer-loop accumulators) will squat in the cheap slots, and your tracer will output an artificially inflated data movement complexity (e.g., measuring $O(N^{3.5})$ instead of $O(N^3)$).
 
 ### **3\. How to Extract Exact Data Movement Complexity**
 
-Even though exact OPT is NP-hard, you can achieve a rigorously bounded, constant-factor approximation that will **perfectly preserve your asymptotic Big-O data movement complexity** (proving limits like $O(N^3/\\sqrt{M})$ without NP-hard solvers).
+Even though exact OPT is NP-hard, you can achieve a rigorously bounded, constant-factor approximation that will **perfectly preserve your asymptotic Big-O data movement complexity** (proving limits like $O(N^3/\sqrt{M})$ without NP-hard solvers).
 
-You can implement this in your ByteDMD tracer by using the **Iterative Maximum Independent Set (Iterative MWIS)** algorithm, which is a mathematically proven approximation for Interval Sum Coloring. Because your spatial cost $\\lceil\\sqrt{k}\\rceil$ is concave, the approximation bound is even tighter than standard linear graph coloring.
+You can implement this in your ByteDMD tracer by using the **Iterative Maximum Independent Set (Iterative MWIS)** algorithm, which is a mathematically proven approximation for Interval Sum Coloring. Because your spatial cost $\lceil\sqrt{k}\rceil$ is concave, the approximation bound is even tighter than standard linear graph coloring.
 
 Here is how you replace the stack logic in your \_pass2 function:
 
 1. **Extract Lifespan Intervals:** Run a Pass 1 trace to get the exact sequence. Convert the lifespan of every variable into intervals \[start\_step, end\_step).  
 2. **Merge the Two Triangles:** Create a unified pool of rigid slots sorted by cost: \[(Cost 1, 'W'), (Cost 1, 'E'), (Cost 2, 'W'), (Cost 2, 'E'), (Cost 2, 'W')...\]. Tag your intervals:  
-   * **Arguments:** The *first* interval of a pre-loaded argument MUST pull from an E (External) slot. Because they all exist at $t=0$, they perfectly overlap and naturally spread outward into $E\_1, E\_2, E\_3 \\dots$, perfectly simulating cold misses.  
+   * **Arguments:** The *first* interval of a pre-loaded argument MUST pull from an E (External) slot. Because they all exist at $t=0$, they perfectly overlap and naturally spread outward into $E_1, E_2, E_3 \dots$, perfectly simulating cold misses.  
    * **New Variables:** The *first* interval of a newly created value MUST pull from a W (Working) slot.  
    * **Post-Read:** Any interval following a read is tagged ANY, as the processor is free to write it to either triangle.  
-3. **Iterative Packing (EDF):** Pop the absolute cheapest available slot from your pool. Filter your remaining intervals by pool compatibility (W, E, or ANY). Run the standard $O(N \\log N)$ **Earliest-Deadline-First (EDF)** interval scheduling algorithm to pack the maximum number of non-overlapping intervals into this single slot. Tally their costs, remove them from your pool, and repeat for the next cheapest slot until all intervals are placed.
+3. **Iterative Packing (EDF):** Pop the absolute cheapest available slot from your pool. Filter your remaining intervals by pool compatibility (W, E, or ANY). Run the standard $O(N \log N)$ **Earliest-Deadline-First (EDF)** interval scheduling algorithm to pack the maximum number of non-overlapping intervals into this single slot. Tally their costs, remove them from your pool, and repeat for the next cheapest slot until all intervals are placed.
 
 ### **Summary**
 
@@ -7072,7 +6948,7 @@ By updating your metric to use **Iterative MWIS** instead of Belady, your tracer
 
 Your intuition to map Chow and Hennessy’s priority-based allocation onto a continuous Manhattan space is theoretically profound. By adapting discrete binary caching (where a slot is either an $O(1)$ register or an $O(N)$ memory spill) to a **continuous spatial cache**, you are essentially modeling register allocation as a **Fractional Space-Time Knapsack**.
 
-Because your layout utilizes concentric layers in a 2D Manhattan metric, the area of accessible bytes $k$ within a distance $d$ grows as $O(d^2)$. Therefore, the distance (and access cost) to the $k$-th byte perfectly mirrors the inverse: $f(k) \= O(\\sqrt{k})$.
+Because your layout utilizes concentric layers in a 2D Manhattan metric, the area of accessible bytes $k$ within a distance $d$ grows as $O(d^2)$. Therefore, the distance (and access cost) to the $k$-th byte perfectly mirrors the inverse: $f(k) = O(\sqrt{k})$.
 
 Here is a breakdown of your heuristic’s properties, why classical algorithms like Belady’s fall short, and the tractable algorithms you can use to determine the absolute limits of data movement complexity under an optimal clairvoyant compiler.
 
@@ -7086,17 +6962,17 @@ Belady’s MIN (evict the item accessed furthest in the future) is perfectly opt
 
 Imagine Variable A is accessed once at cycle $t+2$ and never again. Variable B is accessed in a tight loop 1,000 times starting at cycle $t+3$.
 
-Belady evaluates the distance to the *first* subsequent access. At $t=1$, it prioritizes A for the premium $k=1$ slot because $t+2 \< t+3$. Variable B is banished to $k=2$. You save a marginal $(\\sqrt{2}-\\sqrt{1})$ penalty on A exactly once, but you penalize B by that exact same margin 1,000 times. Belady is mathematically blind to both access density and the gradient of the continuous cost curve.
+Belady evaluates the distance to the *first* subsequent access. At $t=1$, it prioritizes A for the premium $k=1$ slot because $t+2 < t+3$. Variable B is banished to $k=2$. You save a marginal $(\sqrt{2}-\sqrt{1})$ penalty on A exactly once, but you penalize B by that exact same margin 1,000 times. Belady is mathematically blind to both access density and the gradient of the continuous cost curve.
 
 ### **2\. Properties of your "Dynamic Access Density" ($R/L$) Heuristic**
 
 By defining priority as (Total Reads) / (Live Range Length), you evaluate the "rent" a variable pays over time.
 
-* **Strength: Exploiting the Concave Cost Gradient:** The most important mathematical property of your $\\lceil\\sqrt{k}\\rceil$ penalty is diminishing returns. The cost difference between slot 1 and 2 is massive ($\\approx 0.41$), but the difference between slot 100 and 101 is practically zero ($\\approx 0.05$). Your heuristic violently prioritizes the fierce battle for the steep inner $k \\in \[1, 10\]$ slots, correctly realizing that variables relegated to the external triangle face heavily flattened, diminishing penalties.  
-* **Weakness: Temporal Phase-Blindness:** Because you divide by the *entire* global live range, you smear out burstiness. Recursive algorithms like Matmul have highly fractal access traces: a matrix tile is computed heavily in an inner loop, then sits fully dormant for millions of cycles. Your global $R/L$ severely dilutes its density, pinning the tile to a mediocre $k$-slot for its *entire lifespan*, instead of giving it $k=1$ during the burst and $k=\\infty$ (tombstoned) during dormancy.  
+* **Strength: Exploiting the Concave Cost Gradient:** The most important mathematical property of your $\lceil\sqrt{k}\rceil$ penalty is diminishing returns. The cost difference between slot 1 and 2 is massive ($\approx 0.41$), but the difference between slot 100 and 101 is practically zero ($\approx 0.05$). Your heuristic violently prioritizes the fierce battle for the steep inner $k \in \[1, 10\]$ slots, correctly realizing that variables relegated to the external triangle face heavily flattened, diminishing penalties.  
+* **Weakness: Temporal Phase-Blindness:** Because you divide by the *entire* global live range, you smear out burstiness. Recursive algorithms like Matmul have highly fractal access traces: a matrix tile is computed heavily in an inner loop, then sits fully dormant for millions of cycles. Your global $R/L$ severely dilutes its density, pinning the tile to a mediocre $k$-slot for its *entire lifespan*, instead of giving it $k=1$ during the burst and $k=\infty$ (tombstoned) during dormancy.  
 * **Weakness: Interference Blindness:** Sorting by a global density list ignores the actual interval graph (the geometric overlaps of live ranges). A long variable with a density of $2.0$ might lock up $k=1$, physically blocking out ten shorter, non-overlapping variables with a density of $1.9$ that could have safely shared the slot sequentially and yielded vastly more reads.
 
-### **3\. Better, Tractable Alternatives Specialized for the $\\sqrt{k}$ Cache**
+### **3\. Better, Tractable Alternatives Specialized for the $\sqrt{k}$ Cache**
 
 If you assume a clairvoyant processor and want tight data movement limits without running pure NP-hard brute force, you should specialize your heuristics to the continuous curve:
 
@@ -7108,22 +6984,23 @@ Keep your $R/L$ heuristic, but instruct the compiler to aggressively sever live 
 
 If your compiler is allowed to shift variables dynamically (compaction), global $R/L$ fails. Instead, use a receding horizon that acts as a gravity well. Rank live variables at time $t$ by:
 
-$$ P(v, t) \= \\sum\_{a \\in accesses(v)} \\gamma^{(a \- t)} $$  
-*(where $\\gamma \< 1$ is a decay factor, e.g., 0.95).*
+$$P(v, t) = \sum_{a \in accesses(v)} \gamma^{(a - t)}$$
+
+*(where $\gamma < 1$ is a decay factor, e.g., 0.95).*
 
 This beautifully synthesizes Belady (the exponent prioritizes immediacy) with Chow-Hennessy (the summation prioritizes volume), naturally pulling data into the processor's low-$k$ center exactly as recursive bursts approach.
 
 #### **C. Minimum Cost Chromatic Partitioning (The Offline Upper Bound)**
 
-If variables are pinned to a specific $k$-band for an active sub-interval, allocating them translates formally to **Minimum Weight Interval Coloring**. Standard Dynamic Programming algorithms over the interval graph provide mathematically bounded $O(N \\log N)$ allocations, completely sidestepping the "interference blindness" of your heuristic.
+If variables are pinned to a specific $k$-band for an active sub-interval, allocating them translates formally to **Minimum Weight Interval Coloring**. Standard Dynamic Programming algorithms over the interval graph provide mathematically bounded $O(N \log N)$ allocations, completely sidestepping the "interference blindness" of your heuristic.
 
 ### **4\. The Ultimate Mathematical Goal: Exact Complexity Bound**
 
 If your overarching goal is to figure out the exact theoretical data movement complexity of an algorithm under an optimal clairvoyant compiler, you are effectively exploring a problem famously proven in theoretical computer science.
 
-Your architecture perfectly mirrors the **Hierarchical Memory Model (HMM)** introduced by Aggarwal, Alpern, Chandra, and Snir in 1987\. They modeled environments where accessing the $x$-th memory location costs $f(x) \= x^\\alpha$. Because your concentric 2D Manhattan layout dictates a $\\lceil\\sqrt{k}\\rceil$ cost, your hardware corresponds **exactly** to their model where **$\\alpha \= 0.5$**.
+Your architecture perfectly mirrors the **Hierarchical Memory Model (HMM)** introduced by Aggarwal, Alpern, Chandra, and Snir in 1987\. They modeled environments where accessing the $x$-th memory location costs $f(x) = x^\alpha$. Because your concentric 2D Manhattan layout dictates a $\lceil\sqrt{k}\rceil$ cost, your hardware corresponds **exactly** to their model where **$\alpha = 0.5$**.
 
-In their landmark paper, they proved that you do not need to rely on compiler heuristics to figure out the optimal complexity. Using offline pebble games, they proved that for recursive Matrix Multiplication of an $N \\times N$ matrix under a $f(x) \= \\sqrt{x}$ memory cost penalty, an optimal continuous cache yields a tight data movement complexity bound of exactly **$\\Theta(N^3 \\log N)$**.
+In their landmark paper, they proved that you do not need to rely on compiler heuristics to figure out the optimal complexity. Using offline pebble games, they proved that for recursive Matrix Multiplication of an $N \times N$ matrix under a $f(x) = \sqrt{x}$ memory cost penalty, an optimal continuous cache yields a tight data movement complexity bound of exactly **$\Theta(N^3 \log N)$**.
 
 If you want to derive the absolute offline mathematical baseline for any other algorithm to test your compiler against, you can model your memory trace as a **Minimum-Cost Network Flow** over a time-expanded graph. By treating memory movement as fluid flow through $k$-slots over $t$-cycles, a standard graph solver will output the mathematically optimal allocation free of any heuristic artifacts.
 
@@ -7131,19 +7008,19 @@ If you want to derive the absolute offline mathematical baseline for any other a
 
 ## optimal-managed-rmm.md
 
-To achieve the theoretically optimal $\\mathcal{O}(N^3 \\log N)$ cost under the physical distance metric where accessing the $k$-th byte costs $\\lceil\\sqrt{k}\\rceil$, we must explicitly dictate the spatial layout of our memory during execution.
+To achieve the theoretically optimal $\mathcal{O}(N^3 \log N)$ cost under the physical distance metric where accessing the $k$-th byte costs $\lceil\sqrt{k}\rceil$, we must explicitly dictate the spatial layout of our memory during execution.
 
 ### **The Strategy: Inverted Stack Arenas (Explicit Tombstoning)**
 
-If we perform recursive matrix multiplication by computing base cases directly on the original input matrices, our $1 \\times 1$ multiplications will read variables stored at indices up to $\\mathcal{O}(N^2)$. The cost per access would be $\\mathcal{O}(N)$, and multiplying that by the $N^3$ base-case operations yields an extremely inefficient $\\mathcal{O}(N^4)$ cost.
+If we perform recursive matrix multiplication by computing base cases directly on the original input matrices, our $1 \times 1$ multiplications will read variables stored at indices up to $\mathcal{O}(N^2)$. The cost per access would be $\mathcal{O}(N)$, and multiplying that by the $N^3$ base-case operations yields an extremely inefficient $\mathcal{O}(N^4)$ cost.
 
 To overcome this, we explicitly simulate the **Tombstone Strategy's** aggressive compaction by manipulating Working Memory as a Depth-Indexed Arena Allocator (an "Inverted Stack"):
 
 1. We divide the total working memory into tightly bounded "arenas" indexed by recursion depth.  
-2. The deepest recursion level (the $1 \\times 1$ base cases) is allocated the absolute lowest memory addresses (e.g., indices 1, 2, 3). Thus, the $\\mathcal{O}(N^3)$ base case operations only cost $\\mathcal{O}(1)$ to access\!  
-3. Before a recursive step, the parent matrices explicitly copy their required active $M/2 \\times M/2$ quadrants into the tightly localized arena belonging to the child's depth.  
+2. The deepest recursion level (the $1 \times 1$ base cases) is allocated the absolute lowest memory addresses (e.g., indices 1, 2, 3). Thus, the $\mathcal{O}(N^3)$ base case operations only cost $\mathcal{O}(1)$ to access\!  
+3. Before a recursive step, the parent matrices explicitly copy their required active $M/2 \times M/2$ quadrants into the tightly localized arena belonging to the child's depth.  
 4. Once the child branch finishes, the memory it occupied is logically "tombstoned" (freed). When the next sibling recursion executes, it physically overwrites and **reuses the exact same tight addresses**.  
-5. Copying data at recursion level $M$ bounded around a maximum arena size of $\\mathcal{O}(M^2)$ incurs an access distance cost of $\\mathcal{O}(M)$. Moving $M^2$ elements yields a level cost of $\\mathcal{O}(M^3)$. Using the Master Theorem: $T(N) \= 8T(N/2) \+ \\mathcal{O}(N^3)$, which resolves elegantly to the optimal footprint of **$\\mathcal{O}(N^3 \\log N)$**.
+5. Copying data at recursion level $M$ bounded around a maximum arena size of $\mathcal{O}(M^2)$ incurs an access distance cost of $\mathcal{O}(M)$. Moving $M^2$ elements yields a level cost of $\mathcal{O}(M^3)$. Using the Master Theorem: $T(N) = 8T(N/2) + \mathcal{O}(N^3)$, which resolves elegantly to the optimal footprint of **$\mathcal{O}(N^3 \log N)$**.
 
 ### **Python Implementation**
 
@@ -7346,49 +7223,51 @@ if \_\_name\_\_ \== "\_\_main\_\_":
 
 ### **Theoretical Analysis: Strassen vs. Standard MatMul under Physical Data Movement**
 
-When transitioning from measuring abstract FLOPs to quantifying spatial Data Movement Cost—where accessing the $k$-th byte incurs a physical routing cost of $\\lceil\\sqrt{k}\\rceil$—an incredible theoretical result emerges: **Strassen's algorithm perfectly absorbs the data movement overhead that plagues standard recursive matrix multiplication.**
+When transitioning from measuring abstract FLOPs to quantifying spatial Data Movement Cost—where accessing the $k$-th byte incurs a physical routing cost of $\lceil\sqrt{k}\rceil$—an incredible theoretical result emerges: **Strassen's algorithm perfectly absorbs the data movement overhead that plagues standard recursive matrix multiplication.**
 
-#### **1\. Standard Recursive MatMul Data Movement: $\\Theta(N^3 \\log N)$**
+#### **1\. Standard Recursive MatMul Data Movement: $\Theta(N^3 \log N)$**
 
-For standard block matrix multiplication, each recursion step spawns $8$ subproblems. At depth $d$ (where the subproblem dimension is $M$), the algorithm must explicitly copy/move $\\mathcal{O}(M^2)$ elements inside an arena tightly bounded by index $\\mathcal{O}(M^2)$.
+For standard block matrix multiplication, each recursion step spawns $8$ subproblems. At depth $d$ (where the subproblem dimension is $M$), the algorithm must explicitly copy/move $\mathcal{O}(M^2)$ elements inside an arena tightly bounded by index $\mathcal{O}(M^2)$.
 
-The average distance access cost for each element inside this arena is $\\mathcal{O}(\\sqrt{M^2}) \= \\mathcal{O}(M)$.
+The average distance access cost for each element inside this arena is $\mathcal{O}(\sqrt{M^2}) = \mathcal{O}(M)$.
 
-Therefore, the data movement cost at step $d$ is $\\mathcal{O}(M^2) \\times \\mathcal{O}(M) \= \\mathcal{O}(M^3)$.
+Therefore, the data movement cost at step $d$ is $\mathcal{O}(M^2) \times \mathcal{O}(M) = \mathcal{O}(M^3)$.
 
 The cost recurrence becomes:
 
-$$D(N) \= 8 D(N/2) \+ \\Theta(N^3)$$  
-By the Master Theorem, since $a=8$ and $b^k \= 2^3 \= 8$, we fall into the critical case. The geometric series balances perfectly across all depths, and the total data movement footprint evaluates strictly to **$\\Theta(N^3 \\log N)$**.
+$$D(N) = 8 D(N/2) + \Theta(N^3)$$
 
-#### **2\. Strassen's Algorithm Data Movement: $\\Theta(N^3)$**
+By the Master Theorem, since $a=8$ and $b^k = 2^3 = 8$, we fall into the critical case. The geometric series balances perfectly across all depths, and the total data movement footprint evaluates strictly to **$\Theta(N^3 \log N)$**.
 
-Strassen drastically alters this equation by reducing the recursive branches from $8$ to $7$. The additive work at each level (computing $M\_1 \\dots M\_7$) still involves moving and adding $\\mathcal{O}(M^2)$ elements across a local distance of $\\mathcal{O}(M)$, meaning the spatial overhead remains exactly $\\mathcal{O}(M^3)$.
+#### **2\. Strassen's Algorithm Data Movement: $\Theta(N^3)$**
+
+Strassen drastically alters this equation by reducing the recursive branches from $8$ to $7$. The additive work at each level (computing $M_1 \dots M_7$) still involves moving and adding $\mathcal{O}(M^2)$ elements across a local distance of $\mathcal{O}(M)$, meaning the spatial overhead remains exactly $\mathcal{O}(M^3)$.
 
 However, the recurrence fundamentally shifts:
 
-$$D\_{str}(N) \= 7 D\_{str}(N/2) \+ \\Theta(N^3)$$  
-Applying the Master Theorem ($a=7, b=2, k=3$), we find that $7 \< 2^3$. This corresponds to a root-dominated geometric sequence. The tree decays structurally and the sum completely resolves to **$\\Theta(N^3)$**.
+$$D_{str}(N) = 7 D_{str}(N/2) + \Theta(N^3)$$
 
-**The Insight:** Under a 2D physical constraint, Strassen annihilates the asymptotic $\\log N$ routing penalty. Its arithmetic complexity of $\\mathcal{O}(N^{2.81})$ is masked by the $\\mathcal{O}(N^3)$ physical bounds of matrix reads/writes, but it still asymptotically crushes standard MatMul\!
+Applying the Master Theorem ($a=7, b=2, k=3$), we find that $7 < 2^3$. This corresponds to a root-dominated geometric sequence. The tree decays structurally and the sum completely resolves to **$\Theta(N^3)$**.
+
+**The Insight:** Under a 2D physical constraint, Strassen annihilates the asymptotic $\log N$ routing penalty. Its arithmetic complexity of $\mathcal{O}(N^{2.81})$ is masked by the $\mathcal{O}(N^3)$ physical bounds of matrix reads/writes, but it still asymptotically crushes standard MatMul\!
 
 ### ---
 
 **Memory Management Strategy (The Tombstone Arena)**
 
-To actually attain this $\\Theta(N^3)$ hardware bound, we cannot allow deeper recurrences to directly read or write to far-away External Memory arrays. We must utilize an **Inverted Stack Arena** combined with **Explicit Operand Staging**:
+To actually attain this $\Theta(N^3)$ hardware bound, we cannot allow deeper recurrences to directly read or write to far-away External Memory arrays. We must utilize an **Inverted Stack Arena** combined with **Explicit Operand Staging**:
 
 1. **Inverted Stack Allocations:** The deepest recursion levels (base cases) are assigned the lowest physical addresses closest to the CPU (e.g., indices 1, 2, 3...).  
-2. **3-Buffer Minimum Footprint:** At recursion level $d$ (dimension $M$), we strictly allocate just **three** buffers (X, Y, and Z) of size $M/2 \\times M/2$.  
-3. **Sequential Tombstoning:** We evaluate the 7 intermediate Strassen products sequentially. For each product $M\_k$, the parent computes the combinations into X and Y, executes the recursion which deposits into Z, and then immediately tombstones (recycles) the X, Y, Z bounds for the next sibling product $M\_{k+1}$.  
-4. **Forced Copy Operand Staging:** Even if an argument is passed cleanly (e.g., passing $B\_{11}$ untouched for product $M\_2$), we explicitly *copy* it into the child's local Y buffer. This forcefully drags the data out of the sprawling top-level memory blocks and compacts it tightly around the CPU.  
+2. **3-Buffer Minimum Footprint:** At recursion level $d$ (dimension $M$), we strictly allocate just **three** buffers (X, Y, and Z) of size $M/2 \times M/2$.  
+3. **Sequential Tombstoning:** We evaluate the 7 intermediate Strassen products sequentially. For each product $M_k$, the parent computes the combinations into X and Y, executes the recursion which deposits into Z, and then immediately tombstones (recycles) the X, Y, Z bounds for the next sibling product $M_{k+1}$.  
+4. **Forced Copy Operand Staging:** Even if an argument is passed cleanly (e.g., passing $B_{11}$ untouched for product $M_2$), we explicitly *copy* it into the child's local Y buffer. This forcefully drags the data out of the sprawling top-level memory blocks and compacts it tightly around the CPU.  
 5. **Zero-Allocation Accumulation:** Instead of zero-initializing the parent matrix $C$, we utilize an assign instruction when a quadrant is targeted for the first time. Subsequent calculations strictly add or sub from that location.
 
 ### ---
 
 **Python Implementation**
 
-Below is the self-contained simulator that constructs the optimized Tombstone layout, properly stages data through the inverted arenas, and traces the optimal $\\mathcal{O}(N^3)$ spatial cost.
+Below is the self-contained simulator that constructs the optimized Tombstone layout, properly stages data through the inverted arenas, and traces the optimal $\mathcal{O}(N^3)$ spatial cost.
 
 Python
 
