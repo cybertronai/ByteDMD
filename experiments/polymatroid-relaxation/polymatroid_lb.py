@@ -118,7 +118,8 @@ def _arg_stack_first_load_cost(
 def polymatroid_lower_bound(
     events: Sequence[L2Event],
     input_arg_idx: Optional[Dict[int, int]] = None,
-) -> int:
+    time_budget: Optional[float] = None,
+) -> Optional[int]:
     """Discrete polymatroid LP lower bound (see module docstring).
 
     Two-Stack semantics (matching static_opt_lb / splitting_lower_bound):
@@ -126,8 +127,17 @@ def polymatroid_lower_bound(
     `⌈√(arg_idx)⌉` first-read cost is added on top of the polymatroid LP
     bound, and inputs enter the polymatroid LP with `reads = k − 1`
     (one read removed; charged via arg stack).
+
+    If `time_budget` (seconds) is given, the function aborts before
+    starting any LP solve once the cumulative wall time exceeds the
+    budget, returning `None`.  Useful for the grid driver, which needs
+    a hard cap per cell.
     """
+    import time as _time
+
     input_arg_idx = input_arg_idx or {}
+    deadline = (_time.perf_counter() + time_budget
+                if time_budget is not None else None)
 
     arg_cost = _arg_stack_first_load_cost(events, input_arg_idx)
     intervals = _extract_intervals_two_stack(events, input_arg_idx)
@@ -159,6 +169,8 @@ def polymatroid_lower_bound(
 
     M: Dict[int, int] = {}
     for cap in capacities:
+        if deadline is not None and _time.perf_counter() > deadline:
+            return None
         b = np.full(len(cliques), float(cap))
         res = linprog(
             c_obj,

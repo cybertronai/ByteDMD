@@ -1,7 +1,7 @@
 #!/Users/yaroslavvb/.local/bin/uv run --script
 # /// script
 # requires-python = ">=3.9"
-# dependencies = []
+# dependencies = ["numpy", "scipy"]
 # ///
 """Grid of cache-energy heuristics × algorithms.
 
@@ -23,7 +23,7 @@ import csv
 import os
 import sys
 import time
-from typing import Callable, Dict, List, Sequence, Tuple
+from typing import Callable, Dict, List, Optional, Sequence, Tuple
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.path.abspath(os.path.join(HERE, "..", ".."))
@@ -207,6 +207,16 @@ def belady(events, input_arg_idx=None):
 import algorithms as alg
 import manual as man
 from spacedmd import space_dmd
+
+# Polymatroid LP bound — runs an O(√ω) sweep of TU LPs and can be slow on
+# large traces; we cap it per-cell at CELL_BUDGET_S below. Importing through
+# the experiment directory keeps run_grid runnable even without scipy by
+# letting the import fail gracefully.
+sys.path.insert(0, os.path.join(ROOT, "experiments", "polymatroid-relaxation"))
+try:
+    from polymatroid_lb import polymatroid_lower_bound
+except Exception:
+    polymatroid_lower_bound = None
 
 
 # ============================================================================
@@ -426,11 +436,54 @@ ALGOS: List[Tuple[str, Callable, Tuple, Callable[[], int]]] = [
 
 
 # Column order for the output table. "manual" is a sentinel — value comes
-# from ALGOS[i][3]() rather than from a trace-based heuristic.
+# from ALGOS[i][3]() rather than from a trace-based heuristic.  The
+# `polymatroid_lb` cell uses a 10s per-cell wall budget plus a hard
+# trace-size pre-screen — a single HiGHS LP solve on a wide
+# constraint matrix can blow well past the soft budget, so we skip
+# rows whose # of trace events × peak live exceeds an empirical
+# threshold (calibrated so all kept cells finish in <10s on a
+# 2024-era workstation).  Skipped rows land as `None` (rendered as
+# "—" in grid.md and left blank in grid.csv).
+_POLYMATROID_MAX_EVENTS = 80_000
+_POLYMATROID_MAX_OMEGA  = 900
+
+
+def _polymatroid_lb_capped(events, iidx):
+    if polymatroid_lower_bound is None:
+        return None
+    if len(events) > _POLYMATROID_MAX_EVENTS:
+        return None
+    # Cheap omega estimate: walk the trace counting live vars.  A var
+    # is born at its first event (L2Store for temporaries, L2Load for
+    # inputs) and dies at its last load.  This matches the Two-Stack
+    # extraction the polymatroid bound itself uses.  A small over-
+    # estimate just makes us conservative.
+    last_load: Dict[int, int] = {}
+    for i, ev in enumerate(events):
+        if isinstance(ev, L2Load):
+            last_load[ev.var] = i
+    live = 0
+    omega = 0
+    seen: set = set()
+    for i, ev in enumerate(events):
+        if isinstance(ev, (L2Store, L2Load)):
+            if ev.var not in seen:
+                seen.add(ev.var)
+                live += 1
+                if live > omega:
+                    omega = live
+        if isinstance(ev, L2Load) and last_load.get(ev.var) == i:
+            live -= 1
+        if omega > _POLYMATROID_MAX_OMEGA:
+            return None
+    return polymatroid_lower_bound(events, iidx, time_budget=10.0)
+
+
 METRICS: List[Tuple[str, Callable[[Sequence[L2Event]], int] | None]] = [
     ("bytedmd_opt",     bytedmd_opt),
     ("static_opt_lb",   static_opt_lb),
     ("split_lb",        splitting_lower_bound),
+    ("polymatroid_lb",  _polymatroid_lb_capped),
     ("space_dmd",       space_dmd),
     ("copy_space_dmd",  copy_space_dmd),
     ("bytedmd_live",    bytedmd_live),
@@ -483,8 +536,10 @@ def main() -> None:
         traces[name] = events
         input_idx[name] = {v: i + 1 for i, v in enumerate(input_vars)}
 
-    # Fill the grid: grid[algo_index][metric_index]
-    grid: List[List[int]] = [[0] * len(METRICS) for _ in ALGOS]
+    # Fill the grid: grid[algo_index][metric_index].  Cells that
+    # the metric chose to skip (e.g. polymatroid_lb on a trace that
+    # would exceed its time budget) land as `None`.
+    grid: List[List[Optional[int]]] = [[0] * len(METRICS) for _ in ALGOS]
     cell_time: List[List[float]] = [[0.0] * len(METRICS) for _ in ALGOS]
 
     for ri, (name, _, _, manual_fn) in enumerate(ALGOS):
@@ -494,7 +549,7 @@ def main() -> None:
             t0 = time.perf_counter()
             val = manual_costs[name] if mfn is None else mfn(events, iidx)
             dt = time.perf_counter() - t0
-            grid[ri][ci] = int(val)
+            grid[ri][ci] = None if val is None else int(val)
             cell_time[ri][ci] = dt
             if dt > CELL_BUDGET_S:
                 print(f"WARN cell ({name},{mname}) {dt:.2f}s > {CELL_BUDGET_S}s")
@@ -513,8 +568,16 @@ def main() -> None:
     header = f"{'algorithm':<{algo_w}}" + "".join(f"{m:>{col_w+2}}" for m in metric_names)
     print(header)
     print("-" * len(header))
+
+    def _fmt_cell(v):
+        if v is None:
+            return "—"
+        return f"{v:,}"
+
     for ri, aname in enumerate(algo_names):
-        row = f"{aname:<{algo_w}}" + "".join(f"{grid[ri][ci]:>{col_w+2},}" for ci in range(len(metric_names)))
+        row = f"{aname:<{algo_w}}" + "".join(
+            f"{_fmt_cell(grid[ri][ci]):>{col_w+2}}"
+            for ci in range(len(metric_names)))
         print(row)
 
     print("\nCell time (s)")
@@ -532,13 +595,14 @@ def main() -> None:
         w = csv.writer(f)
         w.writerow(["algorithm"] + metric_names)
         for ri, aname in enumerate(algo_names):
-            w.writerow([aname] + [grid[ri][ci] for ci in range(len(metric_names))])
+            w.writerow([aname] + ["" if grid[ri][ci] is None else grid[ri][ci]
+                                  for ci in range(len(metric_names))])
     print(f"Saved {csv_path}")
 
     # --- Markdown table ---
     md_path = os.path.join(HERE, "grid.md")
-    def fmt(v: int) -> str:
-        return f"{v:,}"
+    def fmt(v) -> str:
+        return "—" if v is None else f"{v:,}"
     col_widths = [max(len(m), max(len(fmt(grid[ri][ci])) for ri in range(len(ALGOS))))
                   for ci, m in enumerate(metric_names)]
     fw = max(len("algorithm"), max(len(a) for a in algo_names))
