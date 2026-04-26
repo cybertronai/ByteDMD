@@ -24,7 +24,24 @@ disc of radius r holds r² cells). The energy of one access at address
 
 Every number in this report — `bytedmd_opt`, `static_opt_lb`, `split_lb`,
 `space_dmd`, `bytedmd_live`, `manual`, and `bytedmd_classic` — is this
-same sum, evaluated under seven different placement strategies / bounds:
+same sum, evaluated under seven different placement strategies / bounds.
+
+**The trace these metrics are computed against is the manual schedule's
+effective trace**, synthesised by running each row's `manual_*` function
+under a logging `Allocator` and replaying its loads / writes as
+L2Events. Manual is one specific static allocation of its own
+operation sequence and the LB metrics are the optimum over all
+allocations of the same sequence — so on each row `LB ≤ manual` holds
+by construction (the lone exception is `regular_conv`, where the
+LP's time-integrated relaxation overcounts the load-event sum; see
+the Notes section for why). Manual schedules that fuse / stream /
+update in place — `manual_naive_attention` row-streams instead of
+materialising the full N×N S/P, `manual_lu_no_pivot` updates A in
+place, `manual_fused_strassen` folds M₁..M₇ into the L1 tile loads
+— used to appear to "beat" the abstract LP bound in 15 rows; that
+was an artefact of the LP being computed against a more memory-
+intensive trace from `algorithms.py`. The synthesised-trace switch
+removes those false violations.
 
 | column            | meaning                                                         |
 |-------------------|-----------------------------------------------------------------|
@@ -63,54 +80,54 @@ DAGs are identical, so `bytedmd_live` / `bytedmd_classic` match — only
 
 | algorithm                                                   | bytedmd_opt | static_opt_lb | split_lb | space_dmd | copy_space_dmd | bytedmd_live |  manual | bytedmd_classic |
 |------------------------------------------------------------|------------:|--------------:|---------:|----------:|---------------:|-------------:|--------:|----------------:|
-| [naive_matmul(n=16)](#naive_matmul)                         |     111,132 |        75,671 |   75,234 |    80,501 |         80,501 |      109,217 | 177,744 |         181,258 |
-| [naive_2d_tiled_matmul(n=16,T=4)](#naive_2d_tiled_matmul)   |      95,315 |        88,791 |   65,571 |    91,253 |         78,824 |       95,634 | 177,744 |         163,817 |
-| [naive_tiled_matmul(n=16)](#naive_tiled_matmul)             |     111,132 |        75,671 |   75,234 |    80,501 |         80,501 |      109,217 | 161,084 |         181,258 |
-| [naive_matmul_cached(n=16)](#naive_matmul_cached)           |     111,132 |        75,671 |   75,234 |    80,501 |         80,501 |      109,217 | 114,838 |         181,258 |
-| [tiled_matmul(n=16)](#tiled_matmul)                         |      79,329 |        94,537 |   53,900 |    95,487 |         63,385 |       78,708 |  67,758 |         143,812 |
-| [tiled_matmul_explicit(n=16,T=4)](#tiled_matmul_explicit)   |     104,522 |        75,034 |   70,081 |    75,564 |         75,563 |       99,006 |  67,758 |         201,547 |
-| [rmm(n=16)](#rmm)                                           |      84,470 |       110,833 |   57,840 |   110,373 |         73,658 |       83,196 | 106,835 |         151,375 |
-| [naive_strassen(n=16)](#naive_strassen)                     |     184,965 |       145,059 |  125,078 |   138,024 |        134,549 |      175,157 | 251,486 |         343,737 |
-| [fused_strassen(n=16)](#fused_strassen)                     |     184,965 |       145,059 |  125,078 |   138,024 |        134,549 |      175,157 | 135,740 |         343,737 |
-| [naive_attn(N=64,d=2)](#naive_attn)                         |     902,309 |       878,493 |  599,787 |   819,378 |        819,378 |      898,030 | 532,805 |       1,873,534 |
-| [flash_attn(N=64,d=2,Bk=8)](#flash_attn)                    |     472,668 |       330,267 |  310,679 |   356,727 |        356,336 |      476,067 | 610,154 |         842,854 |
-| [matvec_row(n=64)](#matvec_row)                             |     229,752 |       212,304 |  211,973 |   217,272 |        217,272 |      229,527 | 218,552 |         266,353 |
-| [matvec_col(n=64)](#matvec_col)                             |     229,667 |       212,183 |  211,904 |   213,631 |        213,631 |      229,716 | 217,952 |         270,193 |
-| [matvec_blocked(n=64,B=8)](#matvec_blocked)                 |     215,068 |       203,485 |  202,963 |   207,429 |        207,429 |      214,377 | 208,832 |         250,463 |
-| [fft_iterative(N=256)](#fft_iterative)                      |      46,033 |        39,049 |   31,631 |    40,200 |         40,200 |       47,088 |  55,516 |          71,317 |
-| [fft_recursive(N=256)](#fft_recursive)                      |      31,665 |        27,237 |   23,077 |    29,450 |         29,450 |       33,110 |  52,704 |          62,417 |
-| [stencil_naive(32x32)](#stencil_naive)                      |      63,959 |        58,041 |   51,364 |    63,617 |         58,290 |       65,937 |  78,968 |         109,401 |
-| [stencil_recursive(32x32,leaf=8)](#stencil_recursive)       |      59,543 |        51,529 |   47,976 |    55,205 |         53,710 |       58,764 |  78,968 |         101,657 |
-| [spatial_conv(32x32,K=5)](#spatial_conv)                    |     402,797 |       312,818 |  268,559 |   345,962 |        320,715 |      402,858 | 595,987 |         681,253 |
-| [regular_conv(16x16,K=3,Cin=4,Cout=4)](#regular_conv)       |     780,684 |       684,503 |  509,507 |   730,755 |        570,512 |      778,473 | 648,300 |       1,290,500 |
-| [fft_conv(N=256)](#fft_conv)                                |     145,693 |       121,959 |   99,849 |   124,470 |        124,470 |      148,641 |  91,922 |         233,158 |
-| [quicksort(N=64)](#quicksort)                               |       2,767 |         2,791 |    1,987 |     2,470 |          2,131 |        2,852 |   4,718 |           4,292 |
-| [heapsort(N=64)](#heapsort)                                 |       4,912 |         3,584 |    3,390 |     3,755 |          3,748 |        4,696 |   5,523 |           7,889 |
-| [mergesort(N=64)](#mergesort)                               |       3,030 |         2,261 |    2,110 |     2,572 |          2,572 |        3,148 |   3,386 |           4,411 |
-| [lcs_dp(32x32)](#lcs_dp)                                    |      30,878 |        25,098 |   19,992 |    26,583 |         25,267 |       29,980 |  27,192 |          44,575 |
-| [lu_no_pivot(n=32)](#lu_no_pivot)                           |     407,900 |       600,081 |  271,413 |   482,165 |        343,120 |      407,042 | 405,592 |         705,126 |
-| [blocked_lu(n=32,NB=8)](#blocked_lu)                        |     283,615 |       420,494 |  189,462 |   366,551 |        224,610 |      283,294 | 250,767 |         515,134 |
-| [recursive_lu(n=32)](#recursive_lu)                         |     306,483 |       415,862 |  204,618 |   399,746 |        239,100 |      304,365 | 355,751 |         546,679 |
-| [lu_partial_pivot(n=32)](#lu_partial_pivot)                 |     421,434 |       632,866 |  279,157 |   511,270 |        345,768 |      420,780 | 440,237 |         730,673 |
-| [cholesky(n=32)](#cholesky)                                 |     177,026 |       245,659 |  121,746 |   186,117 |        142,407 |      176,313 | 251,039 |         293,328 |
-| [householder_qr(32x32)](#householder_qr)                    |     605,281 |       762,977 |  400,466 |   783,709 |        664,410 |      605,876 | 768,959 |       1,131,740 |
-| [blocked_qr(32x32,NB=8)](#blocked_qr)                       |     609,805 |       548,829 |  397,749 |   556,886 |        508,166 |      610,248 | 554,900 |       1,068,832 |
-| [tsqr(64x16,br=8)](#tsqr)                                   |     269,835 |       364,696 |  185,151 |   381,777 |        259,344 |      267,962 | 315,433 |         546,266 |
-| [transpose_naive(n=32)](#transpose_naive)                   |      44,704 |        38,614 |   38,611 |    44,704 |         44,704 |       44,704 |  44,704 |          62,799 |
-| [transpose_blocked(n=32)](#transpose_blocked)               |      44,704 |        38,573 |   38,571 |    43,298 |         43,298 |       43,873 |  44,704 |          62,341 |
-| [transpose_recursive(n=32)](#transpose_recursive)           |      44,704 |        38,441 |   38,439 |    41,440 |         41,440 |       42,513 |  44,704 |          61,688 |
-| [stencil_time_naive(16x16,T=4)](#stencil_time_naive)        |      54,764 |        55,543 |   36,051 |    52,470 |         43,730 |       55,466 |  67,258 |          88,017 |
-| [stencil_time_diamond(16x16,T=4)](#stencil_time_diamond)    |     233,883 |       206,570 |  153,218 |   199,327 |        179,285 |      230,387 | 136,095 |         414,232 |
-| [floyd_warshall_naive(V=16)](#floyd_warshall_naive)         |     104,594 |        88,583 |   69,037 |    96,230 |         87,214 |      104,528 |  85,514 |         168,288 |
-| [floyd_warshall_recursive(V=16)](#floyd_warshall_recursive) |      49,073 |        48,816 |   35,236 |    49,359 |         42,788 |       47,495 |  63,334 |          95,871 |
-| [layernorm_unfused(N=256)](#layernorm_unfused)              |      19,050 |        16,213 |   13,402 |    16,823 |         15,710 |       19,022 |  14,571 |          30,891 |
-| [layernorm_fused(N=256)](#layernorm_fused)                  |      14,721 |        13,167 |   11,005 |    13,485 |         13,811 |       15,172 |  15,329 |          24,400 |
-| [matrix_powers_naive(n=16,s=4)](#matrix_powers_naive)       |      24,227 |        17,239 |   16,905 |    18,390 |         18,390 |       24,085 |  27,198 |          37,513 |
-| [matrix_powers_ca(n=16,s=4)](#matrix_powers_ca)             |      24,533 |        17,442 |   17,082 |    18,604 |         18,604 |       24,377 |  27,198 |          38,702 |
-| [cholesky_left_looking(n=32)](#cholesky_left_looking)       |     195,661 |       214,439 |  133,811 |   212,130 |        150,927 |      190,103 | 257,289 |         352,335 |
-| [spmv_csr_banded(n=32,bw=3)](#spmv_csr_banded)              |       4,128 |         2,923 |    2,889 |     2,340 |          2,340 |        4,219 |   6,190 |           7,164 |
-| [spmv_csr_random(n=32,nnz=7)](#spmv_csr_random)             |       4,960 |         3,640 |    3,444 |     3,159 |          3,155 |        4,984 |   6,676 |           8,649 |
-| [bitonic_sort(N=64)](#bitonic_sort)                         |      12,746 |         9,012 |    8,984 |     9,351 |          9,351 |       13,418 |  17,384 |          20,363 |
+| [naive_matmul(n=16)](#naive_matmul)                         |     111,388 |        76,207 |   75,666 |    80,740 |         80,740 |      109,473 | 177,744 |         186,017 |
+| [naive_2d_tiled_matmul(n=16,T=4)](#naive_2d_tiled_matmul)   |      95,571 |        89,266 |   66,011 |    91,508 |         79,078 |       95,890 | 177,744 |         167,585 |
+| [naive_tiled_matmul(n=16)](#naive_tiled_matmul)             |     109,966 |        90,971 |   75,355 |    93,239 |         82,382 |      109,637 | 161,084 |         194,732 |
+| [naive_matmul_cached(n=16)](#naive_matmul_cached)           |     112,842 |        77,288 |   76,679 |    81,604 |         81,604 |      111,098 | 114,838 |         188,774 |
+| [tiled_matmul(n=16)](#tiled_matmul)                         |      84,685 |        58,275 |   57,554 |    58,332 |         58,332 |       82,875 |  67,758 |         160,635 |
+| [tiled_matmul_explicit(n=16,T=4)](#tiled_matmul_explicit)   |      84,685 |        58,275 |   57,554 |    58,332 |         58,332 |       82,875 |  67,758 |         160,635 |
+| [rmm(n=16)](#rmm)                                           |      81,909 |        65,572 |   58,570 |    61,706 |         61,706 |       77,352 | 106,835 |         146,225 |
+| [naive_strassen(n=16)](#naive_strassen)                     |     185,175 |       148,128 |  125,715 |   139,911 |        138,845 |      175,185 | 251,486 |         320,092 |
+| [fused_strassen(n=16)](#fused_strassen)                     |     135,276 |       105,034 |   91,804 |    99,792 |         99,792 |      130,659 | 135,740 |         247,189 |
+| [naive_attn(N=64,d=2)](#naive_attn)                         |     625,522 |       436,007 |  398,969 |   454,367 |        428,564 |      636,036 | 532,805 |         759,603 |
+| [flash_attn(N=64,d=2,Bk=8)](#flash_attn)                    |     531,241 |       394,814 |  342,445 |   420,831 |        397,731 |      546,910 | 610,154 |         667,242 |
+| [matvec_row(n=64)](#matvec_row)                             |     234,471 |       213,783 |  213,349 |   213,968 |        213,968 |      234,079 | 218,552 |         258,431 |
+| [matvec_col(n=64)](#matvec_col)                             |     229,731 |       212,529 |  212,150 |   213,715 |        213,715 |      229,780 | 217,952 |         270,386 |
+| [matvec_blocked(n=64,B=8)](#matvec_blocked)                 |     218,373 |       203,980 |  203,466 |   204,532 |        204,532 |      218,218 | 208,832 |         239,875 |
+| [fft_iterative(N=256)](#fft_iterative)                      |      47,317 |        50,344 |   32,014 |    51,401 |         51,401 |       47,344 |  55,516 |          72,210 |
+| [fft_recursive(N=256)](#fft_recursive)                      |      24,094 |        22,108 |   16,698 |    22,599 |         22,599 |       24,112 |  52,704 |          39,883 |
+| [stencil_naive(32x32)](#stencil_naive)                      |      70,322 |        62,995 |   54,294 |    66,568 |         61,058 |       72,360 |  78,968 |         100,964 |
+| [stencil_recursive(32x32,leaf=8)](#stencil_recursive)       |      70,322 |        62,995 |   54,294 |    66,568 |         61,058 |       72,360 |  78,968 |         100,964 |
+| [spatial_conv(32x32,K=5)](#spatial_conv)                    |     404,365 |       315,732 |  271,059 |   347,547 |        321,573 |      404,426 | 595,987 |         706,821 |
+| [regular_conv(16x16,K=3,Cin=4,Cout=4)](#regular_conv)       |     801,291 |       732,196 |  526,146 |   771,525 |        590,855 |      801,655 | 648,300 |       1,378,670 |
+| [fft_conv(N=256)](#fft_conv)                                |      73,434 |        57,400 |   53,402 |    59,201 |         59,201 |       76,335 |  91,922 |         148,053 |
+| [quicksort(N=64)](#quicksort)                               |       3,231 |         2,583 |    2,225 |     2,569 |          2,262 |        3,221 |   4,718 |           4,737 |
+| [heapsort(N=64)](#heapsort)                                 |       5,026 |         3,452 |    3,377 |     3,794 |          3,792 |        4,711 |   5,523 |           8,428 |
+| [mergesort(N=64)](#mergesort)                               |       3,305 |         2,380 |    2,338 |     2,803 |          2,803 |        3,489 |   3,386 |           5,077 |
+| [lcs_dp(32x32)](#lcs_dp)                                    |      24,625 |        20,494 |   15,569 |    22,199 |         20,850 |       25,572 |  27,192 |          29,860 |
+| [lu_no_pivot(n=32)](#lu_no_pivot)                           |     410,190 |       279,391 |  273,448 |   343,228 |        343,228 |      409,523 | 405,592 |         715,687 |
+| [blocked_lu(n=32,NB=8)](#blocked_lu)                        |     268,146 |       192,216 |  179,195 |   200,738 |        198,284 |      277,267 | 250,767 |         464,267 |
+| [recursive_lu(n=32)](#recursive_lu)                         |     321,848 |       238,782 |  215,287 |   241,282 |        236,851 |      313,181 | 355,751 |         526,939 |
+| [lu_partial_pivot(n=32)](#lu_partial_pivot)                 |     393,215 |       263,705 |  248,799 |   325,749 |        325,749 |      393,809 | 440,237 |         588,087 |
+| [cholesky(n=32)](#cholesky)                                 |     171,908 |       124,333 |  115,985 |   138,313 |        138,062 |      171,642 | 251,039 |         297,413 |
+| [householder_qr(32x32)](#householder_qr)                    |     617,519 |       520,108 |  397,355 |   661,317 |        659,124 |      615,355 | 768,959 |         943,613 |
+| [blocked_qr(32x32,NB=8)](#blocked_qr)                       |     571,904 |       476,803 |  375,595 |   614,316 |        612,115 |      567,859 | 554,900 |         895,734 |
+| [tsqr(64x16,br=8)](#tsqr)                                   |     330,473 |       255,975 |  222,220 |   278,243 |        276,959 |      330,984 | 315,433 |         593,540 |
+| [transpose_naive(n=32)](#transpose_naive)                   |      44,704 |        39,033 |   39,030 |    44,704 |         44,704 |       44,704 |  44,704 |          62,799 |
+| [transpose_blocked(n=32)](#transpose_blocked)               |      44,704 |        38,963 |   38,960 |    42,894 |         42,894 |       43,873 |  44,704 |          62,341 |
+| [transpose_recursive(n=32)](#transpose_recursive)           |      44,704 |        38,743 |   38,740 |    40,073 |         40,073 |       42,513 |  44,704 |          61,688 |
+| [stencil_time_naive(16x16,T=4)](#stencil_time_naive)        |      34,646 |        42,111 |   22,955 |    39,604 |         31,240 |       35,200 |  67,258 |          45,039 |
+| [stencil_time_diamond(16x16,T=4)](#stencil_time_diamond)    |     126,402 |        91,718 |   84,244 |    93,729 |         93,562 |      127,264 | 136,095 |         252,336 |
+| [floyd_warshall_naive(V=16)](#floyd_warshall_naive)         |     114,640 |        74,923 |   74,060 |    81,682 |         81,180 |      114,931 |  85,514 |         160,946 |
+| [floyd_warshall_recursive(V=16)](#floyd_warshall_recursive) |      53,369 |        41,624 |   38,336 |    43,261 |         42,977 |       55,116 |  63,334 |         104,355 |
+| [layernorm_unfused(N=256)](#layernorm_unfused)              |      17,259 |        12,360 |   12,210 |    12,564 |         12,564 |       17,485 |  14,571 |          23,340 |
+| [layernorm_fused(N=256)](#layernorm_fused)                  |      14,465 |        12,635 |   10,556 |    12,795 |         12,795 |       14,916 |  15,329 |          21,599 |
+| [matrix_powers_naive(n=16,s=4)](#matrix_powers_naive)       |      25,607 |        17,591 |   17,465 |    17,871 |         17,871 |       25,451 |  27,198 |          34,791 |
+| [matrix_powers_ca(n=16,s=4)](#matrix_powers_ca)             |      25,607 |        17,591 |   17,465 |    17,871 |         17,871 |       25,451 |  27,198 |          34,791 |
+| [cholesky_left_looking(n=32)](#cholesky_left_looking)       |     158,008 |       112,864 |   98,707 |   111,347 |        108,182 |      158,218 | 257,289 |         227,339 |
+| [spmv_csr_banded(n=32,bw=3)](#spmv_csr_banded)              |       4,088 |         3,615 |    3,590 |     3,657 |          3,657 |        4,086 |   6,190 |           4,842 |
+| [spmv_csr_random(n=32,nnz=7)](#spmv_csr_random)             |       4,691 |         4,148 |    4,029 |     4,126 |          4,126 |        4,642 |   6,676 |           5,882 |
+| [bitonic_sort(N=64)](#bitonic_sort)                         |      15,287 |        15,465 |   10,165 |    15,890 |         15,890 |       15,439 |  17,384 |          22,379 |
 
 ## Run
 

@@ -451,13 +451,34 @@ def main() -> None:
     algo_names = [a[0] for a in ALGOS]
     metric_names = [m[0] for m in METRICS]
 
-    # Pre-trace each algorithm once.
+    # Pre-trace each algorithm once. We use the manual schedule's
+    # *effective trace* — synthesised by running each `manual_*`
+    # function with a logging Allocator and replaying its loads /
+    # writes as L2Events — instead of the abstract trace from
+    # `algorithms.py`.  This makes `LB ≤ manual` hold by construction
+    # on every row: manual is one specific static allocation of its
+    # own operation sequence, and the lower-bound metrics are the
+    # optimum over all allocations of the same sequence.  Manual
+    # schedules that fuse / stream / update in place (e.g.
+    # `manual_naive_attention` row-streams instead of materialising
+    # the full N×N S/P matrices, `manual_lu_no_pivot` updates A in
+    # place instead of creating fresh Schur-complement vars) used to
+    # appear to "beat" the abstract LP bound; that was an artefact
+    # of the LP being computed against a different (more memory-
+    # intensive) trace.
     traces: Dict[str, List[L2Event]] = {}
     input_idx: Dict[str, Dict[int, int]] = {}
     trace_times: Dict[str, float] = {}
-    for name, fn, args, _ in ALGOS:
+    manual_costs: Dict[str, int] = {}
+    for name, _fn, _args, manual_fn in ALGOS:
         t0 = time.perf_counter()
-        events, input_vars = trace(fn, args)
+        logged = man.Allocator(logging=True)
+        man.set_allocator(logged)
+        try:
+            manual_costs[name] = manual_fn()
+        finally:
+            man.set_allocator(None)
+        events, input_vars = man.synthesize_manual_trace(logged)
         trace_times[name] = time.perf_counter() - t0
         traces[name] = events
         input_idx[name] = {v: i + 1 for i, v in enumerate(input_vars)}
@@ -471,7 +492,7 @@ def main() -> None:
         iidx = input_idx[name]
         for ci, (mname, mfn) in enumerate(METRICS):
             t0 = time.perf_counter()
-            val = manual_fn() if mfn is None else mfn(events, iidx)
+            val = manual_costs[name] if mfn is None else mfn(events, iidx)
             dt = time.perf_counter() - t0
             grid[ri][ci] = int(val)
             cell_time[ri][ci] = dt

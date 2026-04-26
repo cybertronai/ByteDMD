@@ -111,6 +111,93 @@ class Allocator:
                 self.log.append(("output", addr))
 
 
+def synthesize_manual_trace(allocator: "Allocator"):
+    """Convert a logging `Allocator`'s recorded operations into the
+    same flat L2 event sequence (and input_vars list) that
+    `bytedmd_ir.trace()` returns from an abstract `algorithms.py`
+    function.
+
+    The point of this helper is to make `manual` and the LP lower
+    bounds (`bytedmd_opt`, `static_opt_lb`, `split_lb`, etc.) agree
+    on the **same** trace: the operations the manual schedule
+    actually performs. Manual schedules that fuse / stream / update
+    in place (e.g. `manual_naive_attention` row-streams instead of
+    materialising the full N×N S/P matrices, `manual_lu_no_pivot`
+    updates A in place instead of creating fresh Schur-complement
+    vars) used to violate `LB ≤ manual` because the LB was being
+    computed against a more memory-intensive abstract trace from
+    `algorithms.py`. Computing the LB against the synthesised
+    manual trace makes `LB ≤ manual` hold by construction — manual
+    is one specific static allocation of its own trace and the LP
+    is the optimum over all allocations.
+
+    Conventions:
+      * Each arg-stack cell (`alloc_arg`-allocated) is a distinct
+        input variable, var-id-equal to its 1-indexed arg position.
+        `input_vars` is `[1, 2, …, allocator.arg_peak − 1]`.
+      * Each `write(addr)` mints a fresh var at that address (the
+        scratch slot rebinds, like SSA).
+      * Each `touch(addr)` / `touch_arg(addr)` reads the var
+        currently bound at that address.
+      * `read_output()` is logged as `("output", addr)` — same
+        physical scratch space as `("scratch", addr)`, just tagged
+        for visualisation. Both forms map to the same per-addr var.
+
+    Returns `(events, input_vars)` matching the shape of
+    `bytedmd_ir.trace`'s return value.
+    """
+    from collections import defaultdict
+    from bytedmd_ir import L2Load, L2Store
+
+    log = allocator.log or []
+    writes = allocator.writes or []
+    output_writes = allocator.output_writes or []
+
+    n_inputs = max(0, allocator.arg_peak - 1)
+    input_vars = list(range(1, n_inputs + 1))
+
+    arg_to_var = {a: a for a in range(1, n_inputs + 1)}
+    scratch_to_var: dict = {}  # numeric addr → current var
+    next_var = n_inputs + 1
+
+    # Group all writes (scratch + output) by their event index.  Both
+    # write the same physical scratch space; the "output_writes" tag is
+    # only for visualisation, not a separate addr space.
+    writes_at: dict = defaultdict(list)
+    for t, addr in writes:
+        writes_at[t].append(addr)
+    for t, addr in output_writes:
+        writes_at[t].append(addr)
+
+    events: list = []
+    for i in range(len(log) + 1):
+        # Apply every store that fires just before touch i.
+        for addr in writes_at.get(i, ()):
+            v = next_var
+            next_var += 1
+            scratch_to_var[addr] = v
+            events.append(L2Store(v))
+        if i < len(log):
+            space, addr = log[i]
+            if space == "arg":
+                v = arg_to_var.get(addr)
+            else:  # "scratch" or "output" — same physical scratch space
+                v = scratch_to_var.get(addr)
+            if v is None:
+                # Defensive: read from an addr that was never written.
+                # Treat as a fresh cold store so the trace stays
+                # well-formed.
+                v = next_var
+                next_var += 1
+                if space == "arg":
+                    arg_to_var[addr] = v
+                else:
+                    scratch_to_var[addr] = v
+                events.append(L2Store(v))
+            events.append(L2Load(v))
+    return events, input_vars
+
+
 # Module-level override for the allocator used inside manual_* functions.
 # Normally None (each function creates its own). generate_traces.py sets this
 # to a logging Allocator so the captured .log reflects a single call's trace.
