@@ -133,6 +133,7 @@ semantics), so the costs match the `bytedmd_live` column in the table.
 | `<slug>_reuse_distance.png` | LRU and Bélády OPT reuse distance per load on shared axes (purple = LRU; green = OPT). The visible green-below-purple gap is the locality slack Mattson inclusion guarantees an offline oracle would extract. | [belady-min-lower-bound.md](../../gemini/belady-min-lower-bound.md) |
 | `<slug>_mrc.png`           | Miss-ratio curve `M(c) = #loads with reuse distance > c` for both LRU and OPT. The area between the curves weighted by `Δ_c = ⌈√(c+1)⌉ − ⌈√c⌉` is the `bytedmd_live − bytedmd_opt` energy gap. | [belady-min-lower-bound.md](../../gemini/belady-min-lower-bound.md) |
 | `<slug>_static_opt_floor.png` | Per-tick TU LP floor `Σ_i ρ_{(i)} · √i` over currently-live vars (orange step curve, shaded area = `static_opt_lb`). Dashed red line marks the time-average. | [optimal-static-floor.md](../../gemini/optimal-static-floor.md) |
+| `<slug>_splitting_floor.png` | Per-tick fractional Pigeonhole floor for `split_lb` — same `Σ_i ρ_{(i)} · √i` shape as `_static_opt_floor.png`, but the entities at each tick are the per-burst virtual intervals of every variable rather than monolithic per-variable lifespans (cyan step curve, shaded area = the geometric portion of `split_lb`). On phase-structured traces a long dormant burst gets a low ρ → high rank → small per-tick contribution, so this curve sits below `_static_opt_floor.png`. | [fractional-lp-splitting.md](../../gemini/fractional-lp-splitting.md) |
 | `<slug>_intensity.png`     | **Heartbeat** — rolling spatial arithmetic intensity (`ops / Σ ⌈√d⌉`) over a sliding window. Tiled / blocked algorithms show square-wave plateaus while a tile is in cache; naive variants stay near the floor. | [arithmetic-intensity-visualizers.md §1](../../gemini/arithmetic-intensity-visualizers.md) |
 | `<slug>_phase_diagram.png` | **Spatial Phase Diagram** — cumulative ops (y) vs cumulative fetch cost (x). The line slope = instantaneous intensity; tiled algorithms trace a steep staircase, naive ones a shallow diagonal. | [arithmetic-intensity-visualizers.md §2](../../gemini/arithmetic-intensity-visualizers.md) |
 | `<slug>_gravity_well.png`  | **Gravity Well** — per-load fetch-cost `⌈√d⌉` scatter. Dense low bands = tight orbital footprint (most reads near the ALU); high spray = excursions into deep memory. | [arithmetic-intensity-visualizers.md §3](../../gemini/arithmetic-intensity-visualizers.md) |
@@ -266,6 +267,10 @@ with-scratchpad variant that drops 35 % off this baseline.
 
 ![](traces/naive_matmul_n_16_static_opt_floor.png)
 
+**Per-tick splitting LP floor** — integrand of `split_lb`: Σ_i ρ_{(i)} · √i over the currently-active per-burst virtual intervals; the area equals the geometric portion of `split_lb`.
+
+![](traces/naive_matmul_n_16_splitting_floor.png)
+
 **Rolling spatial intensity** — heartbeat plot of `ops / Σ ⌈√d⌉` over a sliding window.
 
 ![](traces/naive_matmul_n_16_intensity.png)
@@ -352,6 +357,10 @@ of `naive_tiled_matmul` (which actually cuts arg traffic) and
 
 ![](traces/naive_2d_tiled_matmul_n_16_t_4_static_opt_floor.png)
 
+**Per-tick splitting LP floor** — integrand of `split_lb`: Σ_i ρ_{(i)} · √i over the currently-active per-burst virtual intervals; the area equals the geometric portion of `split_lb`.
+
+![](traces/naive_2d_tiled_matmul_n_16_t_4_splitting_floor.png)
+
 **Rolling spatial intensity** — heartbeat plot of `ops / Σ ⌈√d⌉` over a sliding window.
 
 ![](traces/naive_2d_tiled_matmul_n_16_t_4_intensity.png)
@@ -430,6 +439,10 @@ which adds register-level stationary-operand scheduling on top.
 
 ![](traces/naive_tiled_matmul_n_16_static_opt_floor.png)
 
+**Per-tick splitting LP floor** — integrand of `split_lb`: Σ_i ρ_{(i)} · √i over the currently-active per-burst virtual intervals; the area equals the geometric portion of `split_lb`.
+
+![](traces/naive_tiled_matmul_n_16_splitting_floor.png)
+
 **Rolling spatial intensity** — heartbeat plot of `ops / Σ ⌈√d⌉` over a sliding window.
 
 ![](traces/naive_tiled_matmul_n_16_intensity.png)
@@ -486,6 +499,10 @@ what closes the gap further.
 **Per-tick TU LP floor** — integrand of `static_opt_lb`: Σ_i ρ_{(i)} · √i over currently-live vars, ranked by density; the area equals `static_opt_lb`.
 
 ![](traces/naive_matmul_cached_n_16_static_opt_floor.png)
+
+**Per-tick splitting LP floor** — integrand of `split_lb`: Σ_i ρ_{(i)} · √i over the currently-active per-burst virtual intervals; the area equals the geometric portion of `split_lb`.
+
+![](traces/naive_matmul_cached_n_16_splitting_floor.png)
 
 **Rolling spatial intensity** — heartbeat plot of `ops / Σ ⌈√d⌉` over a sliding window.
 
@@ -562,6 +579,10 @@ accumulator footprint realised here). Below all three heuristics
 
 ![](traces/tiled_matmul_n_16_static_opt_floor.png)
 
+**Per-tick splitting LP floor** — integrand of `split_lb`: Σ_i ρ_{(i)} · √i over the currently-active per-burst virtual intervals; the area equals the geometric portion of `split_lb`.
+
+![](traces/tiled_matmul_n_16_splitting_floor.png)
+
 **Rolling spatial intensity** — heartbeat plot of `ops / Σ ⌈√d⌉` over a sliding window.
 
 ![](traces/tiled_matmul_n_16_intensity.png)
@@ -632,6 +653,10 @@ it has the same cost (86,030) — all three "explicit" / "manual" /
 
 ![](traces/tiled_matmul_explicit_n_16_t_4_static_opt_floor.png)
 
+**Per-tick splitting LP floor** — integrand of `split_lb`: Σ_i ρ_{(i)} · √i over the currently-active per-burst virtual intervals; the area equals the geometric portion of `split_lb`.
+
+![](traces/tiled_matmul_explicit_n_16_t_4_splitting_floor.png)
+
 **Rolling spatial intensity** — heartbeat plot of `ops / Σ ⌈√d⌉` over a sliding window.
 
 ![](traces/tiled_matmul_explicit_n_16_t_4_intensity.png)
@@ -683,6 +708,10 @@ C while 1 skips the pre-fetch.
 **Per-tick TU LP floor** — integrand of `static_opt_lb`: Σ_i ρ_{(i)} · √i over currently-live vars, ranked by density; the area equals `static_opt_lb`.
 
 ![](traces/rmm_n_16_static_opt_floor.png)
+
+**Per-tick splitting LP floor** — integrand of `split_lb`: Σ_i ρ_{(i)} · √i over the currently-active per-burst virtual intervals; the area equals the geometric portion of `split_lb`.
+
+![](traces/rmm_n_16_splitting_floor.png)
 
 **Rolling spatial intensity** — heartbeat plot of `ops / Σ ⌈√d⌉` over a sliding window.
 
@@ -741,6 +770,10 @@ avoidance of these materialized intermediates.
 
 ![](traces/naive_strassen_n_16_static_opt_floor.png)
 
+**Per-tick splitting LP floor** — integrand of `split_lb`: Σ_i ρ_{(i)} · √i over the currently-active per-burst virtual intervals; the area equals the geometric portion of `split_lb`.
+
+![](traces/naive_strassen_n_16_splitting_floor.png)
+
 **Rolling spatial intensity** — heartbeat plot of `ops / Σ ⌈√d⌉` over a sliding window.
 
 ![](traces/naive_strassen_n_16_intensity.png)
@@ -796,6 +829,10 @@ matrices — the ZAFS win shows up entirely here in manual (140,526 vs
 
 ![](traces/fused_strassen_n_16_static_opt_floor.png)
 
+**Per-tick splitting LP floor** — integrand of `split_lb`: Σ_i ρ_{(i)} · √i over the currently-active per-burst virtual intervals; the area equals the geometric portion of `split_lb`.
+
+![](traces/fused_strassen_n_16_splitting_floor.png)
+
 **Rolling spatial intensity** — heartbeat plot of `ops / Σ ⌈√d⌉` over a sliding window.
 
 ![](traces/fused_strassen_n_16_intensity.png)
@@ -845,6 +882,10 @@ cost — every access pays `⌈√(addr ≈ N²)⌉`.
 **Per-tick TU LP floor** — integrand of `static_opt_lb`: Σ_i ρ_{(i)} · √i over currently-live vars, ranked by density; the area equals `static_opt_lb`.
 
 ![](traces/naive_attn_n_64_d_2_static_opt_floor.png)
+
+**Per-tick splitting LP floor** — integrand of `split_lb`: Σ_i ρ_{(i)} · √i over the currently-active per-burst virtual intervals; the area equals the geometric portion of `split_lb`.
+
+![](traces/naive_attn_n_64_d_2_splitting_floor.png)
 
 **Rolling spatial intensity** — heartbeat plot of `ops / Σ ⌈√d⌉` over a sliding window.
 
@@ -906,6 +947,10 @@ current manual is the outlier, not the algorithm
 **Per-tick TU LP floor** — integrand of `static_opt_lb`: Σ_i ρ_{(i)} · √i over currently-live vars, ranked by density; the area equals `static_opt_lb`.
 
 ![](traces/flash_attn_n_64_d_2_bk_8_static_opt_floor.png)
+
+**Per-tick splitting LP floor** — integrand of `split_lb`: Σ_i ρ_{(i)} · √i over the currently-active per-burst virtual intervals; the area equals the geometric portion of `split_lb`.
+
+![](traces/flash_attn_n_64_d_2_bk_8_splitting_floor.png)
 
 **Rolling spatial intensity** — heartbeat plot of `ops / Σ ⌈√d⌉` over a sliding window.
 
@@ -975,6 +1020,10 @@ Drops manual from 455,587 to **218,552** (−52%), now just below
 
 ![](traces/matvec_row_n_64_static_opt_floor.png)
 
+**Per-tick splitting LP floor** — integrand of `split_lb`: Σ_i ρ_{(i)} · √i over the currently-active per-burst virtual intervals; the area equals the geometric portion of `split_lb`.
+
+![](traces/matvec_row_n_64_splitting_floor.png)
+
 **Rolling spatial intensity** — heartbeat plot of `ops / Σ ⌈√d⌉` over a sliding window.
 
 ![](traces/matvec_row_n_64_intensity.png)
@@ -1024,6 +1073,10 @@ again, the sum is fixed.
 **Per-tick TU LP floor** — integrand of `static_opt_lb`: Σ_i ρ_{(i)} · √i over currently-live vars, ranked by density; the area equals `static_opt_lb`.
 
 ![](traces/matvec_col_n_64_static_opt_floor.png)
+
+**Per-tick splitting LP floor** — integrand of `split_lb`: Σ_i ρ_{(i)} · √i over the currently-active per-burst virtual intervals; the area equals the geometric portion of `split_lb`.
+
+![](traces/matvec_col_n_64_splitting_floor.png)
 
 **Rolling spatial intensity** — heartbeat plot of `ops / Σ ⌈√d⌉` over a sliding window.
 
@@ -1108,6 +1161,10 @@ term of the doc's exact breakdown:
 
 ![](traces/matvec_blocked_n_64_b_8_static_opt_floor.png)
 
+**Per-tick splitting LP floor** — integrand of `split_lb`: Σ_i ρ_{(i)} · √i over the currently-active per-burst virtual intervals; the area equals the geometric portion of `split_lb`.
+
+![](traces/matvec_blocked_n_64_b_8_splitting_floor.png)
+
 **Rolling spatial intensity** — heartbeat plot of `ops / Σ ⌈√d⌉` over a sliding window.
 
 ![](traces/matvec_blocked_n_64_b_8_intensity.png)
@@ -1159,6 +1216,10 @@ anticipate once the working set fits entirely at low addresses.
 **Per-tick TU LP floor** — integrand of `static_opt_lb`: Σ_i ρ_{(i)} · √i over currently-live vars, ranked by density; the area equals `static_opt_lb`.
 
 ![](traces/fft_iterative_n_256_static_opt_floor.png)
+
+**Per-tick splitting LP floor** — integrand of `split_lb`: Σ_i ρ_{(i)} · √i over the currently-active per-burst virtual intervals; the area equals the geometric portion of `split_lb`.
+
+![](traces/fft_iterative_n_256_splitting_floor.png)
 
 **Rolling spatial intensity** — heartbeat plot of `ops / Σ ⌈√d⌉` over a sliding window.
 
@@ -1215,6 +1276,10 @@ butterfly passes + 1 output epilogue), and it even beats
 
 ![](traces/fft_recursive_n_256_static_opt_floor.png)
 
+**Per-tick splitting LP floor** — integrand of `split_lb`: Σ_i ρ_{(i)} · √i over the currently-active per-burst virtual intervals; the area equals the geometric portion of `split_lb`.
+
+![](traces/fft_recursive_n_256_splitting_floor.png)
+
 **Rolling spatial intensity** — heartbeat plot of `ops / Σ ⌈√d⌉` over a sliding window.
 
 ![](traces/fft_recursive_n_256_intensity.png)
@@ -1269,6 +1334,10 @@ Drops manual from 121,628 to **78,968** (−35%).
 
 ![](traces/stencil_naive_32x32_static_opt_floor.png)
 
+**Per-tick splitting LP floor** — integrand of `split_lb`: Σ_i ρ_{(i)} · √i over the currently-active per-burst virtual intervals; the area equals the geometric portion of `split_lb`.
+
+![](traces/stencil_naive_32x32_splitting_floor.png)
+
 **Rolling spatial intensity** — heartbeat plot of `ops / Σ ⌈√d⌉` over a sliding window.
 
 ![](traces/stencil_naive_32x32_intensity.png)
@@ -1321,6 +1390,10 @@ effects only.
 
 ![](traces/stencil_recursive_32x32_leaf_8_static_opt_floor.png)
 
+**Per-tick splitting LP floor** — integrand of `split_lb`: Σ_i ρ_{(i)} · √i over the currently-active per-burst virtual intervals; the area equals the geometric portion of `split_lb`.
+
+![](traces/stencil_recursive_32x32_leaf_8_splitting_floor.png)
+
 **Rolling spatial intensity** — heartbeat plot of `ops / Σ ⌈√d⌉` over a sliding window.
 
 ![](traces/stencil_recursive_32x32_leaf_8_intensity.png)
@@ -1369,6 +1442,10 @@ K² times.
 **Per-tick TU LP floor** — integrand of `static_opt_lb`: Σ_i ρ_{(i)} · √i over currently-live vars, ranked by density; the area equals `static_opt_lb`.
 
 ![](traces/spatial_conv_32x32_k_5_static_opt_floor.png)
+
+**Per-tick splitting LP floor** — integrand of `split_lb`: Σ_i ρ_{(i)} · √i over the currently-active per-burst virtual intervals; the area equals the geometric portion of `split_lb`.
+
+![](traces/spatial_conv_32x32_k_5_splitting_floor.png)
 
 **Rolling spatial intensity** — heartbeat plot of `ops / Σ ⌈√d⌉` over a sliding window.
 
@@ -1419,6 +1496,10 @@ position.
 **Per-tick TU LP floor** — integrand of `static_opt_lb`: Σ_i ρ_{(i)} · √i over currently-live vars, ranked by density; the area equals `static_opt_lb`.
 
 ![](traces/regular_conv_16x16_k_3_cin_4_cout_4_static_opt_floor.png)
+
+**Per-tick splitting LP floor** — integrand of `split_lb`: Σ_i ρ_{(i)} · √i over the currently-active per-burst virtual intervals; the area equals the geometric portion of `split_lb`.
+
+![](traces/regular_conv_16x16_k_3_cin_4_cout_4_splitting_floor.png)
 
 **Rolling spatial intensity** — heartbeat plot of `ops / Σ ⌈√d⌉` over a sliding window.
 
@@ -1479,6 +1560,10 @@ including `space_dmd` (110,194) and `bytedmd_live` (148,641).
 
 ![](traces/fft_conv_n_256_static_opt_floor.png)
 
+**Per-tick splitting LP floor** — integrand of `split_lb`: Σ_i ρ_{(i)} · √i over the currently-active per-burst virtual intervals; the area equals the geometric portion of `split_lb`.
+
+![](traces/fft_conv_n_256_splitting_floor.png)
+
 **Rolling spatial intensity** — heartbeat plot of `ops / Σ ⌈√d⌉` over a sliding window.
 
 ![](traces/fft_conv_n_256_intensity.png)
@@ -1532,6 +1617,10 @@ the pivot at depth 1 after its first read inside the inner loop.
 **Per-tick TU LP floor** — integrand of `static_opt_lb`: Σ_i ρ_{(i)} · √i over currently-live vars, ranked by density; the area equals `static_opt_lb`.
 
 ![](traces/quicksort_n_64_static_opt_floor.png)
+
+**Per-tick splitting LP floor** — integrand of `split_lb`: Σ_i ρ_{(i)} · √i over the currently-active per-burst virtual intervals; the area equals the geometric portion of `split_lb`.
+
+![](traces/quicksort_n_64_splitting_floor.png)
 
 **Rolling spatial intensity** — heartbeat plot of `ops / Σ ⌈√d⌉` over a sliding window.
 
@@ -1588,6 +1677,10 @@ backbone of a pointer-less heap. `manual` (4,779) lands between
 **Per-tick TU LP floor** — integrand of `static_opt_lb`: Σ_i ρ_{(i)} · √i over currently-live vars, ranked by density; the area equals `static_opt_lb`.
 
 ![](traces/heapsort_n_64_static_opt_floor.png)
+
+**Per-tick splitting LP floor** — integrand of `split_lb`: Σ_i ρ_{(i)} · √i over the currently-active per-burst virtual intervals; the area equals the geometric portion of `split_lb`.
+
+![](traces/heapsort_n_64_splitting_floor.png)
 
 **Rolling spatial intensity** — heartbeat plot of `ops / Σ ⌈√d⌉` over a sliding window.
 
@@ -1655,6 +1748,10 @@ ping-pong rewrite) → **3,386** (−63% from original). Now beats
 
 ![](traces/mergesort_n_64_static_opt_floor.png)
 
+**Per-tick splitting LP floor** — integrand of `split_lb`: Σ_i ρ_{(i)} · √i over the currently-active per-burst virtual intervals; the area equals the geometric portion of `split_lb`.
+
+![](traces/mergesort_n_64_splitting_floor.png)
+
 **Rolling spatial intensity** — heartbeat plot of `ops / Σ ⌈√d⌉` over a sliding window.
 
 ![](traces/mergesort_n_64_intensity.png)
@@ -1709,6 +1806,10 @@ manual from 80,940 to **27,192** (−66%), just above `space_dmd`
 **Per-tick TU LP floor** — integrand of `static_opt_lb`: Σ_i ρ_{(i)} · √i over currently-live vars, ranked by density; the area equals `static_opt_lb`.
 
 ![](traces/lcs_dp_32x32_static_opt_floor.png)
+
+**Per-tick splitting LP floor** — integrand of `split_lb`: Σ_i ρ_{(i)} · √i over the currently-active per-burst virtual intervals; the area equals the geometric portion of `split_lb`.
+
+![](traces/lcs_dp_32x32_splitting_floor.png)
 
 **Rolling spatial intensity** — heartbeat plot of `ops / Σ ⌈√d⌉` over a sliding window.
 
@@ -1767,6 +1868,10 @@ plus two hot scratchpad cells. Drops manual from 751,252 to
 **Per-tick TU LP floor** — integrand of `static_opt_lb`: Σ_i ρ_{(i)} · √i over currently-live vars, ranked by density; the area equals `static_opt_lb`.
 
 ![](traces/lu_no_pivot_n_32_static_opt_floor.png)
+
+**Per-tick splitting LP floor** — integrand of `split_lb`: Σ_i ρ_{(i)} · √i over the currently-active per-burst virtual intervals; the area equals the geometric portion of `split_lb`.
+
+![](traces/lu_no_pivot_n_32_splitting_floor.png)
 
 **Rolling spatial intensity** — heartbeat plot of `ops / Σ ⌈√d⌉` over a sliding window.
 
@@ -1830,6 +1935,10 @@ heuristics can only approximate.
 
 ![](traces/blocked_lu_n_32_nb_8_static_opt_floor.png)
 
+**Per-tick splitting LP floor** — integrand of `split_lb`: Σ_i ρ_{(i)} · √i over the currently-active per-burst virtual intervals; the area equals the geometric portion of `split_lb`.
+
+![](traces/blocked_lu_n_32_nb_8_splitting_floor.png)
+
 **Rolling spatial intensity** — heartbeat plot of `ops / Σ ⌈√d⌉` over a sliding window.
 
 ![](traces/blocked_lu_n_32_nb_8_intensity.png)
@@ -1890,6 +1999,10 @@ levels.
 
 ![](traces/recursive_lu_n_32_static_opt_floor.png)
 
+**Per-tick splitting LP floor** — integrand of `split_lb`: Σ_i ρ_{(i)} · √i over the currently-active per-burst virtual intervals; the area equals the geometric portion of `split_lb`.
+
+![](traces/recursive_lu_n_32_splitting_floor.png)
+
 **Rolling spatial intensity** — heartbeat plot of `ops / Σ ⌈√d⌉` over a sliding window.
 
 ![](traces/recursive_lu_n_32_intensity.png)
@@ -1942,6 +2055,10 @@ scratchpads the same way. Drops manual from 793,416 to **427,384**
 **Per-tick TU LP floor** — integrand of `static_opt_lb`: Σ_i ρ_{(i)} · √i over currently-live vars, ranked by density; the area equals `static_opt_lb`.
 
 ![](traces/lu_partial_pivot_n_32_static_opt_floor.png)
+
+**Per-tick splitting LP floor** — integrand of `split_lb`: Σ_i ρ_{(i)} · √i over the currently-active per-burst virtual intervals; the area equals the geometric portion of `split_lb`.
+
+![](traces/lu_partial_pivot_n_32_splitting_floor.png)
 
 **Rolling spatial intensity** — heartbeat plot of `ops / Σ ⌈√d⌉` over a sliding window.
 
@@ -1997,6 +2114,10 @@ from 494,000 to **238,688** (−52%), still above `space_dmd`
 
 ![](traces/cholesky_n_32_static_opt_floor.png)
 
+**Per-tick splitting LP floor** — integrand of `split_lb`: Σ_i ρ_{(i)} · √i over the currently-active per-burst virtual intervals; the area equals the geometric portion of `split_lb`.
+
+![](traces/cholesky_n_32_splitting_floor.png)
+
 **Rolling spatial intensity** — heartbeat plot of `ops / Σ ⌈√d⌉` over a sliding window.
 
 ![](traces/cholesky_n_32_intensity.png)
@@ -2051,6 +2172,10 @@ Drops manual from 1,146,072 to **743,882** (−35%), now below
 **Per-tick TU LP floor** — integrand of `static_opt_lb`: Σ_i ρ_{(i)} · √i over currently-live vars, ranked by density; the area equals `static_opt_lb`.
 
 ![](traces/householder_qr_32x32_static_opt_floor.png)
+
+**Per-tick splitting LP floor** — integrand of `split_lb`: Σ_i ρ_{(i)} · √i over the currently-active per-burst virtual intervals; the area equals the geometric portion of `split_lb`.
+
+![](traces/householder_qr_32x32_splitting_floor.png)
 
 **Rolling spatial intensity** — heartbeat plot of `ops / Σ ⌈√d⌉` over a sliding window.
 
@@ -2112,6 +2237,10 @@ reflector) isn't implemented.
 **Per-tick TU LP floor** — integrand of `static_opt_lb`: Σ_i ρ_{(i)} · √i over currently-live vars, ranked by density; the area equals `static_opt_lb`.
 
 ![](traces/blocked_qr_32x32_nb_8_static_opt_floor.png)
+
+**Per-tick splitting LP floor** — integrand of `split_lb`: Σ_i ρ_{(i)} · √i over the currently-active per-burst virtual intervals; the area equals the geometric portion of `split_lb`.
+
+![](traces/blocked_qr_32x32_nb_8_splitting_floor.png)
 
 **Rolling spatial intensity** — heartbeat plot of `ops / Σ ⌈√d⌉` over a sliding window.
 
@@ -2178,6 +2307,10 @@ Drops manual from 461,782 to **297,513** (−36%), now below
 
 ![](traces/tsqr_64x16_br_8_static_opt_floor.png)
 
+**Per-tick splitting LP floor** — integrand of `split_lb`: Σ_i ρ_{(i)} · √i over the currently-active per-burst virtual intervals; the area equals the geometric portion of `split_lb`.
+
+![](traces/tsqr_64x16_br_8_splitting_floor.png)
+
 **Rolling spatial intensity** — heartbeat plot of `ops / Σ ⌈√d⌉` over a sliding window.
 
 ![](traces/tsqr_64x16_br_8_intensity.png)
@@ -2220,6 +2353,10 @@ Drops manual from 461,782 to **297,513** (−36%), now below
 **Per-tick TU LP floor** — integrand of `static_opt_lb`: Σ_i ρ_{(i)} · √i over currently-live vars, ranked by density; the area equals `static_opt_lb`.
 
 ![](traces/transpose_naive_n_32_static_opt_floor.png)
+
+**Per-tick splitting LP floor** — integrand of `split_lb`: Σ_i ρ_{(i)} · √i over the currently-active per-burst virtual intervals; the area equals the geometric portion of `split_lb`.
+
+![](traces/transpose_naive_n_32_splitting_floor.png)
 
 **Rolling spatial intensity** — heartbeat plot of `ops / Σ ⌈√d⌉` over a sliding window.
 
@@ -2266,6 +2403,10 @@ Drops manual from 461,782 to **297,513** (−36%), now below
 
 ![](traces/transpose_blocked_n_32_static_opt_floor.png)
 
+**Per-tick splitting LP floor** — integrand of `split_lb`: Σ_i ρ_{(i)} · √i over the currently-active per-burst virtual intervals; the area equals the geometric portion of `split_lb`.
+
+![](traces/transpose_blocked_n_32_splitting_floor.png)
+
 **Rolling spatial intensity** — heartbeat plot of `ops / Σ ⌈√d⌉` over a sliding window.
 
 ![](traces/transpose_blocked_n_32_intensity.png)
@@ -2311,6 +2452,10 @@ Drops manual from 461,782 to **297,513** (−36%), now below
 
 ![](traces/transpose_recursive_n_32_static_opt_floor.png)
 
+**Per-tick splitting LP floor** — integrand of `split_lb`: Σ_i ρ_{(i)} · √i over the currently-active per-burst virtual intervals; the area equals the geometric portion of `split_lb`.
+
+![](traces/transpose_recursive_n_32_splitting_floor.png)
+
 **Rolling spatial intensity** — heartbeat plot of `ops / Σ ⌈√d⌉` over a sliding window.
 
 ![](traces/transpose_recursive_n_32_intensity.png)
@@ -2355,6 +2500,10 @@ Drops manual from 461,782 to **297,513** (−36%), now below
 **Per-tick TU LP floor** — integrand of `static_opt_lb`: Σ_i ρ_{(i)} · √i over currently-live vars, ranked by density; the area equals `static_opt_lb`.
 
 ![](traces/stencil_time_naive_16x16_t_4_static_opt_floor.png)
+
+**Per-tick splitting LP floor** — integrand of `split_lb`: Σ_i ρ_{(i)} · √i over the currently-active per-burst virtual intervals; the area equals the geometric portion of `split_lb`.
+
+![](traces/stencil_time_naive_16x16_t_4_splitting_floor.png)
 
 **Rolling spatial intensity** — heartbeat plot of `ops / Σ ⌈√d⌉` over a sliding window.
 
@@ -2426,6 +2575,10 @@ algorithm that was previously our worst-ratio offender.
 
 ![](traces/stencil_time_diamond_16x16_t_4_static_opt_floor.png)
 
+**Per-tick splitting LP floor** — integrand of `split_lb`: Σ_i ρ_{(i)} · √i over the currently-active per-burst virtual intervals; the area equals the geometric portion of `split_lb`.
+
+![](traces/stencil_time_diamond_16x16_t_4_splitting_floor.png)
+
 **Rolling spatial intensity** — heartbeat plot of `ops / Σ ⌈√d⌉` over a sliding window.
 
 ![](traces/stencil_time_diamond_16x16_t_4_intensity.png)
@@ -2478,6 +2631,10 @@ Lazy arg reads at k=0 replace the V² preload. Drops manual from
 **Per-tick TU LP floor** — integrand of `static_opt_lb`: Σ_i ρ_{(i)} · √i over currently-live vars, ranked by density; the area equals `static_opt_lb`.
 
 ![](traces/floyd_warshall_naive_v_16_static_opt_floor.png)
+
+**Per-tick splitting LP floor** — integrand of `split_lb`: Σ_i ρ_{(i)} · √i over the currently-active per-burst virtual intervals; the area equals the geometric portion of `split_lb`.
+
+![](traces/floyd_warshall_naive_v_16_splitting_floor.png)
 
 **Rolling spatial intensity** — heartbeat plot of `ops / Σ ⌈√d⌉` over a sliding window.
 
@@ -2537,6 +2694,10 @@ single-algorithm wins in the grid.
 
 ![](traces/floyd_warshall_recursive_v_16_static_opt_floor.png)
 
+**Per-tick splitting LP floor** — integrand of `split_lb`: Σ_i ρ_{(i)} · √i over the currently-active per-burst virtual intervals; the area equals the geometric portion of `split_lb`.
+
+![](traces/floyd_warshall_recursive_v_16_splitting_floor.png)
+
 **Rolling spatial intensity** — heartbeat plot of `ops / Σ ⌈√d⌉` over a sliding window.
 
 ![](traces/floyd_warshall_recursive_v_16_intensity.png)
@@ -2581,6 +2742,10 @@ single-algorithm wins in the grid.
 **Per-tick TU LP floor** — integrand of `static_opt_lb`: Σ_i ρ_{(i)} · √i over currently-live vars, ranked by density; the area equals `static_opt_lb`.
 
 ![](traces/layernorm_unfused_n_256_static_opt_floor.png)
+
+**Per-tick splitting LP floor** — integrand of `split_lb`: Σ_i ρ_{(i)} · √i over the currently-active per-burst virtual intervals; the area equals the geometric portion of `split_lb`.
+
+![](traces/layernorm_unfused_n_256_splitting_floor.png)
 
 **Rolling spatial intensity** — heartbeat plot of `ops / Σ ⌈√d⌉` over a sliding window.
 
@@ -2627,6 +2792,10 @@ single-algorithm wins in the grid.
 
 ![](traces/layernorm_fused_n_256_static_opt_floor.png)
 
+**Per-tick splitting LP floor** — integrand of `split_lb`: Σ_i ρ_{(i)} · √i over the currently-active per-burst virtual intervals; the area equals the geometric portion of `split_lb`.
+
+![](traces/layernorm_fused_n_256_splitting_floor.png)
+
 **Rolling spatial intensity** — heartbeat plot of `ops / Σ ⌈√d⌉` over a sliding window.
 
 ![](traces/layernorm_fused_n_256_intensity.png)
@@ -2672,6 +2841,10 @@ single-algorithm wins in the grid.
 
 ![](traces/matrix_powers_naive_n_16_s_4_static_opt_floor.png)
 
+**Per-tick splitting LP floor** — integrand of `split_lb`: Σ_i ρ_{(i)} · √i over the currently-active per-burst virtual intervals; the area equals the geometric portion of `split_lb`.
+
+![](traces/matrix_powers_naive_n_16_s_4_splitting_floor.png)
+
 **Rolling spatial intensity** — heartbeat plot of `ops / Σ ⌈√d⌉` over a sliding window.
 
 ![](traces/matrix_powers_naive_n_16_s_4_intensity.png)
@@ -2716,6 +2889,10 @@ single-algorithm wins in the grid.
 **Per-tick TU LP floor** — integrand of `static_opt_lb`: Σ_i ρ_{(i)} · √i over currently-live vars, ranked by density; the area equals `static_opt_lb`.
 
 ![](traces/matrix_powers_ca_n_16_s_4_static_opt_floor.png)
+
+**Per-tick splitting LP floor** — integrand of `split_lb`: Σ_i ρ_{(i)} · √i over the currently-active per-burst virtual intervals; the area equals the geometric portion of `split_lb`.
+
+![](traces/matrix_powers_ca_n_16_s_4_splitting_floor.png)
 
 **Rolling spatial intensity** — heartbeat plot of `ops / Σ ⌈√d⌉` over a sliding window.
 
@@ -2768,6 +2945,10 @@ Drops manual from 494,000 to **244,300** (−51%), still above
 
 ![](traces/cholesky_left_looking_n_32_static_opt_floor.png)
 
+**Per-tick splitting LP floor** — integrand of `split_lb`: Σ_i ρ_{(i)} · √i over the currently-active per-burst virtual intervals; the area equals the geometric portion of `split_lb`.
+
+![](traces/cholesky_left_looking_n_32_splitting_floor.png)
+
 **Rolling spatial intensity** — heartbeat plot of `ops / Σ ⌈√d⌉` over a sliding window.
 
 ![](traces/cholesky_left_looking_n_32_intensity.png)
@@ -2812,6 +2993,10 @@ Drops manual from 494,000 to **244,300** (−51%), still above
 **Per-tick TU LP floor** — integrand of `static_opt_lb`: Σ_i ρ_{(i)} · √i over currently-live vars, ranked by density; the area equals `static_opt_lb`.
 
 ![](traces/spmv_csr_banded_n_32_bw_3_static_opt_floor.png)
+
+**Per-tick splitting LP floor** — integrand of `split_lb`: Σ_i ρ_{(i)} · √i over the currently-active per-burst virtual intervals; the area equals the geometric portion of `split_lb`.
+
+![](traces/spmv_csr_banded_n_32_bw_3_splitting_floor.png)
 
 **Rolling spatial intensity** — heartbeat plot of `ops / Σ ⌈√d⌉` over a sliding window.
 
@@ -2858,6 +3043,10 @@ Drops manual from 494,000 to **244,300** (−51%), still above
 
 ![](traces/spmv_csr_random_n_32_nnz_7_static_opt_floor.png)
 
+**Per-tick splitting LP floor** — integrand of `split_lb`: Σ_i ρ_{(i)} · √i over the currently-active per-burst virtual intervals; the area equals the geometric portion of `split_lb`.
+
+![](traces/spmv_csr_random_n_32_nnz_7_splitting_floor.png)
+
 **Rolling spatial intensity** — heartbeat plot of `ops / Σ ⌈√d⌉` over a sliding window.
 
 ![](traces/spmv_csr_random_n_32_nnz_7_intensity.png)
@@ -2902,6 +3091,10 @@ Drops manual from 494,000 to **244,300** (−51%), still above
 **Per-tick TU LP floor** — integrand of `static_opt_lb`: Σ_i ρ_{(i)} · √i over currently-live vars, ranked by density; the area equals `static_opt_lb`.
 
 ![](traces/bitonic_sort_n_64_static_opt_floor.png)
+
+**Per-tick splitting LP floor** — integrand of `split_lb`: Σ_i ρ_{(i)} · √i over the currently-active per-burst virtual intervals; the area equals the geometric portion of `split_lb`.
+
+![](traces/bitonic_sort_n_64_splitting_floor.png)
 
 **Rolling spatial intensity** — heartbeat plot of `ops / Σ ⌈√d⌉` over a sliding window.
 

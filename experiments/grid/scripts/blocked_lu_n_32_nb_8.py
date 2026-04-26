@@ -918,6 +918,106 @@ def static_opt_lb(
     return first_load_cost + geom_cost
 
 
+def _splitting_intervals(
+    events: Sequence[L2Event],
+    input_arg_idx: Optional[Dict[int, int]] = None,
+):
+    """Yield (t_start, t_end, floor) for each stable interval where the
+    set of currently-active per-burst virtual intervals (and their
+    density ranking) is constant. floor = Σ_i ρ_{(i)} · sqrt(i) over
+    currently-live segments. Both `splitting_lower_bound` (sum
+    (t_end - t_start) * floor) and `splitting_floor_curve` (per-tick
+    step plot) consume this stream.
+
+    Same half-open + deaths-before-births sweep as `splitting_lower_bound`
+    so consecutive segments [..., l_j) and [l_j, ...) share zero ticks.
+    """
+    input_arg_idx = input_arg_idx or {}
+
+    store_times: Dict[int, int] = {}
+    var_reads: Dict[int, List[int]] = {}
+    for idx, ev in enumerate(events):
+        if isinstance(ev, L2Store):
+            if ev.var not in store_times:
+                store_times[ev.var] = idx
+        elif isinstance(ev, L2Load):
+            var_reads.setdefault(ev.var, []).append(idx)
+
+    vi_starts: List[int] = []
+    vi_ends: List[int] = []
+    vi_dens: List[float] = []
+    for var, rtimes in var_reads.items():
+        if var in input_arg_idx:
+            pairs = [(rtimes[i - 1], rtimes[i]) for i in range(1, len(rtimes))]
+        else:
+            s = store_times.get(var, rtimes[0])
+            pairs = [(s, rtimes[0])] + [
+                (rtimes[i - 1], rtimes[i]) for i in range(1, len(rtimes))
+            ]
+        for t_s, t_e in pairs:
+            gap = t_e - t_s
+            if gap > 0:
+                vi_starts.append(t_s)
+                vi_ends.append(t_e)
+                vi_dens.append(1.0 / gap)
+
+    if not vi_starts:
+        return
+
+    n = len(vi_starts)
+    sweep: List[Tuple] = []
+    for i in range(n):
+        sweep.append((vi_starts[i], 1, vi_dens[i], i))   # birth
+        sweep.append((vi_ends[i],   0, vi_dens[i], i))   # death
+    sweep.sort()
+
+    active: List[Tuple[float, int]] = []
+    t_prev = 0
+    for t_ev, kind, rho, uid in sweep:
+        if t_ev > t_prev:
+            s = 0.0
+            for rank, (r, _) in enumerate(reversed(active), start=1):
+                s += r * math.sqrt(rank)
+            yield (t_prev, t_ev, s)
+        if kind == 0:  # death
+            pos = bisect.bisect_left(active, (rho, uid))
+            if pos < len(active) and active[pos] == (rho, uid):
+                active.pop(pos)
+        else:           # birth
+            bisect.insort(active, (rho, uid))
+        t_prev = t_ev
+
+
+def splitting_floor_curve(
+    events: Sequence[L2Event],
+    input_arg_idx: Optional[Dict[int, int]] = None,
+) -> Tuple[List[int], List[float]]:
+    """Per-tick fractional Pigeonhole floor — integrand of the geometric
+    portion of `splitting_lower_bound`.
+
+    Returns (times, floors) suitable for a `drawstyle="steps-post"` plot:
+    floors[k] is held over [times[k], times[k+1]). The area under the
+    curve equals the geometric portion of `splitting_lower_bound`; the
+    compulsory arg-stack first-load cost is reported separately.
+    See gemini/fractional-lp-splitting.md.
+    """
+    times: List[int] = []
+    floors: List[float] = []
+    last_end = 0
+    for t_start, t_end, s in _splitting_intervals(events, input_arg_idx):
+        if not times:
+            times.append(t_start)
+            floors.append(s)
+        elif s != floors[-1]:
+            times.append(t_start)
+            floors.append(s)
+        last_end = t_end
+    if times and last_end > times[-1]:
+        times.append(last_end)
+        floors.append(floors[-1])
+    return times, floors
+
+
 def splitting_lower_bound(
     events: Sequence[L2Event],
     input_arg_idx: Optional[Dict[int, int]] = None,
@@ -956,91 +1056,20 @@ def splitting_lower_bound(
     """
     input_arg_idx = input_arg_idx or {}
 
-    # ── Pass 1: per-variable store times and ordered read timestamps ──────────
-    store_times: Dict[int, int] = {}
-    var_reads: Dict[int, List[int]] = {}
-    for idx, ev in enumerate(events):
-        if isinstance(ev, L2Store):
-            if ev.var not in store_times:
-                store_times[ev.var] = idx
-        elif isinstance(ev, L2Load):
-            var_reads.setdefault(ev.var, []).append(idx)
-
-    # ── Pass 2: compulsory arg-stack first-read cost for inputs (Two-Stack) ───
+    # Compulsory arg-stack first-read cost for inputs (Two-Stack).
     first_load_cost = 0.0
-    for v, arg_idx in input_arg_idx.items():
-        if var_reads.get(v):
-            first_load_cost += math.isqrt(max(0, arg_idx - 1)) + 1
+    if input_arg_idx:
+        seen: set = set()
+        for ev in events:
+            if isinstance(ev, L2Load) and ev.var in input_arg_idx \
+                    and ev.var not in seen:
+                first_load_cost += math.isqrt(
+                    max(0, input_arg_idx[ev.var] - 1)) + 1
+                seen.add(ev.var)
 
-    # ── Pass 3: build virtual intervals ───────────────────────────────────────
-    # Each virtual interval (vi) is half-open [start, end): active during
-    # ticks start … end-1.  Density = 1/gap, gap = end - start.
-    #
-    # For non-inputs: k intervals, starting with the cold-miss interval
-    #   [store_time, first_read].
-    # For inputs: (k-1) intervals; the first read is the arg-stack cost.
-    #
-    # uid is just the index in the vi_* lists, used to break ties in bisect
-    # when two intervals happen to share the same floating-point density.
-    vi_starts: List[int] = []
-    vi_ends:   List[int] = []
-    vi_dens:   List[float] = []
-
-    for var, rtimes in var_reads.items():
-        if var in input_arg_idx:
-            pairs = [(rtimes[i - 1], rtimes[i]) for i in range(1, len(rtimes))]
-        else:
-            s = store_times.get(var, rtimes[0])
-            pairs = [(s, rtimes[0])] + [
-                (rtimes[i - 1], rtimes[i]) for i in range(1, len(rtimes))
-            ]
-        for t_s, t_e in pairs:
-            gap = t_e - t_s
-            if gap > 0:
-                vi_starts.append(t_s)
-                vi_ends.append(t_e)
-                vi_dens.append(1.0 / gap)
-
-    if not vi_starts:
-        return float(first_load_cost)
-
-    n = len(vi_starts)
-
-    # ── Pass 4: event-driven fractional sweep ─────────────────────────────────
-    # Build one birth event and one death event per virtual interval.
-    # Sorting key: (time, kind) where kind=0 (death) < kind=1 (birth).
-    # Deaths-before-births at equal time ensures that when an interval ends
-    # and a successor interval begins at the same tick, the old interval
-    # leaves the active set before the new one enters — so no variable is
-    # simultaneously in two intervals.
-    sweep: List[Tuple] = []
-    for i in range(n):
-        sweep.append((vi_starts[i], 1, vi_dens[i], i))  # birth
-        sweep.append((vi_ends[i],   0, vi_dens[i], i))  # death
-    sweep.sort()
-
-    # `active` is sorted ascending by (density, uid).
-    # Reversed iteration gives descending density → rank 1 = highest density.
-    active: List[Tuple[float, int]] = []
-    geom_cost = 0.0
-    t_prev = 0
-
-    for t_ev, kind, rho, uid in sweep:
-        # Accumulate cost for the half-open interval [t_prev, t_ev).
-        if t_ev > t_prev and active:
-            s = 0.0
-            for rank, (r, _) in enumerate(reversed(active), start=1):
-                s += r * math.sqrt(rank)
-            geom_cost += (t_ev - t_prev) * s
-
-        if kind == 0:  # death
-            pos = bisect.bisect_left(active, (rho, uid))
-            if pos < len(active) and active[pos] == (rho, uid):
-                active.pop(pos)
-        else:          # birth
-            bisect.insort(active, (rho, uid))
-
-        t_prev = t_ev
+    geom_cost = sum(
+        (t_end - t_start) * s
+        for t_start, t_end, s in _splitting_intervals(events, input_arg_idx))
 
     return first_load_cost + geom_cost
 

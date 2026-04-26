@@ -37,6 +37,8 @@ from bytedmd_ir import (
     L2Load,
     L2Store,
     opt_reuse_distances,
+    splitting_floor_curve,
+    splitting_lower_bound,
     static_opt_floor_curve,
     static_opt_lb,
     trace,
@@ -433,6 +435,41 @@ def plot_static_opt_floor(times, floors, total, n_events, title, out_path):
     plt.close(fig)
 
 
+def plot_splitting_floor(times, floors, total, n_events, title, out_path):
+    """Step plot of the per-tick fractional Pigeonhole floor
+    Σ_i ρ_{(i)} · √i over the currently-active per-burst virtual
+    intervals (gemini/fractional-lp-splitting.md). Same plot style as
+    `plot_static_opt_floor` but the entities at each tick are the
+    inter-access bursts of every variable rather than monolithic
+    per-variable lifespans, so the curve is finer-grained: a long
+    dormant burst gets a low ρ → a high rank → a small per-tick
+    contribution. The shaded area equals the geometric portion of
+    `splitting_lower_bound`; the compulsory arg-stack first-load cost
+    for inputs is shown in the title.
+    """
+    fig, ax = plt.subplots(figsize=(11, 3.4))
+    if not times:
+        plt.close(fig)
+        return
+    ax.plot(times, floors, drawstyle="steps-post", color="tab:cyan",
+            linewidth=1.0, rasterized=True, label="Σ ρ_(i) · √i (split)")
+    ax.fill_between(times, 0, floors, step="post", color="tab:cyan",
+                    alpha=0.15, linewidth=0, rasterized=True)
+    avg = total / n_events if n_events else 0
+    ax.axhline(avg, color="tab:red", linestyle="--", linewidth=0.8,
+               alpha=0.7, label=f"average = {avg:,.2f}")
+    ax.set_xlabel("Access index (time)")
+    ax.set_ylabel("Per-tick floor: Σ ρ_(i) · √i (per-burst)")
+    ax.set_title(title)
+    ax.grid(True, alpha=0.3)
+    ax.set_xlim(0, n_events if n_events else times[-1])
+    ax.set_ylim(bottom=0)
+    ax.legend(loc="upper right", fontsize=8, framealpha=0.85)
+    fig.tight_layout()
+    fig.savefig(out_path, dpi=200, bbox_inches="tight")
+    plt.close(fig)
+
+
 def plot_mrc_combined(lru_d, opt_d, title, out_path):
     """Miss-ratio curves for LRU and Bélády OPT on the same axes.
 
@@ -549,6 +586,16 @@ def main() -> None:
             f"{name} — per-tick TU LP floor "
             f"(static_opt_lb = {sof_total:,.0f})",
             os.path.join(traces_dir, f"{slug}_static_opt_floor.png"))
+
+        # Per-tick fractional splitting floor: integrand of
+        # splitting_lower_bound (gemini/fractional-lp-splitting.md).
+        spl_t, spl_v = splitting_floor_curve(events, iidx)
+        spl_total = splitting_lower_bound(events, iidx)
+        plot_splitting_floor(
+            spl_t, spl_v, spl_total, len(events),
+            f"{name} — per-tick splitting LP floor "
+            f"(split_lb = {spl_total:,.0f})",
+            os.path.join(traces_dir, f"{slug}_splitting_floor.png"))
 
         # Spatial-arithmetic-intensity visualizers
         # (gemini/arithmetic-intensity-visualizers.md).
