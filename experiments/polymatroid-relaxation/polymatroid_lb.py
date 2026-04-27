@@ -190,4 +190,111 @@ def polymatroid_lower_bound(
     return int(lb) + arg_cost
 
 
-__all__ = ["polymatroid_lower_bound"]
+def polymatroid_floor_curve(
+    events: Sequence[L2Event],
+    input_arg_idx: Optional[Dict[int, int]] = None,
+    time_budget: Optional[float] = None,
+) -> Optional[tuple]:
+    """Per-tick polymatroid floor curve, mirroring `global_density_floor_curve`
+    / `local_density_floor_curve` for the discrete polymatroid LP.
+
+    For each square capacity c² (c=1..⌊√(ω-1)⌋) we solve the same TU LP
+    used by `polymatroid_lower_bound` and read off the LP-implied
+    placement: variable v's depth d_v = smallest c² where v gets
+    selected (x_v(c²) = 1), or ω+1 if it never fits.  Each load of v is
+    then charged ⌈√(d_v)⌉, distributed evenly across v's lifespan as a
+    per-tick density ρ̃_v = reads(v) · ⌈√(d_v)⌉ / lifespan(v).
+
+    Returns (times, floors) suitable for a `drawstyle="steps-post"` plot
+    where floors[k] is held over [times[k], times[k+1]).  The integral
+    of the curve equals the geometric portion of the polymatroid LP
+    bound (the compulsory arg-stack first-load cost is reported
+    separately by `polymatroid_lower_bound`).
+
+    Returns `None` if the LP sweep exceeds `time_budget` seconds.
+    """
+    import time as _time
+
+    input_arg_idx = input_arg_idx or {}
+    deadline = (_time.perf_counter() + time_budget
+                if time_budget is not None else None)
+
+    intervals = _extract_intervals_two_stack(events, input_arg_idx)
+    if not intervals:
+        return [], []
+    cliques = _extract_cliques(events, intervals)
+    omega = max((len(c) for c in cliques), default=0)
+    if omega == 0:
+        return [], []
+
+    N = len(intervals)
+    var_to_idx = {iv.var_id: i for i, iv in enumerate(intervals)}
+    c_obj = np.array([-iv.reads for iv in intervals], dtype=float)
+
+    A = lil_matrix((len(cliques), N))
+    for i, clique in enumerate(cliques):
+        for v in clique:
+            j = var_to_idx.get(v)
+            if j is not None:
+                A[i, j] = 1
+    A = A.tocsr()
+    bounds = [(0.0, 1.0)] * N
+
+    max_c = math.isqrt(omega - 1) if omega > 1 else 0
+    capacities = [c * c for c in range(1, max_c + 1)]
+
+    # depth_idx[i] = smallest c² where interval i is selected, or
+    # max_c²+1 if never selected.  Iterate capacities in increasing
+    # order; once a variable enters S_{c²} we keep it (the LP at a
+    # larger capacity could in principle re-shuffle, but a monotone
+    # placement keeps the bound a valid lower bound and matches the
+    # discrete-calculus identity used by `polymatroid_lower_bound`).
+    last_cap = capacities[-1] if capacities else 1
+    depth: List[int] = [last_cap + 1] * N
+    for cap in capacities:
+        if deadline is not None and _time.perf_counter() > deadline:
+            return None
+        b = np.full(len(cliques), float(cap))
+        res = linprog(
+            c_obj, A_ub=A, b_ub=b, bounds=bounds, method="highs",
+        )
+        if not res.success:
+            raise RuntimeError(f"LP failed at capacity={cap}: {res.message}")
+        x = res.x
+        for i in range(N):
+            if depth[i] > cap and x[i] > 0.5:
+                depth[i] = cap
+
+    # Per-interval polymatroid density:
+    #   ρ̃_v = reads(v) · ⌈√d_v⌉ / lifespan(v)
+    # Floor(t) = Σ_{v live at t} ρ̃_v.  Sweep deaths before births at
+    # equal times (births=1, deaths=0 as the secondary sort key) so
+    # peak-overlap is captured one tick early — matching the convention
+    # of `global_density_floor_curve`.
+    DEATH, BIRTH = 0, 1
+    sweep: List[tuple] = []
+    for i, iv in enumerate(intervals):
+        c_v = math.isqrt(max(0, depth[i] - 1)) + 1
+        rho = iv.reads * c_v / max(1, iv.end - iv.start)
+        sweep.append((iv.start, BIRTH, rho))
+        sweep.append((iv.end,   DEATH, rho))
+    sweep.sort(key=lambda e: (e[0], e[1]))
+
+    times: List[int] = []
+    floors: List[float] = []
+    cur = 0.0
+    last_t: Optional[int] = None
+    for t, kind, rho in sweep:
+        if last_t is not None and t != last_t:
+            if not floors or floors[-1] != cur:
+                times.append(last_t)
+                floors.append(cur)
+        cur += rho if kind == BIRTH else -rho
+        last_t = t
+    if last_t is not None and (not times or times[-1] != last_t):
+        times.append(last_t)
+        floors.append(0.0)  # Drops to zero after the last death.
+    return times, floors
+
+
+__all__ = ["polymatroid_lower_bound", "polymatroid_floor_curve"]

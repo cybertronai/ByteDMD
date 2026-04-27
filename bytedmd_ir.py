@@ -629,28 +629,37 @@ def static_upper_bound(events: Sequence[L2Event]) -> int:
 
 def _extract_cliques(events: Sequence[L2Event],
                      intervals: List[_Interval]) -> List[List[int]]:
-    """Sweep the trace to find maximal cliques of the interval graph.
+    """Sweep the supplied intervals to find maximal cliques of the
+    interval graph.
 
-    A clique is a set of variables all alive at the same moment.  We record
-    a snapshot at every STORE (new variable enters) and at every last-LOAD
-    (variable about to leave), then keep only maximal ones.
+    A clique is a set of variables all alive at the same moment.  Driving
+    the sweep off `intervals` (rather than off raw `events`) is required
+    because input variables under the Two-Stack convention have no
+    L2Store — they enter the geom stack on first L2Load — so an
+    event-driven sweep that keys births off L2Store would silently leave
+    them out of every clique. Missing input vars from cliques makes the
+    polymatroid LP think they take zero capacity (their constraint
+    columns are all-zero), letting the solver illegally place them at
+    Depth 1 and severely undercount the real lower bound. See
+    gemini/polymatroid-bug.md.
     """
-    valid_vars = {iv.var_id for iv in intervals}
-    last_load: Dict[int, int] = {}
-    for i, ev in enumerate(events):
-        if isinstance(ev, L2Load) and ev.var in valid_vars:
-            last_load[ev.var] = i
+    sweep: List[Tuple[int, int, int]] = []
+    for iv in intervals:
+        sweep.append((iv.start,  1, iv.var_id))
+        sweep.append((iv.end,   -1, iv.var_id))
+
+    # Births before deaths at equal times so we capture peak overlap.
+    sweep.sort(key=lambda x: (x[0], -x[1]))
 
     active: set = set()
     all_cliques: list = []
-    for i, ev in enumerate(events):
-        if isinstance(ev, L2Store) and ev.var in valid_vars:
-            active.add(ev.var)
+    for _t, kind, var in sweep:
+        if kind == 1:
+            active.add(var)
             all_cliques.append(frozenset(active))
-        elif isinstance(ev, L2Load) and ev.var in valid_vars:
-            if last_load.get(ev.var) == i:
-                all_cliques.append(frozenset(active))
-                active.discard(ev.var)
+        else:
+            all_cliques.append(frozenset(active))
+            active.discard(var)
 
     # Keep only maximal cliques (no subset of another).
     cliques_sorted = sorted(all_cliques, key=len, reverse=True)

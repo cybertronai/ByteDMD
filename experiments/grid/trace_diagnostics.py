@@ -45,6 +45,19 @@ from bytedmd_ir import (
 )
 import run_grid as rg
 
+# Polymatroid LP curve lives under experiments/polymatroid-relaxation/.
+# Importing through that directory keeps trace_diagnostics runnable
+# even without scipy by letting the import fail gracefully.
+sys.path.insert(0, os.path.join(ROOT, "experiments", "polymatroid-relaxation"))
+try:
+    from polymatroid_lb import (
+        polymatroid_lower_bound,
+        polymatroid_floor_curve,
+    )
+except Exception:
+    polymatroid_lower_bound = None
+    polymatroid_floor_curve = None
+
 
 def slugify(name: str) -> str:
     return re.sub(r"[^a-zA-Z0-9]+", "_", name).strip("_").lower()
@@ -435,6 +448,39 @@ def plot_global_density_floor(times, floors, total, n_events, title, out_path):
     plt.close(fig)
 
 
+def plot_polymatroid_floor(times, floors, total, n_events, title, out_path):
+    """Step plot of the per-tick polymatroid floor: each variable's
+    LP-implied depth d_v gives a per-tick density
+    ρ̃_v = reads(v) · ⌈√d_v⌉ / lifespan(v); the curve is
+    Σ_{v live at t} ρ̃_v.  Same plot style as `plot_global_density_floor`
+    but the per-variable depth comes from the discrete polymatroid LP
+    (gemini/polymatroid-relaxation.md) rather than the continuous
+    Rearrangement Inequality re-ranking.  The shaded area equals the
+    geometric portion of `polymatroid_lb`.
+    """
+    fig, ax = plt.subplots(figsize=(11, 3.4))
+    if not times:
+        plt.close(fig)
+        return
+    ax.plot(times, floors, drawstyle="steps-post", color="tab:purple",
+            linewidth=1.0, rasterized=True, label="Σ ρ̃_v (poly)")
+    ax.fill_between(times, 0, floors, step="post", color="tab:purple",
+                    alpha=0.15, linewidth=0, rasterized=True)
+    avg = total / n_events if n_events else 0
+    ax.axhline(avg, color="tab:red", linestyle="--", linewidth=0.8,
+               alpha=0.7, label=f"average = {avg:,.2f}")
+    ax.set_xlabel("Access index (time)")
+    ax.set_ylabel("Per-tick floor: Σ ρ̃_v (LP-placed)")
+    ax.set_title(title)
+    ax.grid(True, alpha=0.3)
+    ax.set_xlim(0, n_events if n_events else times[-1])
+    ax.set_ylim(bottom=0)
+    ax.legend(loc="upper right", fontsize=8, framealpha=0.85)
+    fig.tight_layout()
+    fig.savefig(out_path, dpi=200, bbox_inches="tight")
+    plt.close(fig)
+
+
 def plot_local_density_floor(times, floors, total, n_events, title, out_path):
     """Step plot of the per-tick fractional Pigeonhole floor
     Σ_i ρ_{(i)} · √i over the currently-active per-burst virtual
@@ -596,6 +642,24 @@ def main() -> None:
             f"{name} — per-tick splitting LP floor "
             f"(local_density = {spl_total:,.0f})",
             os.path.join(traces_dir, f"{slug}_local_density_floor.png"))
+
+        # Per-tick polymatroid floor: each variable's LP-implied depth
+        # d_v gives a per-tick density ρ̃_v = reads · ⌈√d_v⌉ / lifespan.
+        # Skip if scipy isn't available or the LP sweep exceeds 30s.
+        if polymatroid_floor_curve is not None:
+            poly_curve = polymatroid_floor_curve(
+                events, iidx, time_budget=30.0)
+            if poly_curve is not None:
+                poly_t, poly_v = poly_curve
+                poly_total = polymatroid_lower_bound(
+                    events, iidx, time_budget=30.0)
+                if poly_total is not None and poly_t:
+                    plot_polymatroid_floor(
+                        poly_t, poly_v, poly_total, len(events),
+                        f"{name} — per-tick polymatroid LP floor "
+                        f"(polymatroid_lb = {poly_total:,.0f})",
+                        os.path.join(traces_dir,
+                                     f"{slug}_polymatroid_floor.png"))
 
         # Spatial-arithmetic-intensity visualizers
         # (gemini/arithmetic-intensity-visualizers.md).

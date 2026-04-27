@@ -181,6 +181,8 @@ TD_HELPERS = "\n\n".join(
         "plot_gravity_well",
         "plot_locality_cdf",
         "plot_global_density_floor",
+        "plot_local_density_floor",
+        "plot_polymatroid_floor",
     )
 )
 # trace_diagnostics' helpers do `from bytedmd_ir import L2Op` lazily inside
@@ -363,6 +365,25 @@ def main() -> None:
         f"{{NAME}} — per-tick TU LP floor "
         f"(global_density = {{sof_total:,.0f}})",
         _os.path.join(out_dir, f"{{SLUG}}_global_density_floor.png"))
+
+    spl_t, spl_v = local_density_floor_curve(events, iidx)
+    spl_total = costs["local_density"]
+    plot_local_density_floor(
+        spl_t, spl_v, spl_total, len(events),
+        f"{{NAME}} — per-tick splitting LP floor "
+        f"(local_density = {{spl_total:,.0f}})",
+        _os.path.join(out_dir, f"{{SLUG}}_local_density_floor.png"))
+
+    if poly is not None:
+        poly_curve = polymatroid_floor_curve(events, iidx, time_budget=30.0)
+        if poly_curve is not None:
+            poly_t, poly_v = poly_curve
+            if poly_t:
+                plot_polymatroid_floor(
+                    poly_t, poly_v, poly, len(events),
+                    f"{{NAME}} — per-tick polymatroid LP floor "
+                    f"(polymatroid_lb = {{poly:,.0f}})",
+                    _os.path.join(out_dir, f"{{SLUG}}_polymatroid_floor.png"))
 
     window = pick_wss_window(rd_d, len(events))
     wss_t, wss_s = working_set_over_time(events, window)

@@ -625,28 +625,37 @@ def static_upper_bound(events: Sequence[L2Event]) -> int:
 
 def _extract_cliques(events: Sequence[L2Event],
                      intervals: List[_Interval]) -> List[List[int]]:
-    """Sweep the trace to find maximal cliques of the interval graph.
+    """Sweep the supplied intervals to find maximal cliques of the
+    interval graph.
 
-    A clique is a set of variables all alive at the same moment.  We record
-    a snapshot at every STORE (new variable enters) and at every last-LOAD
-    (variable about to leave), then keep only maximal ones.
+    A clique is a set of variables all alive at the same moment.  Driving
+    the sweep off `intervals` (rather than off raw `events`) is required
+    because input variables under the Two-Stack convention have no
+    L2Store — they enter the geom stack on first L2Load — so an
+    event-driven sweep that keys births off L2Store would silently leave
+    them out of every clique. Missing input vars from cliques makes the
+    polymatroid LP think they take zero capacity (their constraint
+    columns are all-zero), letting the solver illegally place them at
+    Depth 1 and severely undercount the real lower bound. See
+    gemini/polymatroid-bug.md.
     """
-    valid_vars = {iv.var_id for iv in intervals}
-    last_load: Dict[int, int] = {}
-    for i, ev in enumerate(events):
-        if isinstance(ev, L2Load) and ev.var in valid_vars:
-            last_load[ev.var] = i
+    sweep: List[Tuple[int, int, int]] = []
+    for iv in intervals:
+        sweep.append((iv.start,  1, iv.var_id))
+        sweep.append((iv.end,   -1, iv.var_id))
+
+    # Births before deaths at equal times so we capture peak overlap.
+    sweep.sort(key=lambda x: (x[0], -x[1]))
 
     active: set = set()
     all_cliques: list = []
-    for i, ev in enumerate(events):
-        if isinstance(ev, L2Store) and ev.var in valid_vars:
-            active.add(ev.var)
+    for _t, kind, var in sweep:
+        if kind == 1:
+            active.add(var)
             all_cliques.append(frozenset(active))
-        elif isinstance(ev, L2Load) and ev.var in valid_vars:
-            if last_load.get(ev.var) == i:
-                all_cliques.append(frozenset(active))
-                active.discard(ev.var)
+        else:
+            all_cliques.append(frozenset(active))
+            active.discard(var)
 
     # Keep only maximal cliques (no subset of another).
     cliques_sorted = sorted(all_cliques, key=len, reverse=True)
@@ -1624,7 +1633,114 @@ def polymatroid_lower_bound(
     return int(lb) + arg_cost
 
 
-__all__ = ["polymatroid_lower_bound"]
+def polymatroid_floor_curve(
+    events: Sequence[L2Event],
+    input_arg_idx: Optional[Dict[int, int]] = None,
+    time_budget: Optional[float] = None,
+) -> Optional[tuple]:
+    """Per-tick polymatroid floor curve, mirroring `global_density_floor_curve`
+    / `local_density_floor_curve` for the discrete polymatroid LP.
+
+    For each square capacity c² (c=1..⌊√(ω-1)⌋) we solve the same TU LP
+    used by `polymatroid_lower_bound` and read off the LP-implied
+    placement: variable v's depth d_v = smallest c² where v gets
+    selected (x_v(c²) = 1), or ω+1 if it never fits.  Each load of v is
+    then charged ⌈√(d_v)⌉, distributed evenly across v's lifespan as a
+    per-tick density ρ̃_v = reads(v) · ⌈√(d_v)⌉ / lifespan(v).
+
+    Returns (times, floors) suitable for a `drawstyle="steps-post"` plot
+    where floors[k] is held over [times[k], times[k+1]).  The integral
+    of the curve equals the geometric portion of the polymatroid LP
+    bound (the compulsory arg-stack first-load cost is reported
+    separately by `polymatroid_lower_bound`).
+
+    Returns `None` if the LP sweep exceeds `time_budget` seconds.
+    """
+    import time as _time
+
+    input_arg_idx = input_arg_idx or {}
+    deadline = (_time.perf_counter() + time_budget
+                if time_budget is not None else None)
+
+    intervals = _extract_intervals_two_stack(events, input_arg_idx)
+    if not intervals:
+        return [], []
+    cliques = _extract_cliques(events, intervals)
+    omega = max((len(c) for c in cliques), default=0)
+    if omega == 0:
+        return [], []
+
+    N = len(intervals)
+    var_to_idx = {iv.var_id: i for i, iv in enumerate(intervals)}
+    c_obj = np.array([-iv.reads for iv in intervals], dtype=float)
+
+    A = lil_matrix((len(cliques), N))
+    for i, clique in enumerate(cliques):
+        for v in clique:
+            j = var_to_idx.get(v)
+            if j is not None:
+                A[i, j] = 1
+    A = A.tocsr()
+    bounds = [(0.0, 1.0)] * N
+
+    max_c = math.isqrt(omega - 1) if omega > 1 else 0
+    capacities = [c * c for c in range(1, max_c + 1)]
+
+    # depth_idx[i] = smallest c² where interval i is selected, or
+    # max_c²+1 if never selected.  Iterate capacities in increasing
+    # order; once a variable enters S_{c²} we keep it (the LP at a
+    # larger capacity could in principle re-shuffle, but a monotone
+    # placement keeps the bound a valid lower bound and matches the
+    # discrete-calculus identity used by `polymatroid_lower_bound`).
+    last_cap = capacities[-1] if capacities else 1
+    depth: List[int] = [last_cap + 1] * N
+    for cap in capacities:
+        if deadline is not None and _time.perf_counter() > deadline:
+            return None
+        b = np.full(len(cliques), float(cap))
+        res = linprog(
+            c_obj, A_ub=A, b_ub=b, bounds=bounds, method="highs",
+        )
+        if not res.success:
+            raise RuntimeError(f"LP failed at capacity={cap}: {res.message}")
+        x = res.x
+        for i in range(N):
+            if depth[i] > cap and x[i] > 0.5:
+                depth[i] = cap
+
+    # Per-interval polymatroid density:
+    #   ρ̃_v = reads(v) · ⌈√d_v⌉ / lifespan(v)
+    # Floor(t) = Σ_{v live at t} ρ̃_v.  Sweep deaths before births at
+    # equal times (births=1, deaths=0 as the secondary sort key) so
+    # peak-overlap is captured one tick early — matching the convention
+    # of `global_density_floor_curve`.
+    DEATH, BIRTH = 0, 1
+    sweep: List[tuple] = []
+    for i, iv in enumerate(intervals):
+        c_v = math.isqrt(max(0, depth[i] - 1)) + 1
+        rho = iv.reads * c_v / max(1, iv.end - iv.start)
+        sweep.append((iv.start, BIRTH, rho))
+        sweep.append((iv.end,   DEATH, rho))
+    sweep.sort(key=lambda e: (e[0], e[1]))
+
+    times: List[int] = []
+    floors: List[float] = []
+    cur = 0.0
+    last_t: Optional[int] = None
+    for t, kind, rho in sweep:
+        if last_t is not None and t != last_t:
+            if not floors or floors[-1] != cur:
+                times.append(last_t)
+                floors.append(cur)
+        cur += rho if kind == BIRTH else -rho
+        last_t = t
+    if last_t is not None and (not times or times[-1] != last_t):
+        times.append(last_t)
+        floors.append(0.0)  # Drops to zero after the last death.
+    return times, floors
+
+
+__all__ = ["polymatroid_lower_bound", "polymatroid_floor_curve"]
 
 # ===========================================================================
 # manual.py — Allocator + every hand-placed schedule
@@ -6243,6 +6359,72 @@ def plot_global_density_floor(times, floors, total, n_events, title, out_path):
     fig.savefig(out_path, dpi=200, bbox_inches="tight")
     plt.close(fig)
 
+def plot_local_density_floor(times, floors, total, n_events, title, out_path):
+    """Step plot of the per-tick fractional Pigeonhole floor
+    Σ_i ρ_{(i)} · √i over the currently-active per-burst virtual
+    intervals (gemini/fractional-lp-splitting.md). Same plot style as
+    `plot_global_density_floor` but the entities at each tick are the
+    inter-access bursts of every variable rather than monolithic
+    per-variable lifespans, so the curve is finer-grained: a long
+    dormant burst gets a low ρ → a high rank → a small per-tick
+    contribution. The shaded area equals the geometric portion of
+    `local_density`; the compulsory arg-stack first-load cost
+    for inputs is shown in the title.
+    """
+    fig, ax = plt.subplots(figsize=(11, 3.4))
+    if not times:
+        plt.close(fig)
+        return
+    ax.plot(times, floors, drawstyle="steps-post", color="tab:cyan",
+            linewidth=1.0, rasterized=True, label="Σ ρ_(i) · √i (split)")
+    ax.fill_between(times, 0, floors, step="post", color="tab:cyan",
+                    alpha=0.15, linewidth=0, rasterized=True)
+    avg = total / n_events if n_events else 0
+    ax.axhline(avg, color="tab:red", linestyle="--", linewidth=0.8,
+               alpha=0.7, label=f"average = {avg:,.2f}")
+    ax.set_xlabel("Access index (time)")
+    ax.set_ylabel("Per-tick floor: Σ ρ_(i) · √i (per-burst)")
+    ax.set_title(title)
+    ax.grid(True, alpha=0.3)
+    ax.set_xlim(0, n_events if n_events else times[-1])
+    ax.set_ylim(bottom=0)
+    ax.legend(loc="upper right", fontsize=8, framealpha=0.85)
+    fig.tight_layout()
+    fig.savefig(out_path, dpi=200, bbox_inches="tight")
+    plt.close(fig)
+
+def plot_polymatroid_floor(times, floors, total, n_events, title, out_path):
+    """Step plot of the per-tick polymatroid floor: each variable's
+    LP-implied depth d_v gives a per-tick density
+    ρ̃_v = reads(v) · ⌈√d_v⌉ / lifespan(v); the curve is
+    Σ_{v live at t} ρ̃_v.  Same plot style as `plot_global_density_floor`
+    but the per-variable depth comes from the discrete polymatroid LP
+    (gemini/polymatroid-relaxation.md) rather than the continuous
+    Rearrangement Inequality re-ranking.  The shaded area equals the
+    geometric portion of `polymatroid_lb`.
+    """
+    fig, ax = plt.subplots(figsize=(11, 3.4))
+    if not times:
+        plt.close(fig)
+        return
+    ax.plot(times, floors, drawstyle="steps-post", color="tab:purple",
+            linewidth=1.0, rasterized=True, label="Σ ρ̃_v (poly)")
+    ax.fill_between(times, 0, floors, step="post", color="tab:purple",
+                    alpha=0.15, linewidth=0, rasterized=True)
+    avg = total / n_events if n_events else 0
+    ax.axhline(avg, color="tab:red", linestyle="--", linewidth=0.8,
+               alpha=0.7, label=f"average = {avg:,.2f}")
+    ax.set_xlabel("Access index (time)")
+    ax.set_ylabel("Per-tick floor: Σ ρ̃_v (LP-placed)")
+    ax.set_title(title)
+    ax.grid(True, alpha=0.3)
+    ax.set_xlim(0, n_events if n_events else times[-1])
+    ax.set_ylim(bottom=0)
+    ax.legend(loc="upper right", fontsize=8, framealpha=0.85)
+    fig.tight_layout()
+    fig.savefig(out_path, dpi=200, bbox_inches="tight")
+    plt.close(fig)
+
 # ===========================================================================
 # Input-shape helpers + size constants (from run_grid.py)
 # ===========================================================================
@@ -6361,6 +6543,25 @@ def main() -> None:
         f"{NAME} — per-tick TU LP floor "
         f"(global_density = {sof_total:,.0f})",
         _os.path.join(out_dir, f"{SLUG}_global_density_floor.png"))
+
+    spl_t, spl_v = local_density_floor_curve(events, iidx)
+    spl_total = costs["local_density"]
+    plot_local_density_floor(
+        spl_t, spl_v, spl_total, len(events),
+        f"{NAME} — per-tick splitting LP floor "
+        f"(local_density = {spl_total:,.0f})",
+        _os.path.join(out_dir, f"{SLUG}_local_density_floor.png"))
+
+    if poly is not None:
+        poly_curve = polymatroid_floor_curve(events, iidx, time_budget=30.0)
+        if poly_curve is not None:
+            poly_t, poly_v = poly_curve
+            if poly_t:
+                plot_polymatroid_floor(
+                    poly_t, poly_v, poly, len(events),
+                    f"{NAME} — per-tick polymatroid LP floor "
+                    f"(polymatroid_lb = {poly:,.0f})",
+                    _os.path.join(out_dir, f"{SLUG}_polymatroid_floor.png"))
 
     window = pick_wss_window(rd_d, len(events))
     wss_t, wss_s = working_set_over_time(events, window)
