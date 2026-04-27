@@ -1,7 +1,7 @@
 #!/Users/yaroslavvb/.local/bin/uv run --script
 # /// script
 # requires-python = ">=3.9"
-# dependencies = ["matplotlib"]
+# dependencies = ["matplotlib", "numpy", "scipy"]
 # ///
 """Three ByteDMD-live + two-stack diagnostic plots per algorithm in
 run_grid.ALGOS:
@@ -649,10 +649,14 @@ def main() -> None:
 
         # Per-tick polymatroid floor: each variable's LP-implied depth
         # d_v gives a per-tick density ρ̃_v = reads · ⌈√d_v⌉ / lifespan.
-        # Skip if scipy isn't available or the LP sweep exceeds 30s.
         # Use the shared solver so the bound and the curve come from a
-        # single LP sweep (otherwise we'd double the LP time per row).
-        if _polymatroid_solve is not None and _curve_from_depth is not None:
+        # single LP sweep.  Soft 30s wall-time budget per row catches
+        # most overruns, but a single LP solve at huge ω is *not*
+        # interruptible (HiGHS finishes the call before the next budget
+        # check), so we pre-screen with a coarse event * ω cap to skip
+        # naive_attn / flash_attn entirely without burning a full LP.
+        if (_polymatroid_solve is not None and _curve_from_depth is not None
+                and len(events) <= 100_000 and peak <= 1000):
             solved = _polymatroid_solve(events, iidx, time_budget=30.0)
             if solved is not None:
                 arg_cost, intervals_p, M, depth = solved

@@ -6482,7 +6482,15 @@ def main() -> None:
     iidx = {v: i + 1 for i, v in enumerate(input_vars)}
 
     # Single LP sweep shared by polymatroid_lb and the floor curve.
-    _poly_solved = _polymatroid_solve(events, iidx, time_budget=30.0)
+    # Coarse event * ω cap skips naive_attn / flash_attn before a
+    # single un-interruptible HiGHS solve eats minutes; everything
+    # smaller falls through to the 30s wall-time budget.
+    _ls_t, _ls_s, _, _ = walk_live_and_reuse(events, input_vars)
+    _peak_live = max(_ls_s) if _ls_s else 0
+    if len(events) > 100_000 or _peak_live > 1000:
+        _poly_solved = None
+    else:
+        _poly_solved = _polymatroid_solve(events, iidx, time_budget=30.0)
     if _poly_solved is None:
         poly = None
         _poly_intervals: list = []
