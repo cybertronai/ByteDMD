@@ -845,8 +845,7 @@ def static_opt_floor_curve(
     floors[k] is held over [times[k], times[k+1]). The area under the
     curve equals the geometric-stack portion of `static_opt_lb`; the
     compulsory arg-stack first-load cost is reported separately by
-    `static_opt_lb`. See gemini/optimal-static-floor.md and
-    gemini/fix-spacedmd-bug.md.
+    `static_opt_lb`. See gemini/optimal-static-floor.md.
     """
     times: List[int] = []
     floors: List[float] = []
@@ -895,12 +894,12 @@ def static_opt_lb(
     *exceed* bytedmd_opt and is informative exactly for traces where
     static allocation is the constraint (large overlapping lifetimes).
 
-    Two-Stack semantics (gemini/fix-spacedmd-bug.md): inputs sit on the
-    free arg stack until their first load, at which point they enter
-    the geometric stack with the rest of the live set. Their compulsory
-    first read is priced at the arg-stack position (matching
-    bytedmd_live / bytedmd_classic / space_dmd) and is added on top of
-    the LP floor; the first read is not counted in the density used
+    Two-Stack semantics: inputs sit on the free arg stack until their
+    first load, at which point they enter the geometric stack with the
+    rest of the live set. Their compulsory first read is priced at the
+    arg-stack position (matching bytedmd_live / bytedmd_classic) and
+    is added on top of the LP floor; the first read is not counted in
+    the density used
     inside the LP, so the geometric Pigeonhole sum does not double-
     charge for it.
     """
@@ -1360,7 +1359,7 @@ def bytedmd_opt(events: Sequence[L2Event],
     where max_rank is the Bélády stack distance from `opt_reuse_distances`.
     By the proof in gemini/belady-min-lower-bound.md, this is a strict
     lower bound on the total energy of any dynamic spatial allocator
-    (including bytedmd_live, bytedmd_classic, space_dmd, and the manual
+    (including bytedmd_live, bytedmd_classic, and the manual
     hand-placed schedule) under ceil(sqrt(addr)) pricing.
     """
     _, dists = opt_reuse_distances(events, input_arg_idx)

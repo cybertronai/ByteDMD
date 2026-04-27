@@ -39,9 +39,9 @@ def matmul_tiled_explicit(A, B, tile=4):
     """Tiled matmul with explicit DMA: per tile, copy A/B/C blocks into
     fresh _Tracked variables via `+ 0.0` before the MAC, and flush sC
     back to C at the end. This materializes the scratchpad in the L2
-    trace so space_dmd can rank the short-lived tile vars at the hot
-    addresses. The LRU heuristics don't benefit — they already get that
-    effect automatically via recency bump."""
+    trace so static-allocator metrics see the short-lived tile vars as
+    hot addresses. The LRU heuristics don't benefit — they already get
+    that effect automatically via recency bump."""
     n = len(A)
     zero = A[0][0] - A[0][0]  # tracked zero for C init
     C = [[zero + 0.0 for _ in range(n)] for _ in range(n)]

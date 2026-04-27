@@ -15,7 +15,6 @@ Key properties tested:
     has non-uniform inter-access gaps (the DMA/splitting benefit)
   - Non-negativity
   - Consistency with bytedmd_ir trace machinery on matmul algorithms
-  - split_lb ≤ space_dmd (split_lb is a lower bound; space_dmd is achievable)
 """
 from __future__ import annotations
 
@@ -27,8 +26,6 @@ import pytest
 
 # Ensure repo root is on the path.
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)),
-                                "experiments", "grid"))
 
 import bytedmd_ir as b2
 from bytedmd_ir import (
@@ -41,9 +38,6 @@ from bytedmd_ir import (
     bytedmd_classic,
     trace,
 )
-
-# spacedmd.py lives under experiments/grid/
-from spacedmd import space_dmd
 
 
 # ── helpers ──────────────────────────────────────────────────────────────────
@@ -334,28 +328,6 @@ def test_uniform_access_split_equals_static_opt():
     # Both should give 5.0 (5 reads of the only live variable at rank 1).
     assert _approx(slb, 5.0, tol=1e-9), f"slb={slb}"
     assert _approx(sob, 5.0, tol=1e-9), f"sob={sob}"
-
-
-# ── relationship to space_dmd ─────────────────────────────────────────────────
-
-@pytest.mark.parametrize("N,algo_name", [
-    (2, "matmul_naive"), (3, "matmul_naive"), (4, "matmul_naive"),
-    (2, "matmul_tiled"), (3, "matmul_tiled"), (4, "matmul_tiled"),
-    (2, "matmul_rmm"),   (4, "matmul_rmm"),   # RMM requires power-of-2 N
-])
-def test_split_lb_le_space_dmd(N, algo_name):
-    """split_lb is a lower bound; space_dmd is an achievable (static) cost.
-    Therefore split_lb ≤ space_dmd must hold."""
-    A = [[float(i * N + j + 1) for j in range(N)] for i in range(N)]
-    B = [[float(i * N + j + 1) for j in range(N)] for i in range(N)]
-    func = getattr(b2, algo_name)
-    evs, input_vars = trace(func, (A, B))
-    iidx = {v: k + 1 for k, v in enumerate(input_vars)}
-
-    slb = _slb(evs, iidx)
-    sdmd = space_dmd(evs, iidx)
-    assert slb <= sdmd + 1e-6, (
-        f"{algo_name} N={N}: split_lb ({slb:.1f}) > space_dmd ({sdmd:.1f})")
 
 
 @pytest.mark.parametrize("N,algo_name", [

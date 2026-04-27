@@ -46,90 +46,6 @@ from bytedmd_ir import (
 )
 
 
-def copy_space_dmd(events, input_arg_idx=None,
-                   gap_thresholds=(16, 64, 256, 1024, 4096)):
-    """Auto-DMA SpaceDMD (gemini/copy-spacedmd.md).
-
-    Approximates the achievable cost of an optimal software-managed
-    scratchpad that explicitly DMA-copies variables into L1 during
-    bursts of reuse. For each threshold G:
-
-      1. Partition each variable's read timeline into "bursts"
-         separated by gaps > G.
-      2. For every multi-read burst, allocate a fresh scratch-copy
-         variable; insert a synthetic L2Load(base) + L2Store(copy)
-         at the burst start (paying the deep-memory DMA cost once)
-         and route every read inside the burst to the copy.
-      3. Single-read bursts and single-burst variables are left
-         as-is.
-      4. Evaluate the transformed trace with standard space_dmd.
-
-    Returns the minimum cost across gap_thresholds — the heuristic's
-    best estimate of what an ideal DMA compiler could achieve on
-    this trace."""
-    from collections import defaultdict
-    input_arg_idx = input_arg_idx or {}
-
-    reads_by_var = defaultdict(list)
-    for i, ev in enumerate(events):
-        if isinstance(ev, L2Load):
-            reads_by_var[ev.var].append(i)
-
-    max_var = 0
-    for ev in events:
-        v = getattr(ev, 'var', None)
-        if v is not None and v > max_var:
-            max_var = v
-    for v in input_arg_idx:
-        if v > max_var:
-            max_var = v
-
-    best = float('inf')
-    for G in gap_thresholds:
-        next_new = max_var + 1
-        burst_map = {}
-        copies = defaultdict(list)
-
-        for var, rtimes in reads_by_var.items():
-            bursts = [[rtimes[0]]]
-            for t in rtimes[1:]:
-                if t - bursts[-1][-1] > G:
-                    bursts.append([t])
-                else:
-                    bursts[-1].append(t)
-
-            if len(bursts) == 1:
-                for t in bursts[0]:
-                    burst_map[(var, t)] = var
-                continue
-
-            for b in bursts:
-                if len(b) == 1:
-                    burst_map[(var, b[0])] = var
-                    continue
-                burst_var = next_new
-                next_new += 1
-                copies[b[0]].append((var, burst_var))
-                for t in b:
-                    burst_map[(var, t)] = burst_var
-
-        new_events = []
-        for i, ev in enumerate(events):
-            if i in copies:
-                for base_var, burst_var in copies[i]:
-                    new_events.append(L2Load(base_var))
-                    new_events.append(L2Store(burst_var))
-            if isinstance(ev, L2Load):
-                new_events.append(L2Load(burst_map.get((ev.var, i), ev.var)))
-            else:
-                new_events.append(ev)
-
-        cost = space_dmd(new_events, input_arg_idx)
-        if cost < best:
-            best = cost
-    return best
-
-
 def belady(events, input_arg_idx=None):
     """Offline frequency-Belady memory manager, priced by ceil(sqrt(addr)).
 
@@ -206,7 +122,6 @@ def belady(events, input_arg_idx=None):
     return total
 import algorithms as alg
 import manual as man
-from spacedmd import space_dmd
 
 # Polymatroid LP bound — runs an O(√ω) sweep of TU LPs and can be slow on
 # large traces; we cap it per-cell at CELL_BUDGET_S below. Importing through
@@ -484,8 +399,6 @@ METRICS: List[Tuple[str, Callable[[Sequence[L2Event]], int] | None]] = [
     ("static_opt_lb",   static_opt_lb),
     ("split_lb",        splitting_lower_bound),
     ("polymatroid_lb",  _polymatroid_lb_capped),
-    ("space_dmd",       space_dmd),
-    ("copy_space_dmd",  copy_space_dmd),
     ("bytedmd_live",    bytedmd_live),
     ("manual",          None),
     ("bytedmd_classic", bytedmd_classic),

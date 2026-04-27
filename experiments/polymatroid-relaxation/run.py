@@ -137,7 +137,6 @@ def main():
             "split_lb": int(sl),
             "static_opt_lb": int(sob),
             "bytedmd_opt": bo,
-            "space_dmd": int(g.get("space_dmd", 0) or 0),
             "bytedmd_live": int(g.get("bytedmd_live", 0) or 0),
             "manual": int(g.get("manual", 0) or 0),
             "bytedmd_classic": int(g.get("bytedmd_classic", 0) or 0),
@@ -160,7 +159,6 @@ def main():
         "split_lb",
         "static_opt_lb",
         "bytedmd_opt",
-        "space_dmd",
         "bytedmd_live",
         "manual",
         "bytedmd_classic",
@@ -187,7 +185,6 @@ def main():
         ("split_lb", "split_lb"),
         ("static_opt_lb", "static_opt_lb"),
         ("bytedmd_opt", "bytedmd_opt"),
-        ("space_dmd", "space_dmd"),
         ("bytedmd_live", "bytedmd_live"),
         ("manual", "manual"),
     ]

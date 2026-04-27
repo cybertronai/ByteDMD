@@ -23,9 +23,9 @@ disc of radius r holds r² cells). The energy of one access at address
 ## Metrics (columns)
 
 Every number in this report — `bytedmd_opt`, `static_opt_lb`, `split_lb`,
-`polymatroid_lb`, `space_dmd`, `copy_space_dmd`, `bytedmd_live`,
-`manual`, and `bytedmd_classic` — is this same sum, evaluated under
-nine different placement strategies / bounds.
+`polymatroid_lb`, `bytedmd_live`, `manual`, and `bytedmd_classic` —
+is this same sum, evaluated under seven different placement
+strategies / bounds.
 
 **The trace these metrics are computed against is the manual schedule's
 effective trace**, synthesised by running each row's `manual_*` function
@@ -46,12 +46,10 @@ removes those false violations.
 
 | column            | meaning                                                         |
 |-------------------|-----------------------------------------------------------------|
-| `bytedmd_opt`     | Bélády MIN lower bound (see [gemini/belady-min-lower-bound.md](../../gemini/belady-min-lower-bound.md)): per load charges `⌈√(max_rank[V])⌉` where max_rank is the peak count of live variables with earlier next-use during V's dormancy. The dormancy is `[store_time, first_load]` for the first load of a non-input var (so its `(store, first-load)` interval is included in the global pair set), `[arg_promotion, first_load]` priced as `⌈√(arg_idx)⌉` for inputs, and `[prev_load, this_load]` for every reload. By Pigeonhole + Mattson inclusion, this is a strict lower bound on any demand-fetched allocator that does **not** compact dead vars — i.e., a strict floor on `bytedmd_classic`. Compacting allocators (`bytedmd_live`, `space_dmd`, `copy_space_dmd`, and scratchpad-heavy manual schedules) effectively use free writes to drop dead neighbors and so can rationally fall below this Pigeonhole floor. |
-| `static_opt_lb`   | Totally-unimodular LP lower bound on the optimal **static** allocator (see [gemini/optimal-static-floor.md](../../gemini/optimal-static-floor.md); Two-Stack patch in [gemini/fix-spacedmd-bug.md](../../gemini/fix-spacedmd-bug.md)). Per tick, the Rearrangement Inequality places geom-stack-live vars at physical ranks 1, 2, … in decreasing density ρ = reads/lifespan; the per-tick floor is Σ ρ_{(i)} · sqrt(i) over currently-live vars (continuous sqrt). Inputs sit on the free arg stack until first load and pay the compulsory `⌈√(arg_idx)⌉` at promotion; the LP integral covers only the geometric-stack residency. **Time-integrated**: each var's slot is paid for at every tick of its lifespan, not just at load events, which is what makes this a true lower bound on a static allocator. |
+| `bytedmd_opt`     | Bélády MIN lower bound (see [gemini/belady-min-lower-bound.md](../../gemini/belady-min-lower-bound.md)): per load charges `⌈√(max_rank[V])⌉` where max_rank is the peak count of live variables with earlier next-use during V's dormancy. The dormancy is `[store_time, first_load]` for the first load of a non-input var (so its `(store, first-load)` interval is included in the global pair set), `[arg_promotion, first_load]` priced as `⌈√(arg_idx)⌉` for inputs, and `[prev_load, this_load]` for every reload. By Pigeonhole + Mattson inclusion, this is a strict lower bound on any demand-fetched allocator that does **not** compact dead vars — i.e., a strict floor on `bytedmd_classic`. Compacting allocators (`bytedmd_live` and scratchpad-heavy manual schedules) effectively use free writes to drop dead neighbors and so can rationally fall below this Pigeonhole floor. |
+| `static_opt_lb`   | Totally-unimodular LP lower bound on the optimal **static** allocator (see [gemini/optimal-static-floor.md](../../gemini/optimal-static-floor.md)). Per tick, the Rearrangement Inequality places geom-stack-live vars at physical ranks 1, 2, … in decreasing density ρ = reads/lifespan; the per-tick floor is Σ ρ_{(i)} · sqrt(i) over currently-live vars (continuous sqrt). Inputs sit on the free arg stack until first load and pay the compulsory `⌈√(arg_idx)⌉` at promotion; the LP integral covers only the geometric-stack residency. **Time-integrated**: each var's slot is paid for at every tick of its lifespan, not just at load events, which is what makes this a true lower bound on a static allocator. |
 | `split_lb`        | **Splitting Lower Bound** (see [gemini/fractional-lp-splitting.md](../../gemini/fractional-lp-splitting.md)): severs each variable's lifespan into independent inter-access intervals. A variable read at t₁ < t₂ < … < t_k produces k virtual intervals — a cold-miss interval [store_time, t₁] plus one reuse interval [t_{i−1}, t_i] per subsequent read — each with **local** density ρ = 1/gap (continuous sqrt). At every tick the Rearrangement Inequality floor Σ ρ_(i)·√i is re-evaluated over the currently-active virtual intervals. Unlike `static_opt_lb` (which uses global density reads/lifespan throughout a variable's entire life), `split_lb` lets a variable's density drop to near zero during dormancy phases, so competing hot intervals claim the low ranks. This makes it a lower bound on allocators that support **variable splitting / explicit DMA copies**: a dormant variable evicted to deep memory during another variable's burst is correctly charged only for the DMA re-fetch, not for occupying a low rank throughout the dormancy. Observed: `split_lb ≤ static_opt_lb`, with the gap widening on phase-structured algorithms (RMM, LU, QR, tiled attention) where variables have highly non-uniform inter-access gaps. Both bounds use the same Two-Stack first-load cost for inputs. |
 | `polymatroid_lb`  | **Discrete polymatroid LP** lower bound on optimal static-allocator cost (see [gemini/polymatroid-relaxation.md](../../gemini/polymatroid-relaxation.md), full study in [`experiments/polymatroid-relaxation/`](../polymatroid-relaxation/)). For each square capacity `c²` (only depths where `⌈√d⌉` steps up), solve a totally-unimodular LP `max Σ reads_v · x_v` s.t. each maximal interval-graph clique uses at most `c²` slots; HiGHS finds the integer optimum by perfect-graph + consecutive-ones structure. The discrete-calculus identity `LB = R_total + Σ_{c=1..⌊√(ω−1)⌋} (R_total − M[c²])` plus the Two-Stack arg-stack cost gives the bound, with O(√ω) LP solves. Computed with a **10s per-cell time budget**: rows that don't fit (LU, Cholesky, Strassen, attention at the grid's tile sizes) are blank (`—` in `grid.md`, empty in `grid.csv`). |
-| `space_dmd`       | Density-ranked spatial liveness: variables globally sorted by `accesses/lifespan`, read cost = ceil(sqrt(rank among currently live vars)) charged **only at load events**. Models an ahead-of-time (AOT) static compiler / TPU scratchpad allocator. See [gemini/space-dmd.md](../../gemini/space-dmd.md); the tie-breaker patch is in [gemini/fix-tiebreaker-spacedmd-bug.md](../../gemini/fix-tiebreaker-spacedmd-bug.md). Equal-density vars used to be tie-broken on `birth_time` / `vid`, which silently implemented a "Tie-Breaker Teleportation" — FIFO-aged vars sequentially evicting from rank 1 just as the next one is read, a free dynamic conveyor belt no static allocator can perform. The patched implementation hashes the var id (`md5(str(vid))`) so tied vars scatter randomly across the live footprint instead of sliding chronologically. **Heuristic, not a strict bound:** even after the tie-breaker patch, cost is still sampled only at load events, so on phase-structured traces (LU, QR, Cholesky, sort, sparse) `space_dmd` continues to undercount the storage pressure during quiet stretches and can fall below `static_opt_lb`; on tied-density traces (matvec, transpose) the patch closes the gap and `space_dmd ≥ static_opt_lb` now holds. |
-| `copy_space_dmd`  | Auto-DMA enhancement of `space_dmd` ([gemini/copy-spacedmd.md](../../gemini/copy-spacedmd.md)): partitions each variable's reads into "bursts" separated by gap > G, inserts one synthetic L2Load(base) + L2Store(copy) per burst (paying a single deep-memory DMA cost), routes all in-burst reads to the local scratch copy, and returns the minimum `space_dmd` across a sweep of G ∈ {16, 64, 256, 1024, 4096}. Models what an ideal DMA compiler would achieve with explicit burst copies. |
 | `bytedmd_live`    | LRU with liveness compaction; dead variables dropped on last load (recency lower-envelope heuristic) |
 | `manual`          | hand-placed bump-pointer schedule — hot scalars and scratchpads at low addresses, bulk data farther out, recursion uses push/pop |
 | `bytedmd_classic` | Mattson LRU stack depth with no liveness compaction — dead variables pollute deeper rings (upper-envelope heuristic) |
@@ -80,56 +78,56 @@ DAGs are identical, so `bytedmd_live` / `bytedmd_classic` match — only
 
 ## Summary table
 
-| algorithm                                                   | bytedmd_opt | static_opt_lb | split_lb | polymatroid_lb | space_dmd | copy_space_dmd | bytedmd_live |  manual | bytedmd_classic |
-|------------------------------------------------------------|------------:|--------------:|---------:|---------------:|----------:|---------------:|-------------:|--------:|----------------:|
-| [naive_matmul(n=16)](#naive_matmul)                         |     111,388 |        76,207 |   75,666 |              — |    80,740 |         80,740 |      109,473 | 177,744 |         186,017 |
-| [naive_2d_tiled_matmul(n=16,T=4)](#naive_2d_tiled_matmul)   |      95,571 |        89,266 |   66,011 |              — |    91,508 |         79,078 |       95,890 | 177,744 |         167,585 |
-| [naive_tiled_matmul(n=16)](#naive_tiled_matmul)             |     109,966 |        90,971 |   75,355 |              — |    93,239 |         82,382 |      109,637 | 161,084 |         194,732 |
-| [naive_matmul_cached(n=16)](#naive_matmul_cached)           |     112,842 |        77,288 |   76,679 |         41,516 |    81,604 |         81,604 |      111,098 | 114,838 |         188,774 |
-| [tiled_matmul(n=16)](#tiled_matmul)                         |      84,685 |        58,275 |   57,554 |         53,477 |    58,332 |         58,332 |       82,875 |  67,758 |         160,635 |
-| [tiled_matmul_explicit(n=16,T=4)](#tiled_matmul_explicit)   |      84,685 |        58,275 |   57,554 |         53,477 |    58,332 |         58,332 |       82,875 |  67,758 |         160,635 |
-| [rmm(n=16)](#rmm)                                           |      81,909 |        65,572 |   58,570 |              — |    61,706 |         61,706 |       77,352 | 106,835 |         146,225 |
-| [naive_strassen(n=16)](#naive_strassen)                     |     185,175 |       148,128 |  125,715 |              — |   139,911 |        138,845 |      175,185 | 251,486 |         320,092 |
-| [fused_strassen(n=16)](#fused_strassen)                     |     135,276 |       105,034 |   91,804 |              — |    99,792 |         99,792 |      130,659 | 135,740 |         247,189 |
-| [naive_attn(N=64,d=2)](#naive_attn)                         |     625,522 |       436,007 |  398,969 |              — |   454,367 |        428,564 |      636,036 | 532,805 |         759,603 |
-| [flash_attn(N=64,d=2,Bk=8)](#flash_attn)                    |     531,241 |       394,814 |  342,445 |              — |   420,831 |        397,731 |      546,910 | 610,154 |         667,242 |
-| [matvec_row(n=64)](#matvec_row)                             |     234,471 |       213,783 |  213,349 |        218,531 |   213,968 |        213,968 |      234,079 | 218,552 |         258,431 |
-| [matvec_col(n=64)](#matvec_col)                             |     229,731 |       212,529 |  212,150 |        217,810 |   213,715 |        213,715 |      229,780 | 217,952 |         270,386 |
-| [matvec_blocked(n=64,B=8)](#matvec_blocked)                 |     218,373 |       203,980 |  203,466 |        208,790 |   204,532 |        204,532 |      218,218 | 208,832 |         239,875 |
-| [fft_iterative(N=256)](#fft_iterative)                      |      47,317 |        50,344 |   32,014 |         55,299 |    51,401 |         51,401 |       47,344 |  55,516 |          72,210 |
-| [fft_recursive(N=256)](#fft_recursive)                      |      24,094 |        22,108 |   16,698 |         26,951 |    22,599 |         22,599 |       24,112 |  52,704 |          39,883 |
-| [stencil_naive(32x32)](#stencil_naive)                      |      70,322 |        62,995 |   54,294 |              — |    66,568 |         61,058 |       72,360 |  78,968 |         100,964 |
-| [stencil_recursive(32x32,leaf=8)](#stencil_recursive)       |      70,322 |        62,995 |   54,294 |              — |    66,568 |         61,058 |       72,360 |  78,968 |         100,964 |
-| [spatial_conv(32x32,K=5)](#spatial_conv)                    |     404,365 |       315,732 |  271,059 |              — |   347,547 |        321,573 |      404,426 | 595,987 |         706,821 |
-| [regular_conv(16x16,K=3,Cin=4,Cout=4)](#regular_conv)       |     801,291 |       732,196 |  526,146 |              — |   771,525 |        590,855 |      801,655 | 648,300 |       1,378,670 |
-| [fft_conv(N=256)](#fft_conv)                                |      73,434 |        57,400 |   53,402 |              — |    59,201 |         59,201 |       76,335 |  91,922 |         148,053 |
-| [quicksort(N=64)](#quicksort)                               |       3,231 |         2,583 |    2,225 |          2,964 |     2,569 |          2,262 |        3,221 |   4,718 |           4,737 |
-| [heapsort(N=64)](#heapsort)                                 |       5,026 |         3,452 |    3,377 |          4,294 |     3,794 |          3,792 |        4,711 |   5,523 |           8,428 |
-| [mergesort(N=64)](#mergesort)                               |       3,305 |         2,380 |    2,338 |          2,892 |     2,803 |          2,803 |        3,489 |   3,386 |           5,077 |
-| [lcs_dp(32x32)](#lcs_dp)                                    |      24,625 |        20,494 |   15,569 |         15,903 |    22,199 |         20,850 |       25,572 |  27,192 |          29,860 |
-| [lu_no_pivot(n=32)](#lu_no_pivot)                           |     410,190 |       279,391 |  273,448 |              — |   343,228 |        343,228 |      409,523 | 405,592 |         715,687 |
-| [blocked_lu(n=32,NB=8)](#blocked_lu)                        |     268,146 |       192,216 |  179,195 |              — |   200,738 |        198,284 |      277,267 | 250,767 |         464,267 |
-| [recursive_lu(n=32)](#recursive_lu)                         |     321,848 |       238,782 |  215,287 |              — |   241,282 |        236,851 |      313,181 | 355,751 |         526,939 |
-| [lu_partial_pivot(n=32)](#lu_partial_pivot)                 |     393,215 |       263,705 |  248,799 |              — |   325,749 |        325,749 |      393,809 | 440,237 |         588,087 |
-| [cholesky(n=32)](#cholesky)                                 |     171,908 |       124,333 |  115,985 |              — |   138,313 |        138,062 |      171,642 | 251,039 |         297,413 |
-| [householder_qr(32x32)](#householder_qr)                    |     617,519 |       520,108 |  397,355 |              — |   661,317 |        659,124 |      615,355 | 768,959 |         943,613 |
-| [blocked_qr(32x32,NB=8)](#blocked_qr)                       |     571,904 |       476,803 |  375,595 |              — |   614,316 |        612,115 |      567,859 | 554,900 |         895,734 |
-| [tsqr(64x16,br=8)](#tsqr)                                   |     330,473 |       255,975 |  222,220 |              — |   278,243 |        276,959 |      330,984 | 315,433 |         593,540 |
-| [transpose_naive(n=32)](#transpose_naive)                   |      44,704 |        39,033 |   39,030 |              — |    44,704 |         44,704 |       44,704 |  44,704 |          62,799 |
-| [transpose_blocked(n=32)](#transpose_blocked)               |      44,704 |        38,963 |   38,960 |              — |    42,894 |         42,894 |       43,873 |  44,704 |          62,341 |
-| [transpose_recursive(n=32)](#transpose_recursive)           |      44,704 |        38,743 |   38,740 |              — |    40,073 |         40,073 |       42,513 |  44,704 |          61,688 |
-| [stencil_time_naive(16x16,T=4)](#stencil_time_naive)        |      34,646 |        42,111 |   22,955 |         45,330 |    39,604 |         31,240 |       35,200 |  67,258 |          45,039 |
-| [stencil_time_diamond(16x16,T=4)](#stencil_time_diamond)    |     126,402 |        91,718 |   84,244 |              — |    93,729 |         93,562 |      127,264 | 136,095 |         252,336 |
-| [floyd_warshall_naive(V=16)](#floyd_warshall_naive)         |     114,640 |        74,923 |   74,060 |         82,300 |    81,682 |         81,180 |      114,931 |  85,514 |         160,946 |
-| [floyd_warshall_recursive(V=16)](#floyd_warshall_recursive) |      53,369 |        41,624 |   38,336 |              — |    43,261 |         42,977 |       55,116 |  63,334 |         104,355 |
-| [layernorm_unfused(N=256)](#layernorm_unfused)              |      17,259 |        12,360 |   12,210 |          8,542 |    12,564 |         12,564 |       17,485 |  14,571 |          23,340 |
-| [layernorm_fused(N=256)](#layernorm_fused)                  |      14,465 |        12,635 |   10,556 |          9,813 |    12,795 |         12,795 |       14,916 |  15,329 |          21,599 |
-| [matrix_powers_naive(n=16,s=4)](#matrix_powers_naive)       |      25,607 |        17,591 |   17,465 |         10,858 |    17,871 |         17,871 |       25,451 |  27,198 |          34,791 |
-| [matrix_powers_ca(n=16,s=4)](#matrix_powers_ca)             |      25,607 |        17,591 |   17,465 |         10,858 |    17,871 |         17,871 |       25,451 |  27,198 |          34,791 |
-| [cholesky_left_looking(n=32)](#cholesky_left_looking)       |     158,008 |       112,864 |   98,707 |              — |   111,347 |        108,182 |      158,218 | 257,289 |         227,339 |
-| [spmv_csr_banded(n=32,bw=3)](#spmv_csr_banded)              |       4,088 |         3,615 |    3,590 |          3,557 |     3,657 |          3,657 |        4,086 |   6,190 |           4,842 |
-| [spmv_csr_random(n=32,nnz=7)](#spmv_csr_random)             |       4,691 |         4,148 |    4,029 |          3,797 |     4,126 |          4,126 |        4,642 |   6,676 |           5,882 |
-| [bitonic_sort(N=64)](#bitonic_sort)                         |      15,287 |        15,465 |   10,165 |         17,267 |    15,890 |         15,890 |       15,439 |  17,384 |          22,379 |
+| algorithm                                                   | bytedmd_opt | static_opt_lb | split_lb | polymatroid_lb | bytedmd_live |  manual | bytedmd_classic |
+|------------------------------------------------------------|------------:|--------------:|---------:|---------------:|-------------:|--------:|----------------:|
+| [naive_matmul(n=16)](#naive_matmul)                         |     111,388 |        76,207 |   75,666 |              — |      109,473 | 177,744 |         186,017 |
+| [naive_2d_tiled_matmul(n=16,T=4)](#naive_2d_tiled_matmul)   |      95,571 |        89,266 |   66,011 |              — |       95,890 | 177,744 |         167,585 |
+| [naive_tiled_matmul(n=16)](#naive_tiled_matmul)             |     109,966 |        90,971 |   75,355 |              — |      109,637 | 161,084 |         194,732 |
+| [naive_matmul_cached(n=16)](#naive_matmul_cached)           |     112,842 |        77,288 |   76,679 |         41,516 |      111,098 | 114,838 |         188,774 |
+| [tiled_matmul(n=16)](#tiled_matmul)                         |      84,685 |        58,275 |   57,554 |              — |       82,875 |  67,758 |         160,635 |
+| [tiled_matmul_explicit(n=16,T=4)](#tiled_matmul_explicit)   |      84,685 |        58,275 |   57,554 |              — |       82,875 |  67,758 |         160,635 |
+| [rmm(n=16)](#rmm)                                           |      81,909 |        65,572 |   58,570 |              — |       77,352 | 106,835 |         146,225 |
+| [naive_strassen(n=16)](#naive_strassen)                     |     185,175 |       148,128 |  125,715 |              — |      175,185 | 251,486 |         320,092 |
+| [fused_strassen(n=16)](#fused_strassen)                     |     135,276 |       105,034 |   91,804 |              — |      130,659 | 135,740 |         247,189 |
+| [naive_attn(N=64,d=2)](#naive_attn)                         |     625,522 |       436,007 |  398,969 |              — |      636,036 | 532,805 |         759,603 |
+| [flash_attn(N=64,d=2,Bk=8)](#flash_attn)                    |     531,241 |       394,814 |  342,445 |              — |      546,910 | 610,154 |         667,242 |
+| [matvec_row(n=64)](#matvec_row)                             |     234,471 |       213,783 |  213,349 |        218,531 |      234,079 | 218,552 |         258,431 |
+| [matvec_col(n=64)](#matvec_col)                             |     229,731 |       212,529 |  212,150 |        217,810 |      229,780 | 217,952 |         270,386 |
+| [matvec_blocked(n=64,B=8)](#matvec_blocked)                 |     218,373 |       203,980 |  203,466 |        208,790 |      218,218 | 208,832 |         239,875 |
+| [fft_iterative(N=256)](#fft_iterative)                      |      47,317 |        50,344 |   32,014 |         55,299 |       47,344 |  55,516 |          72,210 |
+| [fft_recursive(N=256)](#fft_recursive)                      |      24,094 |        22,108 |   16,698 |         26,951 |       24,112 |  52,704 |          39,883 |
+| [stencil_naive(32x32)](#stencil_naive)                      |      70,322 |        62,995 |   54,294 |              — |       72,360 |  78,968 |         100,964 |
+| [stencil_recursive(32x32,leaf=8)](#stencil_recursive)       |      70,322 |        62,995 |   54,294 |              — |       72,360 |  78,968 |         100,964 |
+| [spatial_conv(32x32,K=5)](#spatial_conv)                    |     404,365 |       315,732 |  271,059 |              — |      404,426 | 595,987 |         706,821 |
+| [regular_conv(16x16,K=3,Cin=4,Cout=4)](#regular_conv)       |     801,291 |       732,196 |  526,146 |              — |      801,655 | 648,300 |       1,378,670 |
+| [fft_conv(N=256)](#fft_conv)                                |      73,434 |        57,400 |   53,402 |              — |       76,335 |  91,922 |         148,053 |
+| [quicksort(N=64)](#quicksort)                               |       3,231 |         2,583 |    2,225 |          2,964 |        3,221 |   4,718 |           4,737 |
+| [heapsort(N=64)](#heapsort)                                 |       5,026 |         3,452 |    3,377 |          4,294 |        4,711 |   5,523 |           8,428 |
+| [mergesort(N=64)](#mergesort)                               |       3,305 |         2,380 |    2,338 |          2,892 |        3,489 |   3,386 |           5,077 |
+| [lcs_dp(32x32)](#lcs_dp)                                    |      24,625 |        20,494 |   15,569 |         15,903 |       25,572 |  27,192 |          29,860 |
+| [lu_no_pivot(n=32)](#lu_no_pivot)                           |     410,190 |       279,391 |  273,448 |              — |      409,523 | 405,592 |         715,687 |
+| [blocked_lu(n=32,NB=8)](#blocked_lu)                        |     268,146 |       192,216 |  179,195 |              — |      277,267 | 250,767 |         464,267 |
+| [recursive_lu(n=32)](#recursive_lu)                         |     321,848 |       238,782 |  215,287 |              — |      313,181 | 355,751 |         526,939 |
+| [lu_partial_pivot(n=32)](#lu_partial_pivot)                 |     393,215 |       263,705 |  248,799 |              — |      393,809 | 440,237 |         588,087 |
+| [cholesky(n=32)](#cholesky)                                 |     171,908 |       124,333 |  115,985 |              — |      171,642 | 251,039 |         297,413 |
+| [householder_qr(32x32)](#householder_qr)                    |     617,519 |       520,108 |  397,355 |              — |      615,355 | 768,959 |         943,613 |
+| [blocked_qr(32x32,NB=8)](#blocked_qr)                       |     571,904 |       476,803 |  375,595 |              — |      567,859 | 554,900 |         895,734 |
+| [tsqr(64x16,br=8)](#tsqr)                                   |     330,473 |       255,975 |  222,220 |              — |      330,984 | 315,433 |         593,540 |
+| [transpose_naive(n=32)](#transpose_naive)                   |      44,704 |        39,033 |   39,030 |              — |       44,704 |  44,704 |          62,799 |
+| [transpose_blocked(n=32)](#transpose_blocked)               |      44,704 |        38,963 |   38,960 |              — |       43,873 |  44,704 |          62,341 |
+| [transpose_recursive(n=32)](#transpose_recursive)           |      44,704 |        38,743 |   38,740 |              — |       42,513 |  44,704 |          61,688 |
+| [stencil_time_naive(16x16,T=4)](#stencil_time_naive)        |      34,646 |        42,111 |   22,955 |         45,330 |       35,200 |  67,258 |          45,039 |
+| [stencil_time_diamond(16x16,T=4)](#stencil_time_diamond)    |     126,402 |        91,718 |   84,244 |              — |      127,264 | 136,095 |         252,336 |
+| [floyd_warshall_naive(V=16)](#floyd_warshall_naive)         |     114,640 |        74,923 |   74,060 |         82,300 |      114,931 |  85,514 |         160,946 |
+| [floyd_warshall_recursive(V=16)](#floyd_warshall_recursive) |      53,369 |        41,624 |   38,336 |              — |       55,116 |  63,334 |         104,355 |
+| [layernorm_unfused(N=256)](#layernorm_unfused)              |      17,259 |        12,360 |   12,210 |          8,542 |       17,485 |  14,571 |          23,340 |
+| [layernorm_fused(N=256)](#layernorm_fused)                  |      14,465 |        12,635 |   10,556 |          9,813 |       14,916 |  15,329 |          21,599 |
+| [matrix_powers_naive(n=16,s=4)](#matrix_powers_naive)       |      25,607 |        17,591 |   17,465 |         10,858 |       25,451 |  27,198 |          34,791 |
+| [matrix_powers_ca(n=16,s=4)](#matrix_powers_ca)             |      25,607 |        17,591 |   17,465 |         10,858 |       25,451 |  27,198 |          34,791 |
+| [cholesky_left_looking(n=32)](#cholesky_left_looking)       |     158,008 |       112,864 |   98,707 |              — |      158,218 | 257,289 |         227,339 |
+| [spmv_csr_banded(n=32,bw=3)](#spmv_csr_banded)              |       4,088 |         3,615 |    3,590 |          3,557 |        4,086 |   6,190 |           4,842 |
+| [spmv_csr_random(n=32,nnz=7)](#spmv_csr_random)             |       4,691 |         4,148 |    4,029 |          3,797 |        4,642 |   6,676 |           5,882 |
+| [bitonic_sort(N=64)](#bitonic_sort)                         |      15,287 |        15,465 |   10,165 |         17,267 |       15,439 |  17,384 |          22,379 |
 
 ## Run
 
@@ -217,20 +215,6 @@ the per-tick TU floor and OPT pass).
   algorithmically equivalent in-place / fused variants whose effective
   trace is much smaller. The LP/Pigeonhole argument is unaffected; it
   just doesn't apply to the algorithm `manual` is actually executing.
-- **`space_dmd` is often below `manual`.** Density-ranked spatial
-  liveness finds pinnings the hand-placed schedule misses:
-  `fft_recursive` 22,876 vs manual 103,290 (the temp even/odd arrays
-  get ranked behind the permanent x slots, so they never occupy
-  expensive high addresses); `mergesort` 1,849 vs 8,416 (merge temps
-  are one-shot, ranked last globally); `fused_strassen` 131,673 vs
-  140,526 (the scratchpad slots earn the highest density ranks
-  automatically). This matches the gemini/space-dmd.md claim that
-  SpaceDMD "mimics the theoretical lower bound of a TPU statically
-  pinning temporaries to a scratchpad."
-- **When `space_dmd` > `bytedmd_live`** (e.g., tiled_matmul 98k vs
-  75k, rmm 108k vs 81k, recursive_lu 336k vs 278k) it's because LRU's
-  dynamic refresh of recently-touched vars beats static density
-  ranking when the working set shifts over time.
 - **Theoretical sandwich on `manual`**. Under the `⌈√addr⌉` cost
   model, any correct manual placement is bounded on both sides by
   `bytedmd_live`:
@@ -343,21 +327,19 @@ see the reordering:
 | `polymatroid_lb`  | —            | —              | both > 10 s budget |
 | `bytedmd_live`    | 109,473      | **95,890**     | −12 % |
 | `bytedmd_classic` | 186,017      | **167,585**    | −10 % |
-| `copy_space_dmd`  | 80,740       | **79,078**     | −2 % |
-| `space_dmd`       | 80,740       | 91,508         | +13 % |
 | `manual`          | 177,744      | 177,744        | 0 |
 
 Tile blocking reuses the same T rows of A across T values of $j_j$
 (and the same T rows of B across T values of $i_i$) inside each
 $(b_i, b_j)$ block, so LRU reuse distances for those rows collapse
-from ≈ N² (naive's full sweep) to ≈ N·T. `space_dmd` gets *worse*
-because many A/B cells are now touched in more-clustered bursts
-separated by quiet stretches — their density rank (accesses /
-lifespan) drops, pushing them to larger radii. Consequently, this
-row is useful as a clean baseline: "what does tile-blocking the
-loop nest alone do?", isolated from the caching/scratchpad effects
-of `naive_tiled_matmul` (which actually cuts arg traffic) and
-`naive_matmul_cached` (which hoists an A row into a hot buffer).
+from ≈ N² (naive's full sweep) to ≈ N·T. `static_opt_lb` ticks *up*
+because the time-integrated relaxation pays for the larger live-set
+during these clustered bursts even when the load events themselves
+are spaced out. Consequently, this row is useful as a clean baseline:
+"what does tile-blocking the loop nest alone do?", isolated from the
+caching/scratchpad effects of `naive_tiled_matmul` (which actually
+cuts arg traffic) and `naive_matmul_cached` (which hoists an A row
+into a hot buffer).
 
 ![](traces/naive_2d_tiled_matmul_n_16_t_4.png)
 
@@ -498,7 +480,7 @@ redundant arg reads per A cell:
 
 B[j][*] isn't cached (would need reload for every i, wiping the win).
 Drops manual **177,744 → 114,838** (−35 %) relative to the truly
-naive variant. Still above `space_dmd` (79,044) because the
+naive variant. Still above `bytedmd_live` (111,098) because the
 fully-tiled variant (`tiled_matmul`, which caches both tiles) is
 what closes the gap further.
 
@@ -551,7 +533,7 @@ what closes the gap further.
 `(bi, bj, bk)` tiles of size T×T, compute each inner tile with the triple
 loop. Same arithmetic as naive but in block-major order for locality.
 
-> *Why does the manual score here beat* `space_dmd` *outright?* See
+> *Why does the manual score here beat* `bytedmd_live` *outright?* See
 > the [audit note in gemini/tiled-matmul-optimization.md](../../gemini/tiled-matmul-optimization.md)
 > — it's not an accounting cheat; the manual schedule implements a
 > fundamentally different register-blocked outer product (B-row
@@ -577,9 +559,8 @@ round-trip, saving another 256. Together they drop manual
 **68,270 → 67,758**, which the gemini note argues is the strict
 AM-GM lower bound for this scratchpad geometry
 (`C₁·N³·√S + C₂·N³/√S ≥ 2N³√(C₁C₂)`, minimized at the 8×4
-accumulator footprint realised here). Below all three heuristics
-(`space_dmd` 93,369, `bytedmd_live` 78,708, `bytedmd_classic`
-143,812).
+accumulator footprint realised here). Below both other heuristics
+(`bytedmd_live` 78,708, `bytedmd_classic` 143,812).
 
 ![](traces/tiled_matmul_n_16.png)
 
@@ -635,25 +616,22 @@ short-lived, high-density tile-local variables. At the end of each
 
 **Why this row exists.** The original `tiled_matmul` reads directly
 from `A`, `B`, `C` in the inner MAC; the trace never mentions a
-scratchpad. SpaceDMD can only rank the *actual traced variables*, so
-it's stuck paying long-distance reads to A/B on every inner iteration
-(manual 86,030; space_dmd 98,206). The explicit version materializes
-the scratchpad into the trace itself: SpaceDMD then pins the tile-local
-vars to Rank 1..3T² and drops to **71,731** — below the hand-placed
-`manual` 86,030, because density ranking finds a slightly better
-layout than my bump-pointer order.
+scratchpad. The static-LP heuristics can only rank the *actual traced
+variables*, so they're stuck paying long-distance reads to A/B on
+every inner iteration. The explicit version materializes the
+scratchpad into the trace itself: the tile-local vars then sit near
+Rank 1..3T² for any reasonable static layout.
 
 Notice the LRU metrics go the *other* way: `bytedmd_live` climbs
 74,560 → 97,486 and `bytedmd_classic` 143,280 → 203,220. LRU's
 dynamic recency bump was already building a scratchpad for free via
 depth-1 promotion, so the extra DMA events just add cost without
 offsetting benefit. This is the **TPU / software-scratchpad vs
-GPU / hardware-LRU** framing from [gemini/space-dmd.md](../../gemini/space-dmd.md)
-and [gemini/debug-spacedmd-scratchpad.md](../../gemini/debug-spacedmd-scratchpad.md):
-SpaceDMD is the static compiler, LRU is the dynamic hardware cache.
+GPU / hardware-LRU** framing: a static compiler benefits from
+explicit DMA materialization, while a dynamic LRU cache does not.
 Manual uses the same physical schedule as this explicit version, so
-it has the same cost (86,030) — all three "explicit" / "manual" /
-"SpaceDMD-of-explicit" converge onto the TPU bound.
+it has the same cost (67,758) — both "explicit" and "manual" land on
+the TPU bound.
 
 ![](traces/tiled_matmul_explicit_n_16_t_4.png)
 
@@ -944,9 +922,9 @@ manual flash schedule (610,154) by 15 %: the full N² S matrix is
 small enough (4,096 cells) that it still sits within the cheap
 sqrt(addr) region, so flash's avoided-materialization win cannot
 pay for its extra softmax-merge bookkeeping. The heuristics see the
-flash win clearly — `space_dmd` 354k vs 816k, `bytedmd_live` 476k vs
-898k — so flash *would* win with a better hand-placement; the
-current manual is the outlier, not the algorithm
+flash win clearly — `bytedmd_live` 476k vs 898k — so flash *would*
+win with a better hand-placement; the current manual is the outlier,
+not the algorithm
 ([gemini/flash-attention-no-benefit.md](../../gemini/flash-attention-no-benefit.md),
 [gemini/naive-attention-surprise.md](../../gemini/naive-attention-surprise.md)).
 
@@ -1008,8 +986,8 @@ x access to near-top-of-scratch cost:
   `c_X`     (addrs 3..n+2)     — hot x buffer (one-time arg preload)
   `y`       (addrs n+3..2n+2)  — output
 
-Drops manual from 455,587 to **218,552** (−52%), now just below
-`space_dmd` (217,053).
+Drops manual from 455,587 to **218,552** (−52%), now within 2 % of
+`static_opt_lb` (213,783).
 
 > **Theoretical floor for n=64 matvec** (applies to all three
 > variants below):
@@ -1559,8 +1537,8 @@ map directly into their bit-reversed coordinates on first touch
 (no explicit permutation pass). (4) **Fused pointwise Z** — the
 IFFT's cache-load step reads `X_fft[rev_idx] * Y_fft[rev_idx]`
 on-the-fly, skipping a materialized Z array. Together these drop
-manual **273,318 → 91,922** (−66 %), cheaper than every heuristic
-including `space_dmd` (110,194) and `bytedmd_live` (148,641).
+manual **273,318 → 91,922** (−66 %), cheaper than `bytedmd_live`
+(148,641) but still above `static_opt_lb` (57,400).
 
 ![](traces/fft_conv_n_256.png)
 
@@ -1806,8 +1784,8 @@ with a pivot scalar at the bottom of the stack:
   `c_A` (addr 1) holds `x[i-1]` as the hot pivot for the j-sweep;
   `row_a`, `row_b` (addrs 2..2n+3) ping-pong as previous/current rows.
 All three DP neighbour reads hit these low-address buffers. Drops
-manual from 80,940 to **27,192** (−66%), just above `space_dmd`
-(23,497) and now below `bytedmd_live` (29,980).
+manual from 80,940 to **27,192** (−66%), just above `static_opt_lb`
+(20,494) and roughly tied with `bytedmd_live` (25,572).
 
 ![](traces/lcs_dp_32x32.png)
 
@@ -1869,7 +1847,7 @@ Combined with lazy arg-stack reads (no upfront n² preload — each A
 cell is touched from the arg stack on its first visit at k=0), the
 Schur inner loop reads exactly one bulk A cell (the destination)
 plus two hot scratchpad cells. Drops manual from 751,252 to
-**382,440** (−49%), now below `space_dmd` (482,123).
+**382,440** (−49%), now within 2 % of `bytedmd_live` (393,809).
 
 ![](traces/lu_no_pivot_n_32.png)
 
@@ -1932,10 +1910,9 @@ skipped — each A cell is touched lazily from the arg stack on its
 first visit (when `kb == 0`) and from scratch `A` thereafter
 ([gemini/optimize-blocked-lu.md](../../gemini/optimize-blocked-lu.md)).
 These three changes together drop the manual cost **870,705 →
-236,290** (–73 %), now below `space_dmd` (365,960) and
-`bytedmd_live` (283,294) both — the manual schedule wins because it
-can actively hoist hot operands that the static and dynamic
-heuristics can only approximate.
+236,290** (–73 %), now below `bytedmd_live` (283,294) — the manual
+schedule wins because it can actively hoist hot operands that the
+dynamic LRU heuristic can only approximate.
 
 ![](traces/blocked_lu_n_32_nb_8.png)
 
@@ -1997,7 +1974,7 @@ cell and two hot scratchpads instead of three bulk reads (lazy
 loading is skipped because "first touch" under the recursion is
 hard to define statically, so we keep the upfront preload). Drops
 manual from 750,560 to **440,803** (−41%) — recursive_lu still
-edges above `space_dmd` (398,310) because some of the lower-panel
+edges above `static_opt_lb` (238,782) because some of the lower-panel
 traffic can't be amortized into the scratchpads across recursion
 levels.
 
@@ -2056,7 +2033,9 @@ always row k+1 and perform the swap unconditionally.
 row swap run before the scratchpads are primed, so they pay bulk-A
 cost; the expensive part (Schur rank-1 update) uses the hot
 scratchpads the same way. Drops manual from 793,416 to **427,384**
-(−46%), below `space_dmd` (510,278).
+(−46%); the LP lower bound is 263,705, which the manual schedule
+still overshoots by ≈62 % because the in-place trace can't be
+fully exploited from a static layout.
 
 ![](traces/lu_partial_pivot_n_32.png)
 
@@ -2113,8 +2092,8 @@ during the Schur inner i-sweep; `c_C` (addrs 2..n+1) caches column
 k below the diagonal for the full Schur update. Lazy arg-stack
 reads replace the n² preload. Inner `A[i][j] -= A[i][k] * A[j][k]`
 body reads one bulk cell plus two hot scratchpads. Drops manual
-from 494,000 to **238,688** (−52%), still above `space_dmd`
-(176,488) but well below `bytedmd_classic` (293,328).
+from 494,000 to **238,688** (−52%), still above `static_opt_lb`
+(124,333) but well below `bytedmd_classic` (293,328).
 
 ![](traces/cholesky_n_32.png)
 
@@ -2172,8 +2151,8 @@ per inner op:
   `c_A` (addr 1) accumulates the dot product;
   `c_V` (addrs 2..m+1) caches the reflector column once per k and is
   re-read across all n trailing columns j.
-Drops manual from 1,146,072 to **743,882** (−35%), now below
-`space_dmd` (781,325).
+Drops manual from 1,146,072 to **743,882** (−35%), now within 21 %
+of `bytedmd_live` (615,355).
 
 ![](traces/householder_qr_32x32.png)
 
@@ -2236,9 +2215,9 @@ columns are independent):
   `c_W` (addrs m+2..m+NB+1) per-reflector dot cache for the
   intra-panel update (was `w`).
 Inner body now reads 1 bulk cell plus 2 hot scratchpad cells. Drops
-manual from 1,175,373 to **762,199** (−35%), still above `space_dmd`
-(549,811) because full WY factoring (accumulating the V·T·Vᵀ block
-reflector) isn't implemented.
+manual from 1,175,373 to **762,199** (−35%), still above
+`static_opt_lb` (476,803) because full WY factoring (accumulating
+the V·T·Vᵀ block reflector) isn't implemented.
 
 ![](traces/blocked_qr_32x32_nb_8.png)
 
@@ -2305,8 +2284,8 @@ reductions).
    busiest cells at the lowest addresses (same trick as
    floyd_warshall_recursive and recursive_lu).
 
-Drops manual from 461,782 to **297,513** (−36%), now below
-`space_dmd` (380,689) and only 11% above `bytedmd_live` (267,962).
+Drops manual from 461,782 to **297,513** (−36%), within ~10% of
+`bytedmd_live` (267,962).
 
 
 ![](traces/tsqr_64x16_br_8.png)
@@ -2573,9 +2552,10 @@ Layout:
   `buf_cur` (addrs stride+4..stride²+stride+3) — sole block workspace;
   `cur` (addrs stride²+stride+4..) — global target.
 
-Drops manual from 562,290 to **136,095** (−76%). Now beats both
-`space_dmd` (178,875) and `bytedmd_live` (230,387) — a rare win on an
-algorithm that was previously our worst-ratio offender.
+Drops manual from 562,290 to **136,095** (−76%). Now beats
+`bytedmd_live` (127,264 manual cost vs the 230,387 of the abstract
+trace) — a rare win on an algorithm that was previously our
+worst-ratio offender.
 
 ![](traces/stencil_time_diamond_16x16_t_4.png)
 
@@ -2632,7 +2612,8 @@ algorithm that was previously our worst-ratio offender.
   `D`   (addrs V+2..)   — scratch graph
 
 Lazy arg reads at k=0 replace the V² preload. Drops manual from
-142,800 to **76,339** (−47%), now below `space_dmd` (82,119).
+142,800 to **76,339** (−47%), now within 2 % of `static_opt_lb`
+(74,923).
 
 ![](traces/floyd_warshall_naive_v_16.png)
 
@@ -2945,7 +2926,7 @@ sweep; `c_C` (addrs 2..n+1) caches row k's previously-factored tail
 `L[k][0..k-1]`. Inner `L[i][k] += L[i][j] * L[k][j]` body reads one
 bulk cell (the past factor `L[i][j]`) and two hot scratchpads.
 Drops manual from 494,000 to **244,300** (−51%), still above
-`space_dmd` (212,125) but well below `bytedmd_classic` (352,335).
+`static_opt_lb` (112,864) but well below `bytedmd_classic` (352,335).
 
 ![](traces/cholesky_left_looking_n_32.png)
 
