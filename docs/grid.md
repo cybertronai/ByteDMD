@@ -238,7 +238,7 @@ the per-tick TU floor and OPT pass).
   [gemini/illustrative-matmul-tiled.md](https://github.com/cybertronai/ByteDMD/blob/dev/gemini/illustrative-matmul-tiled.md).
 ---
 
-## naive_matmul [(code)](https://github.com/cybertronai/ByteDMD/blob/dev/experiments/grid/scripts/naive_matmul_n_16.py)
+## naive_matmul [(code)](https://github.com/cybertronai/ByteDMD/blob/dev/experiments/grid/scripts/naive_matmul_n_16.py) {#naive_matmul}
 `n=16`. **Algorithm.** Triple-nested-loop computing $C = A \cdot B^{\mathsf T}$:
 `C[i][j] = Σ_k A[i][k] · B[j][k]`. Both A and B are traversed row-major
 (contiguous) in the inner k-loop — the symmetric, cache-friendly twin
@@ -301,7 +301,7 @@ with-scratchpad variant that drops 35 % off this baseline.
 
 ---
 
-## naive_2d_tiled_matmul [(code)](https://github.com/cybertronai/ByteDMD/blob/dev/experiments/grid/scripts/naive_2d_tiled_matmul_n_16_t_4.py)
+## naive_2d_tiled_matmul [(code)](https://github.com/cybertronai/ByteDMD/blob/dev/experiments/grid/scripts/naive_2d_tiled_matmul_n_16_t_4.py) {#naive_2d_tiled_matmul}
 `n=16, T=4`. **Algorithm.** Same triple-nested matmul as `naive_matmul`
 — $C = A \cdot B^{\mathsf T}$ with $C[i][j] = \Sigma_k A[i][k] \cdot
 B[j][k]$ — but with `(i, j)` iterated in tile-blocked order
@@ -390,7 +390,7 @@ into a hot buffer).
 
 ---
 
-## naive_tiled_matmul [(code)](https://github.com/cybertronai/ByteDMD/blob/dev/experiments/grid/scripts/naive_tiled_matmul_n_16.py)
+## naive_tiled_matmul [(code)](https://github.com/cybertronai/ByteDMD/blob/dev/experiments/grid/scripts/naive_tiled_matmul_n_16.py) {#naive_tiled_matmul}
 `n=16, k=4`. **Algorithm.** Same matmul as `naive_matmul` but
 each block caches **k rows of A and k rows of B** (in the
 A·B^T formulation, B's "rows" are the transposed operand's
@@ -472,7 +472,7 @@ which adds register-level stationary-operand scheduling on top.
 
 ---
 
-## naive_matmul_cached [(code)](https://github.com/cybertronai/ByteDMD/blob/dev/experiments/grid/scripts/naive_matmul_cached_n_16.py)
+## naive_matmul_cached [(code)](https://github.com/cybertronai/ByteDMD/blob/dev/experiments/grid/scripts/naive_matmul_cached_n_16.py) {#naive_matmul_cached}
 `n=16`. **Algorithm.** Same triple-nested-loop as `naive_matmul`.
 
 **Manual placement.** A[i][*] is reused across all n values of j for
@@ -533,7 +533,7 @@ what closes the gap further.
 
 ---
 
-## tiled_matmul [(code)](https://github.com/cybertronai/ByteDMD/blob/dev/experiments/grid/scripts/tiled_matmul_n_16.py)
+## tiled_matmul [(code)](https://github.com/cybertronai/ByteDMD/blob/dev/experiments/grid/scripts/tiled_matmul_n_16.py) {#tiled_matmul}
 `n=16, T=4`. **Algorithm.** One-level blocked matmul — iterate over
 `(bi, bj, bk)` tiles of size T×T, compute each inner tile with the triple
 loop. Same arithmetic as naive but in block-major order for locality.
@@ -611,7 +611,7 @@ accumulator footprint realised here). Below both other heuristics
 
 ---
 
-## tiled_matmul_explicit [(code)](https://github.com/cybertronai/ByteDMD/blob/dev/experiments/grid/scripts/tiled_matmul_explicit_n_16_t_4.py)
+## tiled_matmul_explicit [(code)](https://github.com/cybertronai/ByteDMD/blob/dev/experiments/grid/scripts/tiled_matmul_explicit_n_16_t_4.py) {#tiled_matmul_explicit}
 `n=16, T=4`. **Algorithm.** Same arithmetic as `tiled_matmul` but with
 **explicit DMA materialization** in the trace: before each tile's MAC,
 `sA, sB, sC` are populated by `[... A[..] + 0.0 ...]` comprehensions
@@ -682,7 +682,7 @@ the TPU bound.
 
 ---
 
-## rmm [(code)](https://github.com/cybertronai/ByteDMD/blob/dev/experiments/grid/scripts/rmm_n_16.py)
+## rmm [(code)](https://github.com/cybertronai/ByteDMD/blob/dev/experiments/grid/scripts/rmm_n_16.py) {#rmm}
 `n=16, T=4`. **Algorithm.** Cache-oblivious recursive matmul: split each
 of A, B, C into 4 quadrants and make 8 recursive calls (2×2×2 = 8
 sub-products in Hamiltonian order), descending until `sz = T` where the
@@ -738,7 +738,7 @@ C while 1 skips the pre-fetch.
 
 ---
 
-## naive_strassen [(code)](https://github.com/cybertronai/ByteDMD/blob/dev/experiments/grid/scripts/naive_strassen_n_16.py)
+## naive_strassen [(code)](https://github.com/cybertronai/ByteDMD/blob/dev/experiments/grid/scripts/naive_strassen_n_16.py) {#naive_strassen}
 `n=16, T=4`. **Algorithm.** Standard recursive Strassen: at each level
 split A and B into 2×2 quadrants and compute 7 matrix products
 $M_1 \ldots M_7$ (plus 10 matrix adds/subs), then assemble the 4 C
@@ -799,7 +799,7 @@ avoidance of these materialized intermediates.
 
 ---
 
-## fused_strassen [(code)](https://github.com/cybertronai/ByteDMD/blob/dev/experiments/grid/scripts/fused_strassen_n_16.py)
+## fused_strassen [(code)](https://github.com/cybertronai/ByteDMD/blob/dev/experiments/grid/scripts/fused_strassen_n_16.py) {#fused_strassen}
 `n=16, T=4`. **Algorithm.** Zero-Allocation Fused Strassen (ZAFS):
 single-level outer Strassen (7 matrix multiplies instead of 8) where the
 sub-additions (A₁₁+A₂₂, etc.) are evaluated **on-the-fly** while loading
@@ -858,7 +858,7 @@ matrices — the ZAFS win shows up entirely here in manual (140,526 vs
 
 ---
 
-## naive_attn [(code)](https://github.com/cybertronai/ByteDMD/blob/dev/experiments/grid/scripts/naive_attn_n_64_d_2.py)
+## naive_attn [(code)](https://github.com/cybertronai/ByteDMD/blob/dev/experiments/grid/scripts/naive_attn_n_64_d_2.py) {#naive_attn}
 `N=64, d=2`. **Algorithm.** Standard attention: compute full N×N
 score matrix `S = Q·Kᵀ/√d`, row-wise softmax into `P`, then `O = P·V`.
 The whole N×N matrix is materialized in memory.
@@ -912,7 +912,7 @@ cost — every access pays `⌈√(addr ≈ N²)⌉`.
 
 ---
 
-## flash_attn [(code)](https://github.com/cybertronai/ByteDMD/blob/dev/experiments/grid/scripts/flash_attn_n_64_d_2_bk_8.py)
+## flash_attn [(code)](https://github.com/cybertronai/ByteDMD/blob/dev/experiments/grid/scripts/flash_attn_n_64_d_2_bk_8.py) {#flash_attn}
 `N=64, d=2, Bk=8`. **Algorithm.** Flash attention with online softmax
 over K/V blocks of size Bk: for each query row, stream blocks of K and
 V, compute block scores, update running `(m, l)` softmax stats, and
@@ -977,7 +977,7 @@ not the algorithm
 
 ---
 
-## matvec_row [(code)](https://github.com/cybertronai/ByteDMD/blob/dev/experiments/grid/scripts/matvec_row_n_64.py)
+## matvec_row [(code)](https://github.com/cybertronai/ByteDMD/blob/dev/experiments/grid/scripts/matvec_row_n_64.py) {#matvec_row}
 `n=64`. **Algorithm.** `y[i] = Σ_j A[i][j] · x[j]`, outer loop over `i`.
 A is read row-major (contiguous); `x` is re-read n times.
 
@@ -1049,7 +1049,7 @@ Drops manual from 455,587 to **218,552** (−52%), now within 2 % of
 
 ---
 
-## matvec_col [(code)](https://github.com/cybertronai/ByteDMD/blob/dev/experiments/grid/scripts/matvec_col_n_64.py)
+## matvec_col [(code)](https://github.com/cybertronai/ByteDMD/blob/dev/experiments/grid/scripts/matvec_col_n_64.py) {#matvec_col}
 `n=64`. **Algorithm.** Outer loop over `j`: for each column of A, fold
 `A[i][j] · x[j]` into `y[i]`. A is read column-major (strided by n).
 
@@ -1103,7 +1103,7 @@ again, the sum is fixed.
 
 ---
 
-## matvec_blocked [(code)](https://github.com/cybertronai/ByteDMD/blob/dev/experiments/grid/scripts/matvec_blocked_n_64_b_8.py)
+## matvec_blocked [(code)](https://github.com/cybertronai/ByteDMD/blob/dev/experiments/grid/scripts/matvec_blocked_n_64_b_8.py) {#matvec_blocked}
 `n=64, B=8`. **Algorithm.** Stationary-Accumulator 1D-Blocked MatVec
 ([gemini/optimal-matvec.md](https://github.com/cybertronai/ByteDMD/blob/dev/gemini/optimal-matvec.md)). Outer
 loop iterates over 8-column blocks of x. For each block, load the
@@ -1190,7 +1190,7 @@ term of the doc's exact breakdown:
 
 ---
 
-## fft_iterative [(code)](https://github.com/cybertronai/ByteDMD/blob/dev/experiments/grid/scripts/fft_iterative_n_256.py)
+## fft_iterative [(code)](https://github.com/cybertronai/ByteDMD/blob/dev/experiments/grid/scripts/fft_iterative_n_256.py) {#fft_iterative}
 `N=256`. **Algorithm.** In-place iterative radix-2 Cooley–Tukey:
 bit-reverse permutation followed by `log₂N = 8` stages of N/2 butterflies
 each. Real twiddle stand-in (the ByteDMD cost depends only on the
@@ -1246,7 +1246,7 @@ anticipate once the working set fits entirely at low addresses.
 
 ---
 
-## fft_recursive [(code)](https://github.com/cybertronai/ByteDMD/blob/dev/experiments/grid/scripts/fft_recursive_n_256.py)
+## fft_recursive [(code)](https://github.com/cybertronai/ByteDMD/blob/dev/experiments/grid/scripts/fft_recursive_n_256.py) {#fft_recursive}
 `N=256`. **Algorithm.** In-place recursive radix-2 Cooley–Tukey:
 split into even/odd halves, recurse, then combine with twiddles.
 
@@ -1305,7 +1305,7 @@ butterfly passes + 1 output epilogue), and it even beats
 
 ---
 
-## stencil_naive [(code)](https://github.com/cybertronai/ByteDMD/blob/dev/experiments/grid/scripts/stencil_naive_32x32.py)
+## stencil_naive [(code)](https://github.com/cybertronai/ByteDMD/blob/dev/experiments/grid/scripts/stencil_naive_32x32.py) {#stencil_naive}
 `32×32, one sweep`. **Algorithm.** 5-point Jacobi row-major sweep:
 `B[i][j] = 0.2 · (A[i][j] + A[i±1][j] + A[i][j±1])` for interior cells.
 
@@ -1363,7 +1363,7 @@ Drops manual from 121,628 to **78,968** (−35%).
 
 ---
 
-## stencil_recursive [(code)](https://github.com/cybertronai/ByteDMD/blob/dev/experiments/grid/scripts/stencil_recursive_32x32_leaf_8.py)
+## stencil_recursive [(code)](https://github.com/cybertronai/ByteDMD/blob/dev/experiments/grid/scripts/stencil_recursive_32x32_leaf_8.py) {#stencil_recursive}
 `32×32, one sweep, leaf=8`. **Algorithm.** Quad-tree split of the 2D
 domain, naive sweep at leaf tiles of size 8×8. (Trapezoidal
 cache-oblivious stencil is not implemented — that form requires a time
@@ -1419,7 +1419,7 @@ effects only.
 
 ---
 
-## spatial_conv [(code)](https://github.com/cybertronai/ByteDMD/blob/dev/experiments/grid/scripts/spatial_conv_32x32_k_5.py)
+## spatial_conv [(code)](https://github.com/cybertronai/ByteDMD/blob/dev/experiments/grid/scripts/spatial_conv_32x32_k_5.py) {#spatial_conv}
 `32×32, K=5`. **Algorithm.** Single-channel 2D convolution:
 `O[i][j] = Σ_{ki,kj} A[i+ki][j+kj] · W[ki][kj]`. Output is 28×28.
 
@@ -1472,7 +1472,7 @@ K² times.
 
 ---
 
-## regular_conv [(code)](https://github.com/cybertronai/ByteDMD/blob/dev/experiments/grid/scripts/regular_conv_16x16_k_3_cin_4_cout_4.py)
+## regular_conv [(code)](https://github.com/cybertronai/ByteDMD/blob/dev/experiments/grid/scripts/regular_conv_16x16_k_3_cin_4_cout_4.py) {#regular_conv}
 `16×16, K=3, Cin=4, Cout=4`. **Algorithm.** Full multi-channel CNN
 layer: `O[i][j][co] = Σ_{ki,kj,ci} A[i+ki][j+kj][ci] · W[ki][kj][ci][co]`.
 
@@ -1526,7 +1526,7 @@ position.
 
 ---
 
-## fft_conv [(code)](https://github.com/cybertronai/ByteDMD/blob/dev/experiments/grid/scripts/fft_conv_n_256.py)
+## fft_conv [(code)](https://github.com/cybertronai/ByteDMD/blob/dev/experiments/grid/scripts/fft_conv_n_256.py) {#fft_conv}
 `N=256`. **Algorithm.** 1D circular convolution via FFT:
 `IFFT(FFT(x) · FFT(y))`. Two forward FFTs, an N-element pointwise
 multiply, and one inverse FFT.
@@ -1589,7 +1589,7 @@ manual **273,318 → 91,922** (−66 %), cheaper than `bytedmd_live`
 
 ---
 
-## quicksort [(code)](https://github.com/cybertronai/ByteDMD/blob/dev/experiments/grid/scripts/quicksort_n_64.py)
+## quicksort [(code)](https://github.com/cybertronai/ByteDMD/blob/dev/experiments/grid/scripts/quicksort_n_64.py) {#quicksort}
 `N=64`. **Algorithm.** In-place recursive quicksort, data-oblivious
 partition stand-in (`_Tracked` has no `__lt__`). At each level, scan
 all sz-1 non-pivot elements, reading each with the pivot (2 reads,
@@ -1647,7 +1647,7 @@ the pivot at depth 1 after its first read inside the inner loop.
 
 ---
 
-## heapsort [(code)](https://github.com/cybertronai/ByteDMD/blob/dev/experiments/grid/scripts/heapsort_n_64.py)
+## heapsort [(code)](https://github.com/cybertronai/ByteDMD/blob/dev/experiments/grid/scripts/heapsort_n_64.py) {#heapsort}
 `N=64`. **Algorithm.** Two phases on an implicit binary max-heap:
 **build** (sift-down from `n/2-1` down to 0 to establish the heap
 property) and **extract** (swap root with last, sift-down over
@@ -1707,7 +1707,7 @@ backbone of a pointer-less heap. `manual` (4,779) lands between
 
 ---
 
-## mergesort [(code)](https://github.com/cybertronai/ByteDMD/blob/dev/experiments/grid/scripts/mergesort_n_64.py)
+## mergesort [(code)](https://github.com/cybertronai/ByteDMD/blob/dev/experiments/grid/scripts/mergesort_n_64.py) {#mergesort}
 `N=64`. **Algorithm.** Recursive mergesort. Merge is implemented as a
 data-oblivious stand-in (2 reads per output cell) since `_Tracked`
 doesn't implement `__lt__` — the access traffic matches a real
@@ -1777,7 +1777,7 @@ ping-pong rewrite) → **3,386** (−63% from original). Now beats
 
 ---
 
-## lcs_dp [(code)](https://github.com/cybertronai/ByteDMD/blob/dev/experiments/grid/scripts/lcs_dp_32x32.py)
+## lcs_dp [(code)](https://github.com/cybertronai/ByteDMD/blob/dev/experiments/grid/scripts/lcs_dp_32x32.py) {#lcs_dp}
 `m=n=32`. **Algorithm.** Longest-common-subsequence dynamic programming
 on an (m+1)×(n+1) table, row-major fill. Branch-free sum replaces the
 max/equality recurrence; access pattern matches canonical LCS:
@@ -1836,7 +1836,7 @@ manual from 80,940 to **27,192** (−66%), just above `global_density`
 
 ---
 
-## lu_no_pivot [(code)](https://github.com/cybertronai/ByteDMD/blob/dev/experiments/grid/scripts/lu_no_pivot_n_32.py)
+## lu_no_pivot [(code)](https://github.com/cybertronai/ByteDMD/blob/dev/experiments/grid/scripts/lu_no_pivot_n_32.py) {#lu_no_pivot}
 `n=32`. **Algorithm.** Doolittle-style Gaussian elimination without
 pivoting. For each k: read pivot `A[k][k]`, scale subdiagonal
 column `A[k+1:,k]`, then rank-1 update the trailing submatrix
@@ -1898,7 +1898,7 @@ plus two hot scratchpad cells. Drops manual from 751,252 to
 
 ---
 
-## blocked_lu [(code)](https://github.com/cybertronai/ByteDMD/blob/dev/experiments/grid/scripts/blocked_lu_n_32_nb_8.py)
+## blocked_lu [(code)](https://github.com/cybertronai/ByteDMD/blob/dev/experiments/grid/scripts/blocked_lu_n_32_nb_8.py) {#blocked_lu}
 `n=32, NB=8`. **Algorithm.** Block LU with four-step pattern per
 diagonal block: (a) factor the NB×NB block via naive LU; (b)
 triangular-solve the trailing column panel; (c) triangular-solve the
@@ -1963,7 +1963,7 @@ dynamic LRU heuristic can only approximate.
 
 ---
 
-## recursive_lu [(code)](https://github.com/cybertronai/ByteDMD/blob/dev/experiments/grid/scripts/recursive_lu_n_32.py)
+## recursive_lu [(code)](https://github.com/cybertronai/ByteDMD/blob/dev/experiments/grid/scripts/recursive_lu_n_32.py) {#recursive_lu}
 `n=32`. **Algorithm.** Cache-oblivious divide-and-conquer: split A
 into 2×2 quadrants, factor A11 recursively, triangular-solve A12/A21,
 Schur-complement A22, recurse on A22. Equivalent FLOP count to the
@@ -2027,7 +2027,7 @@ levels.
 
 ---
 
-## lu_partial_pivot [(code)](https://github.com/cybertronai/ByteDMD/blob/dev/experiments/grid/scripts/lu_partial_pivot_n_32.py)
+## lu_partial_pivot [(code)](https://github.com/cybertronai/ByteDMD/blob/dev/experiments/grid/scripts/lu_partial_pivot_n_32.py) {#lu_partial_pivot}
 `n=32`. **Algorithm.** Same elimination as `lu_no_pivot` but each
 step first scans column k for the max-magnitude pivot and swaps that
 row into position. Data-oblivious stand-in: pretend the pivot is
@@ -2086,7 +2086,7 @@ fully exploited from a static layout.
 
 ---
 
-## cholesky [(code)](https://github.com/cybertronai/ByteDMD/blob/dev/experiments/grid/scripts/cholesky_n_32.py)
+## cholesky [(code)](https://github.com/cybertronai/ByteDMD/blob/dev/experiments/grid/scripts/cholesky_n_32.py) {#cholesky}
 `n=32`. **Algorithm.** Right-looking Cholesky for an SPD matrix:
 factor `A = L·Lᵀ` in place, reading only the lower triangle. For
 each k: stand-in-sqrt on `A[k][k]`, scale `A[k+1:, k]`, rank-1
@@ -2144,7 +2144,7 @@ from 494,000 to **238,688** (−52%), still above `global_density`
 
 ---
 
-## householder_qr [(code)](https://github.com/cybertronai/ByteDMD/blob/dev/experiments/grid/scripts/householder_qr_32x32.py)
+## householder_qr [(code)](https://github.com/cybertronai/ByteDMD/blob/dev/experiments/grid/scripts/householder_qr_32x32.py) {#householder_qr}
 `32×32`. **Algorithm.** Classical Householder QR: for each column k,
 compute a reflector from `A[k:m, k]`, apply it to each trailing
 column `A[k:m, k+1:n]` (dot-product then rank-1 update). Access
@@ -2203,7 +2203,7 @@ of `bytedmd_live` (615,355).
 
 ---
 
-## blocked_qr [(code)](https://github.com/cybertronai/ByteDMD/blob/dev/experiments/grid/scripts/blocked_qr_32x32_nb_8.py)
+## blocked_qr [(code)](https://github.com/cybertronai/ByteDMD/blob/dev/experiments/grid/scripts/blocked_qr_32x32_nb_8.py) {#blocked_qr}
 `32×32, NB=8`. **Algorithm.** WY-form block Householder (simplified):
 factor an NB-column panel with classical Householder, then apply the
 accumulated block reflector to the trailing columns in one
@@ -2268,7 +2268,7 @@ the V·T·Vᵀ block reflector) isn't implemented.
 
 ---
 
-## tsqr [(code)](https://github.com/cybertronai/ByteDMD/blob/dev/experiments/grid/scripts/tsqr_64x16_br_8.py)
+## tsqr [(code)](https://github.com/cybertronai/ByteDMD/blob/dev/experiments/grid/scripts/tsqr_64x16_br_8.py) {#tsqr}
 `64×16, block_rows=8`. **Algorithm.** Communication-avoiding TSQR:
 split the tall 64×16 matrix into 8 row-tiles of 8 rows; factor each
 tile independently with local Householder QR; merge the resulting R
@@ -2335,7 +2335,7 @@ Drops manual from 461,782 to **297,513** (−36%), within ~10% of
 
 ![](https://raw.githubusercontent.com/cybertronai/ByteDMD/dev/experiments/grid/traces/tsqr_64x16_br_8_wss.png)
 
-## transpose_naive [(code)](https://github.com/cybertronai/ByteDMD/blob/dev/experiments/grid/scripts/transpose_naive_n_32.py)
+## transpose_naive [(code)](https://github.com/cybertronai/ByteDMD/blob/dev/experiments/grid/scripts/transpose_naive_n_32.py) {#transpose_naive}
 `n=32`. **Algorithm.** `B[i][j] = A[j][i]` read column-major. The cache-thrashing baseline — every A-read jumps by `n` bytes.
 
 **Manual placement.** A on arg stack, B on scratch; the per-cell arg-read cost dominates.
@@ -2384,7 +2384,7 @@ Drops manual from 461,782 to **297,513** (−36%), within ~10% of
 
 ---
 
-## transpose_blocked [(code)](https://github.com/cybertronai/ByteDMD/blob/dev/experiments/grid/scripts/transpose_blocked_n_32.py)
+## transpose_blocked [(code)](https://github.com/cybertronai/ByteDMD/blob/dev/experiments/grid/scripts/transpose_blocked_n_32.py) {#transpose_blocked}
 `n=32, T=√n`. **Algorithm.** Blocked iteration over A — same reads as naive in block-major order.
 
 **Manual** matches naive layout; the heuristics reward the locality-friendly order only where LRU recency and density ranking can catch it.
@@ -2433,7 +2433,7 @@ Drops manual from 461,782 to **297,513** (−36%), within ~10% of
 
 ---
 
-## transpose_recursive [(code)](https://github.com/cybertronai/ByteDMD/blob/dev/experiments/grid/scripts/transpose_recursive_n_32.py)
+## transpose_recursive [(code)](https://github.com/cybertronai/ByteDMD/blob/dev/experiments/grid/scripts/transpose_recursive_n_32.py) {#transpose_recursive}
 `n=32`. **Algorithm.** Cache-oblivious recursive transpose — split into 4 quadrants until `sz=1`.
 
 **Manual** again matches the same fixed A/B addresses; heuristic difference comes from the quadrant traversal order.
@@ -2482,7 +2482,7 @@ Drops manual from 461,782 to **297,513** (−36%), within ~10% of
 
 ---
 
-## stencil_time_naive [(code)](https://github.com/cybertronai/ByteDMD/blob/dev/experiments/grid/scripts/stencil_time_naive_16x16_t_4.py)
+## stencil_time_naive [(code)](https://github.com/cybertronai/ByteDMD/blob/dev/experiments/grid/scripts/stencil_time_naive_16x16_t_4.py) {#stencil_time_naive}
 `n=16, T=4`. **Algorithm.** 4 full Jacobi sweeps, each reading the current grid and writing a fresh next-timestep buffer — naive communication-avoiding baseline.
 
 **Manual.** Input A preloaded to scratch `cur`, ping-pong with `nxt`. Every cell is re-touched T times from bulk scratch.
@@ -2531,7 +2531,7 @@ Drops manual from 461,782 to **297,513** (−36%), within ~10% of
 
 ---
 
-## stencil_time_diamond [(code)](https://github.com/cybertronai/ByteDMD/blob/dev/experiments/grid/scripts/stencil_time_diamond_16x16_t_4.py)
+## stencil_time_diamond [(code)](https://github.com/cybertronai/ByteDMD/blob/dev/experiments/grid/scripts/stencil_time_diamond_16x16_t_4.py) {#stencil_time_diamond}
 `n=16, T=4, block=4`. **Algorithm.** Diamond tiling: per (bi,bj) block, load a halo-expanded region into a hot scratchpad and run all T steps locally before flushing.
 
 **Manual.** Three stacked optimizations (gemini's suggestion in
@@ -2606,7 +2606,7 @@ worst-ratio offender.
 
 ---
 
-## floyd_warshall_naive [(code)](https://github.com/cybertronai/ByteDMD/blob/dev/experiments/grid/scripts/floyd_warshall_naive_v_16.py)
+## floyd_warshall_naive [(code)](https://github.com/cybertronai/ByteDMD/blob/dev/experiments/grid/scripts/floyd_warshall_naive_v_16.py) {#floyd_warshall_naive}
 `V=16`. **Algorithm.** Standard 3-nested loop APSP: `D[i][j] = min(D[i][j], D[i][k] + D[k][j])` with branch-free stand-ins.
 
 **Manual.** Same `A[i][j] -= A[i][k] · A[k][j]` inner body as
@@ -2664,7 +2664,7 @@ Lazy arg reads at k=0 replace the V² preload. Drops manual from
 
 ---
 
-## floyd_warshall_recursive [(code)](https://github.com/cybertronai/ByteDMD/blob/dev/experiments/grid/scripts/floyd_warshall_recursive_v_16.py)
+## floyd_warshall_recursive [(code)](https://github.com/cybertronai/ByteDMD/blob/dev/experiments/grid/scripts/floyd_warshall_recursive_v_16.py) {#floyd_warshall_recursive}
 `V=16`. **Algorithm.** Kleene's cache-oblivious APSP: 8 recursive quadrant calls per level.
 
 **Manual.** Three stacked optimizations (`gemini/optimize-floyd-warshall-recursive.md`):
@@ -2726,7 +2726,7 @@ single-algorithm wins in the grid.
 
 ---
 
-## layernorm_unfused [(code)](https://github.com/cybertronai/ByteDMD/blob/dev/experiments/grid/scripts/layernorm_unfused_n_256.py)
+## layernorm_unfused [(code)](https://github.com/cybertronai/ByteDMD/blob/dev/experiments/grid/scripts/layernorm_unfused_n_256.py) {#layernorm_unfused}
 `N=256`. **Algorithm.** Three-pass LayerNorm: mean → variance → normalize. Each pass re-reads x from bulk.
 
 **Manual.** x on arg stack; s/v/mean/inv_std scalars on scratch addrs 1-4 for hot accumulation. Output y on scratch.
@@ -2775,7 +2775,7 @@ single-algorithm wins in the grid.
 
 ---
 
-## layernorm_fused [(code)](https://github.com/cybertronai/ByteDMD/blob/dev/experiments/grid/scripts/layernorm_fused_n_256.py)
+## layernorm_fused [(code)](https://github.com/cybertronai/ByteDMD/blob/dev/experiments/grid/scripts/layernorm_fused_n_256.py) {#layernorm_fused}
 `N=256`. **Algorithm.** Welford's online mean+var in one pass, plus a second pass to normalize. The running accumulators stay in hot registers across all N updates.
 
 **Manual.** Fewer address-space traversals — mu and m2 are read and written O(N) times but stay at depth 1-2 throughout.
@@ -2824,7 +2824,7 @@ single-algorithm wins in the grid.
 
 ---
 
-## matrix_powers_naive [(code)](https://github.com/cybertronai/ByteDMD/blob/dev/experiments/grid/scripts/matrix_powers_naive_n_16_s_4.py)
+## matrix_powers_naive [(code)](https://github.com/cybertronai/ByteDMD/blob/dev/experiments/grid/scripts/matrix_powers_naive_n_16_s_4.py) {#matrix_powers_naive}
 `n=16, s=4`. **Algorithm.** Run matvec s times — `x₁=Ax₀, x₂=Ax₁, …`. A is re-read in full every step.
 
 **Manual.** A on arg stack so re-reads are priced identically each time; the naive cost is dominated by the fixed arg-stack positions of A.
@@ -2873,7 +2873,7 @@ single-algorithm wins in the grid.
 
 ---
 
-## matrix_powers_ca [(code)](https://github.com/cybertronai/ByteDMD/blob/dev/experiments/grid/scripts/matrix_powers_ca_n_16_s_4.py)
+## matrix_powers_ca [(code)](https://github.com/cybertronai/ByteDMD/blob/dev/experiments/grid/scripts/matrix_powers_ca_n_16_s_4.py) {#matrix_powers_ca}
 `n=16, s=4, block=4`. **Algorithm.** Communication-avoiding s-step: process A in row-blocks; for each block compute all step outputs locally before moving on.
 
 **Manual.** Under the two-stack model A already lives on the arg stack with fixed per-position cost, so the CA benefit cannot amortize. Cost matches naive — heuristic differences come from the re-order of the events.
@@ -2922,7 +2922,7 @@ single-algorithm wins in the grid.
 
 ---
 
-## cholesky_left_looking [(code)](https://github.com/cybertronai/ByteDMD/blob/dev/experiments/grid/scripts/cholesky_left_looking_n_32.py)
+## cholesky_left_looking [(code)](https://github.com/cybertronai/ByteDMD/blob/dev/experiments/grid/scripts/cholesky_left_looking_n_32.py) {#cholesky_left_looking}
 `n=32`. **Algorithm.** Complement of the default right-looking Cholesky: for column k pull data from all previously-factored columns 0..k-1 (far-flung reads), then finalize column k locally (concentrated writes).
 
 **Manual.** Two hoisted scratchpads with lazy arg-stack reads: `c_A`
@@ -2977,7 +2977,7 @@ Drops manual from 494,000 to **244,300** (−51%), still above
 
 ---
 
-## spmv_csr_banded [(code)](https://github.com/cybertronai/ByteDMD/blob/dev/experiments/grid/scripts/spmv_csr_banded_n_32_bw_3.py)
+## spmv_csr_banded [(code)](https://github.com/cybertronai/ByteDMD/blob/dev/experiments/grid/scripts/spmv_csr_banded_n_32_bw_3.py) {#spmv_csr_banded}
 `n=32, bandwidth=3`. **Algorithm.** Sparse matvec with CSR indices clustered near the diagonal. col_ind is a compile-time array (no memory cost), x-reads are data-dependent but spatially local.
 
 **Manual.** vals and x on arg stack; accumulator and y on scratch.
@@ -3026,7 +3026,7 @@ Drops manual from 494,000 to **244,300** (−51%), still above
 
 ---
 
-## spmv_csr_random [(code)](https://github.com/cybertronai/ByteDMD/blob/dev/experiments/grid/scripts/spmv_csr_random_n_32_nnz_7.py)
+## spmv_csr_random [(code)](https://github.com/cybertronai/ByteDMD/blob/dev/experiments/grid/scripts/spmv_csr_random_n_32_nnz_7.py) {#spmv_csr_random}
 `n=32, nnz/row=7`. **Algorithm.** Same CSR machinery as banded but col_ind is a random Erdős-Rényi pattern. x-reads scatter all over the vector, which LRU heuristics penalize while density ranking can still pin hot nodes.
 
 **Manual.** Identical layout to banded; the cost difference comes from which arg-stack positions of x get read how often.
@@ -3075,7 +3075,7 @@ Drops manual from 494,000 to **244,300** (−51%), still above
 
 ---
 
-## bitonic_sort [(code)](https://github.com/cybertronai/ByteDMD/blob/dev/experiments/grid/scripts/bitonic_sort_n_64.py)
+## bitonic_sort [(code)](https://github.com/cybertronai/ByteDMD/blob/dev/experiments/grid/scripts/bitonic_sort_n_64.py) {#bitonic_sort}
 `N=64`. **Algorithm.** Data-oblivious sorting network: `log²N` compare-swap passes in butterfly order (identical in flavor to the iterative FFT).
 
 **Manual.** Input preloaded to scratch; every pass does N/2 pair compare-swaps against varying-stride partners, exercising the full scratch range uniformly.
