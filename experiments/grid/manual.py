@@ -118,7 +118,7 @@ def synthesize_manual_trace(allocator: "Allocator"):
     function.
 
     The point of this helper is to make `manual` and the LP lower
-    bounds (`bytedmd_opt`, `static_opt_lb`, `split_lb`, etc.) agree
+    bounds (`bytedmd_opt`, `global_density`, `local_density`, etc.) agree
     on the **same** trace: the operations the manual schedule
     actually performs. Manual schedules that fuse / stream / update
     in place (e.g. `manual_naive_attention` row-streams instead of

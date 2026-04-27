@@ -38,10 +38,10 @@ from bytedmd_ir import (
     bytedmd_classic,
     bytedmd_live,
     bytedmd_opt,
-    splitting_lower_bound,
+    local_density,
     matmul_rmm,
     matmul_tiled,
-    static_opt_lb,
+    global_density,
     trace,
 )
 
@@ -396,8 +396,8 @@ def _polymatroid_lb_capped(events, iidx):
 
 METRICS: List[Tuple[str, Callable[[Sequence[L2Event]], int] | None]] = [
     ("bytedmd_opt",     bytedmd_opt),
-    ("static_opt_lb",   static_opt_lb),
-    ("split_lb",        splitting_lower_bound),
+    ("global_density",   global_density),
+    ("local_density",        local_density),
     ("polymatroid_lb",  _polymatroid_lb_capped),
     ("bytedmd_live",    bytedmd_live),
     ("manual",          None),

@@ -22,7 +22,7 @@ disc of radius r holds r² cells). The energy of one access at address
 
 ## Metrics (columns)
 
-Every number in this report — `bytedmd_opt`, `static_opt_lb`, `split_lb`,
+Every number in this report — `bytedmd_opt`, `global_density`, `local_density`,
 `polymatroid_lb`, `bytedmd_live`, `manual`, and `bytedmd_classic` —
 is this same sum, evaluated under seven different placement
 strategies / bounds.
@@ -47,8 +47,8 @@ removes those false violations.
 | column            | meaning                                                         |
 |-------------------|-----------------------------------------------------------------|
 | `bytedmd_opt`     | Bélády MIN lower bound (see [gemini/belady-min-lower-bound.md](../../gemini/belady-min-lower-bound.md)): per load charges `⌈√(max_rank[V])⌉` where max_rank is the peak count of live variables with earlier next-use during V's dormancy. The dormancy is `[store_time, first_load]` for the first load of a non-input var (so its `(store, first-load)` interval is included in the global pair set), `[arg_promotion, first_load]` priced as `⌈√(arg_idx)⌉` for inputs, and `[prev_load, this_load]` for every reload. By Pigeonhole + Mattson inclusion, this is a strict lower bound on any demand-fetched allocator that does **not** compact dead vars — i.e., a strict floor on `bytedmd_classic`. Compacting allocators (`bytedmd_live` and scratchpad-heavy manual schedules) effectively use free writes to drop dead neighbors and so can rationally fall below this Pigeonhole floor. |
-| `static_opt_lb`   | Totally-unimodular LP lower bound on the optimal **static** allocator (see [gemini/optimal-static-floor.md](../../gemini/optimal-static-floor.md)). Per tick, the Rearrangement Inequality places geom-stack-live vars at physical ranks 1, 2, … in decreasing density ρ = reads/lifespan; the per-tick floor is Σ ρ_{(i)} · sqrt(i) over currently-live vars (continuous sqrt). Inputs sit on the free arg stack until first load and pay the compulsory `⌈√(arg_idx)⌉` at promotion; the LP integral covers only the geometric-stack residency. **Time-integrated**: each var's slot is paid for at every tick of its lifespan, not just at load events, which is what makes this a true lower bound on a static allocator. |
-| `split_lb`        | **Splitting Lower Bound** (see [gemini/fractional-lp-splitting.md](../../gemini/fractional-lp-splitting.md)): severs each variable's lifespan into independent inter-access intervals. A variable read at t₁ < t₂ < … < t_k produces k virtual intervals — a cold-miss interval [store_time, t₁] plus one reuse interval [t_{i−1}, t_i] per subsequent read — each with **local** density ρ = 1/gap (continuous sqrt). At every tick the Rearrangement Inequality floor Σ ρ_(i)·√i is re-evaluated over the currently-active virtual intervals. Unlike `static_opt_lb` (which uses global density reads/lifespan throughout a variable's entire life), `split_lb` lets a variable's density drop to near zero during dormancy phases, so competing hot intervals claim the low ranks. This makes it a lower bound on allocators that support **variable splitting / explicit DMA copies**: a dormant variable evicted to deep memory during another variable's burst is correctly charged only for the DMA re-fetch, not for occupying a low rank throughout the dormancy. Observed: `split_lb ≤ static_opt_lb`, with the gap widening on phase-structured algorithms (RMM, LU, QR, tiled attention) where variables have highly non-uniform inter-access gaps. Both bounds use the same Two-Stack first-load cost for inputs. |
+| `global_density`   | Totally-unimodular LP lower bound on the optimal **static** allocator (see [gemini/optimal-static-floor.md](../../gemini/optimal-static-floor.md)). Per tick, the Rearrangement Inequality places geom-stack-live vars at physical ranks 1, 2, … in decreasing density ρ = reads/lifespan; the per-tick floor is Σ ρ_{(i)} · sqrt(i) over currently-live vars (continuous sqrt). Inputs sit on the free arg stack until first load and pay the compulsory `⌈√(arg_idx)⌉` at promotion; the LP integral covers only the geometric-stack residency. **Time-integrated**: each var's slot is paid for at every tick of its lifespan, not just at load events, which is what makes this a true lower bound on a static allocator. |
+| `local_density`        | **Splitting Lower Bound** (see [gemini/fractional-lp-splitting.md](../../gemini/fractional-lp-splitting.md)): severs each variable's lifespan into independent inter-access intervals. A variable read at t₁ < t₂ < … < t_k produces k virtual intervals — a cold-miss interval [store_time, t₁] plus one reuse interval [t_{i−1}, t_i] per subsequent read — each with **local** density ρ = 1/gap (continuous sqrt). At every tick the Rearrangement Inequality floor Σ ρ_(i)·√i is re-evaluated over the currently-active virtual intervals. Unlike `global_density` (which uses global density reads/lifespan throughout a variable's entire life), `local_density` lets a variable's density drop to near zero during dormancy phases, so competing hot intervals claim the low ranks. This makes it a lower bound on allocators that support **variable splitting / explicit DMA copies**: a dormant variable evicted to deep memory during another variable's burst is correctly charged only for the DMA re-fetch, not for occupying a low rank throughout the dormancy. Observed: `local_density ≤ global_density`, with the gap widening on phase-structured algorithms (RMM, LU, QR, tiled attention) where variables have highly non-uniform inter-access gaps. Both bounds use the same Two-Stack first-load cost for inputs. |
 | `polymatroid_lb`  | **Discrete polymatroid LP** lower bound on optimal static-allocator cost (see [gemini/polymatroid-relaxation.md](../../gemini/polymatroid-relaxation.md), full study in [`experiments/polymatroid-relaxation/`](../polymatroid-relaxation/)). For each square capacity `c²` (only depths where `⌈√d⌉` steps up), solve a totally-unimodular LP `max Σ reads_v · x_v` s.t. each maximal interval-graph clique uses at most `c²` slots; HiGHS finds the integer optimum by perfect-graph + consecutive-ones structure. The discrete-calculus identity `LB = R_total + Σ_{c=1..⌊√(ω−1)⌋} (R_total − M[c²])` plus the Two-Stack arg-stack cost gives the bound, with O(√ω) LP solves. Computed with a **10s per-cell time budget**: rows that don't fit (LU, Cholesky, Strassen, attention at the grid's tile sizes) are blank (`—` in `grid.md`, empty in `grid.csv`). |
 | `bytedmd_live`    | LRU with liveness compaction; dead variables dropped on last load (recency lower-envelope heuristic) |
 | `manual`          | hand-placed bump-pointer schedule — hot scalars and scratchpads at low addresses, bulk data farther out, recursion uses push/pop |
@@ -78,7 +78,7 @@ DAGs are identical, so `bytedmd_live` / `bytedmd_classic` match — only
 
 ## Summary table
 
-| algorithm                                                   | bytedmd_opt | static_opt_lb | split_lb | polymatroid_lb | bytedmd_live |  manual | bytedmd_classic |
+| algorithm                                                   | bytedmd_opt | global_density | local_density | polymatroid_lb | bytedmd_live |  manual | bytedmd_classic |
 |------------------------------------------------------------|------------:|--------------:|---------:|---------------:|-------------:|--------:|----------------:|
 | [naive_matmul(n=16)](#naive_matmul)                         |     111,388 |        76,207 |   75,666 |              — |      109,473 | 177,744 |         186,017 |
 | [naive_2d_tiled_matmul(n=16,T=4)](#naive_2d_tiled_matmul)   |      95,571 |        89,266 |   66,011 |              — |       95,890 | 177,744 |         167,585 |
@@ -149,8 +149,8 @@ semantics), so the costs match the `bytedmd_live` column in the table.
 | `<slug>_liveset.png`       | Live working-set size over time on the LRU-live geom stack (vars dropped on last load). | — |
 | `<slug>_reuse_distance.png` | LRU and Bélády OPT reuse distance per load on shared axes (purple = LRU; green = OPT). The visible green-below-purple gap is the locality slack Mattson inclusion guarantees an offline oracle would extract. | [belady-min-lower-bound.md](../../gemini/belady-min-lower-bound.md) |
 | `<slug>_mrc.png`           | Miss-ratio curve `M(c) = #loads with reuse distance > c` for both LRU and OPT. The area between the curves weighted by `Δ_c = ⌈√(c+1)⌉ − ⌈√c⌉` is the `bytedmd_live − bytedmd_opt` energy gap. | [belady-min-lower-bound.md](../../gemini/belady-min-lower-bound.md) |
-| `<slug>_static_opt_floor.png` | Per-tick TU LP floor `Σ_i ρ_{(i)} · √i` over currently-live vars (orange step curve, shaded area = `static_opt_lb`). Dashed red line marks the time-average. | [optimal-static-floor.md](../../gemini/optimal-static-floor.md) |
-| `<slug>_splitting_floor.png` | Per-tick fractional Pigeonhole floor for `split_lb` — same `Σ_i ρ_{(i)} · √i` shape as `_static_opt_floor.png`, but the entities at each tick are the per-burst virtual intervals of every variable rather than monolithic per-variable lifespans (cyan step curve, shaded area = the geometric portion of `split_lb`). On phase-structured traces a long dormant burst gets a low ρ → high rank → small per-tick contribution, so this curve sits below `_static_opt_floor.png`. | [fractional-lp-splitting.md](../../gemini/fractional-lp-splitting.md) |
+| `<slug>_global_density_floor.png` | Per-tick TU LP floor `Σ_i ρ_{(i)} · √i` over currently-live vars (orange step curve, shaded area = `global_density`). Dashed red line marks the time-average. | [optimal-static-floor.md](../../gemini/optimal-static-floor.md) |
+| `<slug>_local_density_floor.png` | Per-tick fractional Pigeonhole floor for `local_density` — same `Σ_i ρ_{(i)} · √i` shape as `_global_density_floor.png`, but the entities at each tick are the per-burst virtual intervals of every variable rather than monolithic per-variable lifespans (cyan step curve, shaded area = the geometric portion of `local_density`). On phase-structured traces a long dormant burst gets a low ρ → high rank → small per-tick contribution, so this curve sits below `_global_density_floor.png`. | [fractional-lp-splitting.md](../../gemini/fractional-lp-splitting.md) |
 | `<slug>_intensity.png`     | **Heartbeat** — rolling spatial arithmetic intensity (`ops / Σ ⌈√d⌉`) over a sliding window. Tiled / blocked algorithms show square-wave plateaus while a tile is in cache; naive variants stay near the floor. | [arithmetic-intensity-visualizers.md §1](../../gemini/arithmetic-intensity-visualizers.md) |
 | `<slug>_phase_diagram.png` | **Spatial Phase Diagram** — cumulative ops (y) vs cumulative fetch cost (x). The line slope = instantaneous intensity; tiled algorithms trace a steep staircase, naive ones a shallow diagonal. | [arithmetic-intensity-visualizers.md §2](../../gemini/arithmetic-intensity-visualizers.md) |
 | `<slug>_gravity_well.png`  | **Gravity Well** — per-load fetch-cost `⌈√d⌉` scatter. Dense low bands = tight orbital footprint (most reads near the ALU); high spray = excursions into deep memory. | [arithmetic-intensity-visualizers.md §3](../../gemini/arithmetic-intensity-visualizers.md) |
@@ -184,8 +184,8 @@ the per-tick TU floor and OPT pass).
   (140,526 vs 173,919). A tight in-place layout that parks everything
   in the hot region short-circuits what any recency heuristic can
   model on the abstract trace.
-- **Manual can fall below `static_opt_lb`** on 15 of 48 rows. Worst
-  cases (gap as % of `static_opt_lb`): `blocked_lu` 40 %,
+- **Manual can fall below `global_density`** on 15 of 48 rows. Worst
+  cases (gap as % of `global_density`): `blocked_lu` 40 %,
   `naive_attn` 39 %, `stencil_time_diamond` 34 %, `lu_no_pivot` /
   `lu_partial_pivot` 30 %+, `tiled_matmul` 28 %, `fft_conv` 25 %,
   `recursive_lu` / `tsqr` 14 %. In every one of these the manual
@@ -209,7 +209,7 @@ the per-tick TU floor and OPT pass).
       `(t, i, j)` write; manual rolling buffer overwrites in place.
     - `fft_conv`, `regular_conv`: manual fuses transform / channel
       accumulation into the same scratch slot.
-  `static_opt_lb` is a true lower bound on **the optimal static
+  `global_density` is a true lower bound on **the optimal static
   allocator for the traced DAG** — but the manual schedules in this
   list are not implementing the traced DAG, they are implementing
   algorithmically equivalent in-place / fused variants whose effective
@@ -266,13 +266,13 @@ with-scratchpad variant that drops 35 % off this baseline.
 
 ![](traces/naive_matmul_n_16_mrc.png)
 
-**Per-tick TU LP floor** — integrand of `static_opt_lb`: Σ_i ρ_{(i)} · √i over currently-live vars, ranked by density; the area equals `static_opt_lb`.
+**Per-tick TU LP floor** — integrand of `global_density`: Σ_i ρ_{(i)} · √i over currently-live vars, ranked by density; the area equals `global_density`.
 
-![](traces/naive_matmul_n_16_static_opt_floor.png)
+![](traces/naive_matmul_n_16_global_density_floor.png)
 
-**Per-tick splitting LP floor** — integrand of `split_lb`: Σ_i ρ_{(i)} · √i over the currently-active per-burst virtual intervals; the area equals the geometric portion of `split_lb`.
+**Per-tick splitting LP floor** — integrand of `local_density`: Σ_i ρ_{(i)} · √i over the currently-active per-burst virtual intervals; the area equals the geometric portion of `local_density`.
 
-![](traces/naive_matmul_n_16_splitting_floor.png)
+![](traces/naive_matmul_n_16_local_density_floor.png)
 
 **Rolling spatial intensity** — heartbeat plot of `ops / Σ ⌈√d⌉` over a sliding window.
 
@@ -322,8 +322,8 @@ see the reordering:
 | metric            | naive_matmul | naive_2d_tiled | Δ |
 |-------------------|-------------:|---------------:|---:|
 | `bytedmd_opt`     | 111,388      | **95,571**     | −14 % |
-| `static_opt_lb`   | 76,207       | **89,266**     | +17 % |
-| `split_lb`        | 75,666       | **66,011**     | −13 % |
+| `global_density`   | 76,207       | **89,266**     | +17 % |
+| `local_density`        | 75,666       | **66,011**     | −13 % |
 | `polymatroid_lb`  | —            | —              | both > 10 s budget |
 | `bytedmd_live`    | 109,473      | **95,890**     | −12 % |
 | `bytedmd_classic` | 186,017      | **167,585**    | −10 % |
@@ -332,7 +332,7 @@ see the reordering:
 Tile blocking reuses the same T rows of A across T values of $j_j$
 (and the same T rows of B across T values of $i_i$) inside each
 $(b_i, b_j)$ block, so LRU reuse distances for those rows collapse
-from ≈ N² (naive's full sweep) to ≈ N·T. `static_opt_lb` ticks *up*
+from ≈ N² (naive's full sweep) to ≈ N·T. `global_density` ticks *up*
 because the time-integrated relaxation pays for the larger live-set
 during these clustered bursts even when the load events themselves
 are spaced out. Consequently, this row is useful as a clean baseline:
@@ -355,13 +355,13 @@ into a hot buffer).
 
 ![](traces/naive_2d_tiled_matmul_n_16_t_4_mrc.png)
 
-**Per-tick TU LP floor** — integrand of `static_opt_lb`: Σ_i ρ_{(i)} · √i over currently-live vars, ranked by density; the area equals `static_opt_lb`.
+**Per-tick TU LP floor** — integrand of `global_density`: Σ_i ρ_{(i)} · √i over currently-live vars, ranked by density; the area equals `global_density`.
 
-![](traces/naive_2d_tiled_matmul_n_16_t_4_static_opt_floor.png)
+![](traces/naive_2d_tiled_matmul_n_16_t_4_global_density_floor.png)
 
-**Per-tick splitting LP floor** — integrand of `split_lb`: Σ_i ρ_{(i)} · √i over the currently-active per-burst virtual intervals; the area equals the geometric portion of `split_lb`.
+**Per-tick splitting LP floor** — integrand of `local_density`: Σ_i ρ_{(i)} · √i over the currently-active per-burst virtual intervals; the area equals the geometric portion of `local_density`.
 
-![](traces/naive_2d_tiled_matmul_n_16_t_4_splitting_floor.png)
+![](traces/naive_2d_tiled_matmul_n_16_t_4_local_density_floor.png)
 
 **Rolling spatial intensity** — heartbeat plot of `ops / Σ ⌈√d⌉` over a sliding window.
 
@@ -437,13 +437,13 @@ which adds register-level stationary-operand scheduling on top.
 
 ![](traces/naive_tiled_matmul_n_16_mrc.png)
 
-**Per-tick TU LP floor** — integrand of `static_opt_lb`: Σ_i ρ_{(i)} · √i over currently-live vars, ranked by density; the area equals `static_opt_lb`.
+**Per-tick TU LP floor** — integrand of `global_density`: Σ_i ρ_{(i)} · √i over currently-live vars, ranked by density; the area equals `global_density`.
 
-![](traces/naive_tiled_matmul_n_16_static_opt_floor.png)
+![](traces/naive_tiled_matmul_n_16_global_density_floor.png)
 
-**Per-tick splitting LP floor** — integrand of `split_lb`: Σ_i ρ_{(i)} · √i over the currently-active per-burst virtual intervals; the area equals the geometric portion of `split_lb`.
+**Per-tick splitting LP floor** — integrand of `local_density`: Σ_i ρ_{(i)} · √i over the currently-active per-burst virtual intervals; the area equals the geometric portion of `local_density`.
 
-![](traces/naive_tiled_matmul_n_16_splitting_floor.png)
+![](traces/naive_tiled_matmul_n_16_local_density_floor.png)
 
 **Rolling spatial intensity** — heartbeat plot of `ops / Σ ⌈√d⌉` over a sliding window.
 
@@ -498,13 +498,13 @@ what closes the gap further.
 
 ![](traces/naive_matmul_cached_n_16_mrc.png)
 
-**Per-tick TU LP floor** — integrand of `static_opt_lb`: Σ_i ρ_{(i)} · √i over currently-live vars, ranked by density; the area equals `static_opt_lb`.
+**Per-tick TU LP floor** — integrand of `global_density`: Σ_i ρ_{(i)} · √i over currently-live vars, ranked by density; the area equals `global_density`.
 
-![](traces/naive_matmul_cached_n_16_static_opt_floor.png)
+![](traces/naive_matmul_cached_n_16_global_density_floor.png)
 
-**Per-tick splitting LP floor** — integrand of `split_lb`: Σ_i ρ_{(i)} · √i over the currently-active per-burst virtual intervals; the area equals the geometric portion of `split_lb`.
+**Per-tick splitting LP floor** — integrand of `local_density`: Σ_i ρ_{(i)} · √i over the currently-active per-burst virtual intervals; the area equals the geometric portion of `local_density`.
 
-![](traces/naive_matmul_cached_n_16_splitting_floor.png)
+![](traces/naive_matmul_cached_n_16_local_density_floor.png)
 
 **Rolling spatial intensity** — heartbeat plot of `ops / Σ ⌈√d⌉` over a sliding window.
 
@@ -576,13 +576,13 @@ accumulator footprint realised here). Below both other heuristics
 
 ![](traces/tiled_matmul_n_16_mrc.png)
 
-**Per-tick TU LP floor** — integrand of `static_opt_lb`: Σ_i ρ_{(i)} · √i over currently-live vars, ranked by density; the area equals `static_opt_lb`.
+**Per-tick TU LP floor** — integrand of `global_density`: Σ_i ρ_{(i)} · √i over currently-live vars, ranked by density; the area equals `global_density`.
 
-![](traces/tiled_matmul_n_16_static_opt_floor.png)
+![](traces/tiled_matmul_n_16_global_density_floor.png)
 
-**Per-tick splitting LP floor** — integrand of `split_lb`: Σ_i ρ_{(i)} · √i over the currently-active per-burst virtual intervals; the area equals the geometric portion of `split_lb`.
+**Per-tick splitting LP floor** — integrand of `local_density`: Σ_i ρ_{(i)} · √i over the currently-active per-burst virtual intervals; the area equals the geometric portion of `local_density`.
 
-![](traces/tiled_matmul_n_16_splitting_floor.png)
+![](traces/tiled_matmul_n_16_local_density_floor.png)
 
 **Rolling spatial intensity** — heartbeat plot of `ops / Σ ⌈√d⌉` over a sliding window.
 
@@ -647,13 +647,13 @@ the TPU bound.
 
 ![](traces/tiled_matmul_explicit_n_16_t_4_mrc.png)
 
-**Per-tick TU LP floor** — integrand of `static_opt_lb`: Σ_i ρ_{(i)} · √i over currently-live vars, ranked by density; the area equals `static_opt_lb`.
+**Per-tick TU LP floor** — integrand of `global_density`: Σ_i ρ_{(i)} · √i over currently-live vars, ranked by density; the area equals `global_density`.
 
-![](traces/tiled_matmul_explicit_n_16_t_4_static_opt_floor.png)
+![](traces/tiled_matmul_explicit_n_16_t_4_global_density_floor.png)
 
-**Per-tick splitting LP floor** — integrand of `split_lb`: Σ_i ρ_{(i)} · √i over the currently-active per-burst virtual intervals; the area equals the geometric portion of `split_lb`.
+**Per-tick splitting LP floor** — integrand of `local_density`: Σ_i ρ_{(i)} · √i over the currently-active per-burst virtual intervals; the area equals the geometric portion of `local_density`.
 
-![](traces/tiled_matmul_explicit_n_16_t_4_splitting_floor.png)
+![](traces/tiled_matmul_explicit_n_16_t_4_local_density_floor.png)
 
 **Rolling spatial intensity** — heartbeat plot of `ops / Σ ⌈√d⌉` over a sliding window.
 
@@ -703,13 +703,13 @@ C while 1 skips the pre-fetch.
 
 ![](traces/rmm_n_16_mrc.png)
 
-**Per-tick TU LP floor** — integrand of `static_opt_lb`: Σ_i ρ_{(i)} · √i over currently-live vars, ranked by density; the area equals `static_opt_lb`.
+**Per-tick TU LP floor** — integrand of `global_density`: Σ_i ρ_{(i)} · √i over currently-live vars, ranked by density; the area equals `global_density`.
 
-![](traces/rmm_n_16_static_opt_floor.png)
+![](traces/rmm_n_16_global_density_floor.png)
 
-**Per-tick splitting LP floor** — integrand of `split_lb`: Σ_i ρ_{(i)} · √i over the currently-active per-burst virtual intervals; the area equals the geometric portion of `split_lb`.
+**Per-tick splitting LP floor** — integrand of `local_density`: Σ_i ρ_{(i)} · √i over the currently-active per-burst virtual intervals; the area equals the geometric portion of `local_density`.
 
-![](traces/rmm_n_16_splitting_floor.png)
+![](traces/rmm_n_16_local_density_floor.png)
 
 **Rolling spatial intensity** — heartbeat plot of `ops / Σ ⌈√d⌉` over a sliding window.
 
@@ -764,13 +764,13 @@ avoidance of these materialized intermediates.
 
 ![](traces/naive_strassen_n_16_mrc.png)
 
-**Per-tick TU LP floor** — integrand of `static_opt_lb`: Σ_i ρ_{(i)} · √i over currently-live vars, ranked by density; the area equals `static_opt_lb`.
+**Per-tick TU LP floor** — integrand of `global_density`: Σ_i ρ_{(i)} · √i over currently-live vars, ranked by density; the area equals `global_density`.
 
-![](traces/naive_strassen_n_16_static_opt_floor.png)
+![](traces/naive_strassen_n_16_global_density_floor.png)
 
-**Per-tick splitting LP floor** — integrand of `split_lb`: Σ_i ρ_{(i)} · √i over the currently-active per-burst virtual intervals; the area equals the geometric portion of `split_lb`.
+**Per-tick splitting LP floor** — integrand of `local_density`: Σ_i ρ_{(i)} · √i over the currently-active per-burst virtual intervals; the area equals the geometric portion of `local_density`.
 
-![](traces/naive_strassen_n_16_splitting_floor.png)
+![](traces/naive_strassen_n_16_local_density_floor.png)
 
 **Rolling spatial intensity** — heartbeat plot of `ops / Σ ⌈√d⌉` over a sliding window.
 
@@ -823,13 +823,13 @@ matrices — the ZAFS win shows up entirely here in manual (140,526 vs
 
 ![](traces/fused_strassen_n_16_mrc.png)
 
-**Per-tick TU LP floor** — integrand of `static_opt_lb`: Σ_i ρ_{(i)} · √i over currently-live vars, ranked by density; the area equals `static_opt_lb`.
+**Per-tick TU LP floor** — integrand of `global_density`: Σ_i ρ_{(i)} · √i over currently-live vars, ranked by density; the area equals `global_density`.
 
-![](traces/fused_strassen_n_16_static_opt_floor.png)
+![](traces/fused_strassen_n_16_global_density_floor.png)
 
-**Per-tick splitting LP floor** — integrand of `split_lb`: Σ_i ρ_{(i)} · √i over the currently-active per-burst virtual intervals; the area equals the geometric portion of `split_lb`.
+**Per-tick splitting LP floor** — integrand of `local_density`: Σ_i ρ_{(i)} · √i over the currently-active per-burst virtual intervals; the area equals the geometric portion of `local_density`.
 
-![](traces/fused_strassen_n_16_splitting_floor.png)
+![](traces/fused_strassen_n_16_local_density_floor.png)
 
 **Rolling spatial intensity** — heartbeat plot of `ops / Σ ⌈√d⌉` over a sliding window.
 
@@ -877,13 +877,13 @@ cost — every access pays `⌈√(addr ≈ N²)⌉`.
 
 ![](traces/naive_attn_n_64_d_2_mrc.png)
 
-**Per-tick TU LP floor** — integrand of `static_opt_lb`: Σ_i ρ_{(i)} · √i over currently-live vars, ranked by density; the area equals `static_opt_lb`.
+**Per-tick TU LP floor** — integrand of `global_density`: Σ_i ρ_{(i)} · √i over currently-live vars, ranked by density; the area equals `global_density`.
 
-![](traces/naive_attn_n_64_d_2_static_opt_floor.png)
+![](traces/naive_attn_n_64_d_2_global_density_floor.png)
 
-**Per-tick splitting LP floor** — integrand of `split_lb`: Σ_i ρ_{(i)} · √i over the currently-active per-burst virtual intervals; the area equals the geometric portion of `split_lb`.
+**Per-tick splitting LP floor** — integrand of `local_density`: Σ_i ρ_{(i)} · √i over the currently-active per-burst virtual intervals; the area equals the geometric portion of `local_density`.
 
-![](traces/naive_attn_n_64_d_2_splitting_floor.png)
+![](traces/naive_attn_n_64_d_2_local_density_floor.png)
 
 **Rolling spatial intensity** — heartbeat plot of `ops / Σ ⌈√d⌉` over a sliding window.
 
@@ -942,13 +942,13 @@ not the algorithm
 
 ![](traces/flash_attn_n_64_d_2_bk_8_mrc.png)
 
-**Per-tick TU LP floor** — integrand of `static_opt_lb`: Σ_i ρ_{(i)} · √i over currently-live vars, ranked by density; the area equals `static_opt_lb`.
+**Per-tick TU LP floor** — integrand of `global_density`: Σ_i ρ_{(i)} · √i over currently-live vars, ranked by density; the area equals `global_density`.
 
-![](traces/flash_attn_n_64_d_2_bk_8_static_opt_floor.png)
+![](traces/flash_attn_n_64_d_2_bk_8_global_density_floor.png)
 
-**Per-tick splitting LP floor** — integrand of `split_lb`: Σ_i ρ_{(i)} · √i over the currently-active per-burst virtual intervals; the area equals the geometric portion of `split_lb`.
+**Per-tick splitting LP floor** — integrand of `local_density`: Σ_i ρ_{(i)} · √i over the currently-active per-burst virtual intervals; the area equals the geometric portion of `local_density`.
 
-![](traces/flash_attn_n_64_d_2_bk_8_splitting_floor.png)
+![](traces/flash_attn_n_64_d_2_bk_8_local_density_floor.png)
 
 **Rolling spatial intensity** — heartbeat plot of `ops / Σ ⌈√d⌉` over a sliding window.
 
@@ -987,7 +987,7 @@ x access to near-top-of-scratch cost:
   `y`       (addrs n+3..2n+2)  — output
 
 Drops manual from 455,587 to **218,552** (−52%), now within 2 % of
-`static_opt_lb` (213,783).
+`global_density` (213,783).
 
 > **Theoretical floor for n=64 matvec** (applies to all three
 > variants below):
@@ -1014,13 +1014,13 @@ Drops manual from 455,587 to **218,552** (−52%), now within 2 % of
 
 ![](traces/matvec_row_n_64_mrc.png)
 
-**Per-tick TU LP floor** — integrand of `static_opt_lb`: Σ_i ρ_{(i)} · √i over currently-live vars, ranked by density; the area equals `static_opt_lb`.
+**Per-tick TU LP floor** — integrand of `global_density`: Σ_i ρ_{(i)} · √i over currently-live vars, ranked by density; the area equals `global_density`.
 
-![](traces/matvec_row_n_64_static_opt_floor.png)
+![](traces/matvec_row_n_64_global_density_floor.png)
 
-**Per-tick splitting LP floor** — integrand of `split_lb`: Σ_i ρ_{(i)} · √i over the currently-active per-burst virtual intervals; the area equals the geometric portion of `split_lb`.
+**Per-tick splitting LP floor** — integrand of `local_density`: Σ_i ρ_{(i)} · √i over the currently-active per-burst virtual intervals; the area equals the geometric portion of `local_density`.
 
-![](traces/matvec_row_n_64_splitting_floor.png)
+![](traces/matvec_row_n_64_local_density_floor.png)
 
 **Rolling spatial intensity** — heartbeat plot of `ops / Σ ⌈√d⌉` over a sliding window.
 
@@ -1068,13 +1068,13 @@ again, the sum is fixed.
 
 ![](traces/matvec_col_n_64_mrc.png)
 
-**Per-tick TU LP floor** — integrand of `static_opt_lb`: Σ_i ρ_{(i)} · √i over currently-live vars, ranked by density; the area equals `static_opt_lb`.
+**Per-tick TU LP floor** — integrand of `global_density`: Σ_i ρ_{(i)} · √i over currently-live vars, ranked by density; the area equals `global_density`.
 
-![](traces/matvec_col_n_64_static_opt_floor.png)
+![](traces/matvec_col_n_64_global_density_floor.png)
 
-**Per-tick splitting LP floor** — integrand of `split_lb`: Σ_i ρ_{(i)} · √i over the currently-active per-burst virtual intervals; the area equals the geometric portion of `split_lb`.
+**Per-tick splitting LP floor** — integrand of `local_density`: Σ_i ρ_{(i)} · √i over the currently-active per-burst virtual intervals; the area equals the geometric portion of `local_density`.
 
-![](traces/matvec_col_n_64_splitting_floor.png)
+![](traces/matvec_col_n_64_local_density_floor.png)
 
 **Rolling spatial intensity** — heartbeat plot of `ops / Σ ⌈√d⌉` over a sliding window.
 
@@ -1155,13 +1155,13 @@ term of the doc's exact breakdown:
 
 ![](traces/matvec_blocked_n_64_b_8_mrc.png)
 
-**Per-tick TU LP floor** — integrand of `static_opt_lb`: Σ_i ρ_{(i)} · √i over currently-live vars, ranked by density; the area equals `static_opt_lb`.
+**Per-tick TU LP floor** — integrand of `global_density`: Σ_i ρ_{(i)} · √i over currently-live vars, ranked by density; the area equals `global_density`.
 
-![](traces/matvec_blocked_n_64_b_8_static_opt_floor.png)
+![](traces/matvec_blocked_n_64_b_8_global_density_floor.png)
 
-**Per-tick splitting LP floor** — integrand of `split_lb`: Σ_i ρ_{(i)} · √i over the currently-active per-burst virtual intervals; the area equals the geometric portion of `split_lb`.
+**Per-tick splitting LP floor** — integrand of `local_density`: Σ_i ρ_{(i)} · √i over the currently-active per-burst virtual intervals; the area equals the geometric portion of `local_density`.
 
-![](traces/matvec_blocked_n_64_b_8_splitting_floor.png)
+![](traces/matvec_blocked_n_64_b_8_local_density_floor.png)
 
 **Rolling spatial intensity** — heartbeat plot of `ops / Σ ⌈√d⌉` over a sliding window.
 
@@ -1211,13 +1211,13 @@ anticipate once the working set fits entirely at low addresses.
 
 ![](traces/fft_iterative_n_256_mrc.png)
 
-**Per-tick TU LP floor** — integrand of `static_opt_lb`: Σ_i ρ_{(i)} · √i over currently-live vars, ranked by density; the area equals `static_opt_lb`.
+**Per-tick TU LP floor** — integrand of `global_density`: Σ_i ρ_{(i)} · √i over currently-live vars, ranked by density; the area equals `global_density`.
 
-![](traces/fft_iterative_n_256_static_opt_floor.png)
+![](traces/fft_iterative_n_256_global_density_floor.png)
 
-**Per-tick splitting LP floor** — integrand of `split_lb`: Σ_i ρ_{(i)} · √i over the currently-active per-burst virtual intervals; the area equals the geometric portion of `split_lb`.
+**Per-tick splitting LP floor** — integrand of `local_density`: Σ_i ρ_{(i)} · √i over the currently-active per-burst virtual intervals; the area equals the geometric portion of `local_density`.
 
-![](traces/fft_iterative_n_256_splitting_floor.png)
+![](traces/fft_iterative_n_256_local_density_floor.png)
 
 **Rolling spatial intensity** — heartbeat plot of `ops / Σ ⌈√d⌉` over a sliding window.
 
@@ -1270,13 +1270,13 @@ butterfly passes + 1 output epilogue), and it even beats
 
 ![](traces/fft_recursive_n_256_mrc.png)
 
-**Per-tick TU LP floor** — integrand of `static_opt_lb`: Σ_i ρ_{(i)} · √i over currently-live vars, ranked by density; the area equals `static_opt_lb`.
+**Per-tick TU LP floor** — integrand of `global_density`: Σ_i ρ_{(i)} · √i over currently-live vars, ranked by density; the area equals `global_density`.
 
-![](traces/fft_recursive_n_256_static_opt_floor.png)
+![](traces/fft_recursive_n_256_global_density_floor.png)
 
-**Per-tick splitting LP floor** — integrand of `split_lb`: Σ_i ρ_{(i)} · √i over the currently-active per-burst virtual intervals; the area equals the geometric portion of `split_lb`.
+**Per-tick splitting LP floor** — integrand of `local_density`: Σ_i ρ_{(i)} · √i over the currently-active per-burst virtual intervals; the area equals the geometric portion of `local_density`.
 
-![](traces/fft_recursive_n_256_splitting_floor.png)
+![](traces/fft_recursive_n_256_local_density_floor.png)
 
 **Rolling spatial intensity** — heartbeat plot of `ops / Σ ⌈√d⌉` over a sliding window.
 
@@ -1328,13 +1328,13 @@ Drops manual from 121,628 to **78,968** (−35%).
 
 ![](traces/stencil_naive_32x32_mrc.png)
 
-**Per-tick TU LP floor** — integrand of `static_opt_lb`: Σ_i ρ_{(i)} · √i over currently-live vars, ranked by density; the area equals `static_opt_lb`.
+**Per-tick TU LP floor** — integrand of `global_density`: Σ_i ρ_{(i)} · √i over currently-live vars, ranked by density; the area equals `global_density`.
 
-![](traces/stencil_naive_32x32_static_opt_floor.png)
+![](traces/stencil_naive_32x32_global_density_floor.png)
 
-**Per-tick splitting LP floor** — integrand of `split_lb`: Σ_i ρ_{(i)} · √i over the currently-active per-burst virtual intervals; the area equals the geometric portion of `split_lb`.
+**Per-tick splitting LP floor** — integrand of `local_density`: Σ_i ρ_{(i)} · √i over the currently-active per-burst virtual intervals; the area equals the geometric portion of `local_density`.
 
-![](traces/stencil_naive_32x32_splitting_floor.png)
+![](traces/stencil_naive_32x32_local_density_floor.png)
 
 **Rolling spatial intensity** — heartbeat plot of `ops / Σ ⌈√d⌉` over a sliding window.
 
@@ -1384,13 +1384,13 @@ effects only.
 
 ![](traces/stencil_recursive_32x32_leaf_8_mrc.png)
 
-**Per-tick TU LP floor** — integrand of `static_opt_lb`: Σ_i ρ_{(i)} · √i over currently-live vars, ranked by density; the area equals `static_opt_lb`.
+**Per-tick TU LP floor** — integrand of `global_density`: Σ_i ρ_{(i)} · √i over currently-live vars, ranked by density; the area equals `global_density`.
 
-![](traces/stencil_recursive_32x32_leaf_8_static_opt_floor.png)
+![](traces/stencil_recursive_32x32_leaf_8_global_density_floor.png)
 
-**Per-tick splitting LP floor** — integrand of `split_lb`: Σ_i ρ_{(i)} · √i over the currently-active per-burst virtual intervals; the area equals the geometric portion of `split_lb`.
+**Per-tick splitting LP floor** — integrand of `local_density`: Σ_i ρ_{(i)} · √i over the currently-active per-burst virtual intervals; the area equals the geometric portion of `local_density`.
 
-![](traces/stencil_recursive_32x32_leaf_8_splitting_floor.png)
+![](traces/stencil_recursive_32x32_leaf_8_local_density_floor.png)
 
 **Rolling spatial intensity** — heartbeat plot of `ops / Σ ⌈√d⌉` over a sliding window.
 
@@ -1437,13 +1437,13 @@ K² times.
 
 ![](traces/spatial_conv_32x32_k_5_mrc.png)
 
-**Per-tick TU LP floor** — integrand of `static_opt_lb`: Σ_i ρ_{(i)} · √i over currently-live vars, ranked by density; the area equals `static_opt_lb`.
+**Per-tick TU LP floor** — integrand of `global_density`: Σ_i ρ_{(i)} · √i over currently-live vars, ranked by density; the area equals `global_density`.
 
-![](traces/spatial_conv_32x32_k_5_static_opt_floor.png)
+![](traces/spatial_conv_32x32_k_5_global_density_floor.png)
 
-**Per-tick splitting LP floor** — integrand of `split_lb`: Σ_i ρ_{(i)} · √i over the currently-active per-burst virtual intervals; the area equals the geometric portion of `split_lb`.
+**Per-tick splitting LP floor** — integrand of `local_density`: Σ_i ρ_{(i)} · √i over the currently-active per-burst virtual intervals; the area equals the geometric portion of `local_density`.
 
-![](traces/spatial_conv_32x32_k_5_splitting_floor.png)
+![](traces/spatial_conv_32x32_k_5_local_density_floor.png)
 
 **Rolling spatial intensity** — heartbeat plot of `ops / Σ ⌈√d⌉` over a sliding window.
 
@@ -1491,13 +1491,13 @@ position.
 
 ![](traces/regular_conv_16x16_k_3_cin_4_cout_4_mrc.png)
 
-**Per-tick TU LP floor** — integrand of `static_opt_lb`: Σ_i ρ_{(i)} · √i over currently-live vars, ranked by density; the area equals `static_opt_lb`.
+**Per-tick TU LP floor** — integrand of `global_density`: Σ_i ρ_{(i)} · √i over currently-live vars, ranked by density; the area equals `global_density`.
 
-![](traces/regular_conv_16x16_k_3_cin_4_cout_4_static_opt_floor.png)
+![](traces/regular_conv_16x16_k_3_cin_4_cout_4_global_density_floor.png)
 
-**Per-tick splitting LP floor** — integrand of `split_lb`: Σ_i ρ_{(i)} · √i over the currently-active per-burst virtual intervals; the area equals the geometric portion of `split_lb`.
+**Per-tick splitting LP floor** — integrand of `local_density`: Σ_i ρ_{(i)} · √i over the currently-active per-burst virtual intervals; the area equals the geometric portion of `local_density`.
 
-![](traces/regular_conv_16x16_k_3_cin_4_cout_4_splitting_floor.png)
+![](traces/regular_conv_16x16_k_3_cin_4_cout_4_local_density_floor.png)
 
 **Rolling spatial intensity** — heartbeat plot of `ops / Σ ⌈√d⌉` over a sliding window.
 
@@ -1538,7 +1538,7 @@ map directly into their bit-reversed coordinates on first touch
 IFFT's cache-load step reads `X_fft[rev_idx] * Y_fft[rev_idx]`
 on-the-fly, skipping a materialized Z array. Together these drop
 manual **273,318 → 91,922** (−66 %), cheaper than `bytedmd_live`
-(148,641) but still above `static_opt_lb` (57,400).
+(148,641) but still above `global_density` (57,400).
 
 ![](traces/fft_conv_n_256.png)
 
@@ -1554,13 +1554,13 @@ manual **273,318 → 91,922** (−66 %), cheaper than `bytedmd_live`
 
 ![](traces/fft_conv_n_256_mrc.png)
 
-**Per-tick TU LP floor** — integrand of `static_opt_lb`: Σ_i ρ_{(i)} · √i over currently-live vars, ranked by density; the area equals `static_opt_lb`.
+**Per-tick TU LP floor** — integrand of `global_density`: Σ_i ρ_{(i)} · √i over currently-live vars, ranked by density; the area equals `global_density`.
 
-![](traces/fft_conv_n_256_static_opt_floor.png)
+![](traces/fft_conv_n_256_global_density_floor.png)
 
-**Per-tick splitting LP floor** — integrand of `split_lb`: Σ_i ρ_{(i)} · √i over the currently-active per-burst virtual intervals; the area equals the geometric portion of `split_lb`.
+**Per-tick splitting LP floor** — integrand of `local_density`: Σ_i ρ_{(i)} · √i over the currently-active per-burst virtual intervals; the area equals the geometric portion of `local_density`.
 
-![](traces/fft_conv_n_256_splitting_floor.png)
+![](traces/fft_conv_n_256_local_density_floor.png)
 
 **Rolling spatial intensity** — heartbeat plot of `ops / Σ ⌈√d⌉` over a sliding window.
 
@@ -1612,13 +1612,13 @@ the pivot at depth 1 after its first read inside the inner loop.
 
 ![](traces/quicksort_n_64_mrc.png)
 
-**Per-tick TU LP floor** — integrand of `static_opt_lb`: Σ_i ρ_{(i)} · √i over currently-live vars, ranked by density; the area equals `static_opt_lb`.
+**Per-tick TU LP floor** — integrand of `global_density`: Σ_i ρ_{(i)} · √i over currently-live vars, ranked by density; the area equals `global_density`.
 
-![](traces/quicksort_n_64_static_opt_floor.png)
+![](traces/quicksort_n_64_global_density_floor.png)
 
-**Per-tick splitting LP floor** — integrand of `split_lb`: Σ_i ρ_{(i)} · √i over the currently-active per-burst virtual intervals; the area equals the geometric portion of `split_lb`.
+**Per-tick splitting LP floor** — integrand of `local_density`: Σ_i ρ_{(i)} · √i over the currently-active per-burst virtual intervals; the area equals the geometric portion of `local_density`.
 
-![](traces/quicksort_n_64_splitting_floor.png)
+![](traces/quicksort_n_64_local_density_floor.png)
 
 **Rolling spatial intensity** — heartbeat plot of `ops / Σ ⌈√d⌉` over a sliding window.
 
@@ -1672,13 +1672,13 @@ backbone of a pointer-less heap. `manual` (4,779) lands between
 
 ![](traces/heapsort_n_64_mrc.png)
 
-**Per-tick TU LP floor** — integrand of `static_opt_lb`: Σ_i ρ_{(i)} · √i over currently-live vars, ranked by density; the area equals `static_opt_lb`.
+**Per-tick TU LP floor** — integrand of `global_density`: Σ_i ρ_{(i)} · √i over currently-live vars, ranked by density; the area equals `global_density`.
 
-![](traces/heapsort_n_64_static_opt_floor.png)
+![](traces/heapsort_n_64_global_density_floor.png)
 
-**Per-tick splitting LP floor** — integrand of `split_lb`: Σ_i ρ_{(i)} · √i over the currently-active per-burst virtual intervals; the area equals the geometric portion of `split_lb`.
+**Per-tick splitting LP floor** — integrand of `local_density`: Σ_i ρ_{(i)} · √i over the currently-active per-burst virtual intervals; the area equals the geometric portion of `local_density`.
 
-![](traces/heapsort_n_64_splitting_floor.png)
+![](traces/heapsort_n_64_local_density_floor.png)
 
 **Rolling spatial intensity** — heartbeat plot of `ops / Σ ⌈√d⌉` over a sliding window.
 
@@ -1742,13 +1742,13 @@ ping-pong rewrite) → **3,386** (−63% from original). Now beats
 
 ![](traces/mergesort_n_64_mrc.png)
 
-**Per-tick TU LP floor** — integrand of `static_opt_lb`: Σ_i ρ_{(i)} · √i over currently-live vars, ranked by density; the area equals `static_opt_lb`.
+**Per-tick TU LP floor** — integrand of `global_density`: Σ_i ρ_{(i)} · √i over currently-live vars, ranked by density; the area equals `global_density`.
 
-![](traces/mergesort_n_64_static_opt_floor.png)
+![](traces/mergesort_n_64_global_density_floor.png)
 
-**Per-tick splitting LP floor** — integrand of `split_lb`: Σ_i ρ_{(i)} · √i over the currently-active per-burst virtual intervals; the area equals the geometric portion of `split_lb`.
+**Per-tick splitting LP floor** — integrand of `local_density`: Σ_i ρ_{(i)} · √i over the currently-active per-burst virtual intervals; the area equals the geometric portion of `local_density`.
 
-![](traces/mergesort_n_64_splitting_floor.png)
+![](traces/mergesort_n_64_local_density_floor.png)
 
 **Rolling spatial intensity** — heartbeat plot of `ops / Σ ⌈√d⌉` over a sliding window.
 
@@ -1784,7 +1784,7 @@ with a pivot scalar at the bottom of the stack:
   `c_A` (addr 1) holds `x[i-1]` as the hot pivot for the j-sweep;
   `row_a`, `row_b` (addrs 2..2n+3) ping-pong as previous/current rows.
 All three DP neighbour reads hit these low-address buffers. Drops
-manual from 80,940 to **27,192** (−66%), just above `static_opt_lb`
+manual from 80,940 to **27,192** (−66%), just above `global_density`
 (20,494) and roughly tied with `bytedmd_live` (25,572).
 
 ![](traces/lcs_dp_32x32.png)
@@ -1801,13 +1801,13 @@ manual from 80,940 to **27,192** (−66%), just above `static_opt_lb`
 
 ![](traces/lcs_dp_32x32_mrc.png)
 
-**Per-tick TU LP floor** — integrand of `static_opt_lb`: Σ_i ρ_{(i)} · √i over currently-live vars, ranked by density; the area equals `static_opt_lb`.
+**Per-tick TU LP floor** — integrand of `global_density`: Σ_i ρ_{(i)} · √i over currently-live vars, ranked by density; the area equals `global_density`.
 
-![](traces/lcs_dp_32x32_static_opt_floor.png)
+![](traces/lcs_dp_32x32_global_density_floor.png)
 
-**Per-tick splitting LP floor** — integrand of `split_lb`: Σ_i ρ_{(i)} · √i over the currently-active per-burst virtual intervals; the area equals the geometric portion of `split_lb`.
+**Per-tick splitting LP floor** — integrand of `local_density`: Σ_i ρ_{(i)} · √i over the currently-active per-burst virtual intervals; the area equals the geometric portion of `local_density`.
 
-![](traces/lcs_dp_32x32_splitting_floor.png)
+![](traces/lcs_dp_32x32_local_density_floor.png)
 
 **Rolling spatial intensity** — heartbeat plot of `ops / Σ ⌈√d⌉` over a sliding window.
 
@@ -1863,13 +1863,13 @@ plus two hot scratchpad cells. Drops manual from 751,252 to
 
 ![](traces/lu_no_pivot_n_32_mrc.png)
 
-**Per-tick TU LP floor** — integrand of `static_opt_lb`: Σ_i ρ_{(i)} · √i over currently-live vars, ranked by density; the area equals `static_opt_lb`.
+**Per-tick TU LP floor** — integrand of `global_density`: Σ_i ρ_{(i)} · √i over currently-live vars, ranked by density; the area equals `global_density`.
 
-![](traces/lu_no_pivot_n_32_static_opt_floor.png)
+![](traces/lu_no_pivot_n_32_global_density_floor.png)
 
-**Per-tick splitting LP floor** — integrand of `split_lb`: Σ_i ρ_{(i)} · √i over the currently-active per-burst virtual intervals; the area equals the geometric portion of `split_lb`.
+**Per-tick splitting LP floor** — integrand of `local_density`: Σ_i ρ_{(i)} · √i over the currently-active per-burst virtual intervals; the area equals the geometric portion of `local_density`.
 
-![](traces/lu_no_pivot_n_32_splitting_floor.png)
+![](traces/lu_no_pivot_n_32_local_density_floor.png)
 
 **Rolling spatial intensity** — heartbeat plot of `ops / Σ ⌈√d⌉` over a sliding window.
 
@@ -1928,13 +1928,13 @@ dynamic LRU heuristic can only approximate.
 
 ![](traces/blocked_lu_n_32_nb_8_mrc.png)
 
-**Per-tick TU LP floor** — integrand of `static_opt_lb`: Σ_i ρ_{(i)} · √i over currently-live vars, ranked by density; the area equals `static_opt_lb`.
+**Per-tick TU LP floor** — integrand of `global_density`: Σ_i ρ_{(i)} · √i over currently-live vars, ranked by density; the area equals `global_density`.
 
-![](traces/blocked_lu_n_32_nb_8_static_opt_floor.png)
+![](traces/blocked_lu_n_32_nb_8_global_density_floor.png)
 
-**Per-tick splitting LP floor** — integrand of `split_lb`: Σ_i ρ_{(i)} · √i over the currently-active per-burst virtual intervals; the area equals the geometric portion of `split_lb`.
+**Per-tick splitting LP floor** — integrand of `local_density`: Σ_i ρ_{(i)} · √i over the currently-active per-burst virtual intervals; the area equals the geometric portion of `local_density`.
 
-![](traces/blocked_lu_n_32_nb_8_splitting_floor.png)
+![](traces/blocked_lu_n_32_nb_8_local_density_floor.png)
 
 **Rolling spatial intensity** — heartbeat plot of `ops / Σ ⌈√d⌉` over a sliding window.
 
@@ -1974,7 +1974,7 @@ cell and two hot scratchpads instead of three bulk reads (lazy
 loading is skipped because "first touch" under the recursion is
 hard to define statically, so we keep the upfront preload). Drops
 manual from 750,560 to **440,803** (−41%) — recursive_lu still
-edges above `static_opt_lb` (238,782) because some of the lower-panel
+edges above `global_density` (238,782) because some of the lower-panel
 traffic can't be amortized into the scratchpads across recursion
 levels.
 
@@ -1992,13 +1992,13 @@ levels.
 
 ![](traces/recursive_lu_n_32_mrc.png)
 
-**Per-tick TU LP floor** — integrand of `static_opt_lb`: Σ_i ρ_{(i)} · √i over currently-live vars, ranked by density; the area equals `static_opt_lb`.
+**Per-tick TU LP floor** — integrand of `global_density`: Σ_i ρ_{(i)} · √i over currently-live vars, ranked by density; the area equals `global_density`.
 
-![](traces/recursive_lu_n_32_static_opt_floor.png)
+![](traces/recursive_lu_n_32_global_density_floor.png)
 
-**Per-tick splitting LP floor** — integrand of `split_lb`: Σ_i ρ_{(i)} · √i over the currently-active per-burst virtual intervals; the area equals the geometric portion of `split_lb`.
+**Per-tick splitting LP floor** — integrand of `local_density`: Σ_i ρ_{(i)} · √i over the currently-active per-burst virtual intervals; the area equals the geometric portion of `local_density`.
 
-![](traces/recursive_lu_n_32_splitting_floor.png)
+![](traces/recursive_lu_n_32_local_density_floor.png)
 
 **Rolling spatial intensity** — heartbeat plot of `ops / Σ ⌈√d⌉` over a sliding window.
 
@@ -2051,13 +2051,13 @@ fully exploited from a static layout.
 
 ![](traces/lu_partial_pivot_n_32_mrc.png)
 
-**Per-tick TU LP floor** — integrand of `static_opt_lb`: Σ_i ρ_{(i)} · √i over currently-live vars, ranked by density; the area equals `static_opt_lb`.
+**Per-tick TU LP floor** — integrand of `global_density`: Σ_i ρ_{(i)} · √i over currently-live vars, ranked by density; the area equals `global_density`.
 
-![](traces/lu_partial_pivot_n_32_static_opt_floor.png)
+![](traces/lu_partial_pivot_n_32_global_density_floor.png)
 
-**Per-tick splitting LP floor** — integrand of `split_lb`: Σ_i ρ_{(i)} · √i over the currently-active per-burst virtual intervals; the area equals the geometric portion of `split_lb`.
+**Per-tick splitting LP floor** — integrand of `local_density`: Σ_i ρ_{(i)} · √i over the currently-active per-burst virtual intervals; the area equals the geometric portion of `local_density`.
 
-![](traces/lu_partial_pivot_n_32_splitting_floor.png)
+![](traces/lu_partial_pivot_n_32_local_density_floor.png)
 
 **Rolling spatial intensity** — heartbeat plot of `ops / Σ ⌈√d⌉` over a sliding window.
 
@@ -2092,7 +2092,7 @@ during the Schur inner i-sweep; `c_C` (addrs 2..n+1) caches column
 k below the diagonal for the full Schur update. Lazy arg-stack
 reads replace the n² preload. Inner `A[i][j] -= A[i][k] * A[j][k]`
 body reads one bulk cell plus two hot scratchpads. Drops manual
-from 494,000 to **238,688** (−52%), still above `static_opt_lb`
+from 494,000 to **238,688** (−52%), still above `global_density`
 (124,333) but well below `bytedmd_classic` (293,328).
 
 ![](traces/cholesky_n_32.png)
@@ -2109,13 +2109,13 @@ from 494,000 to **238,688** (−52%), still above `static_opt_lb`
 
 ![](traces/cholesky_n_32_mrc.png)
 
-**Per-tick TU LP floor** — integrand of `static_opt_lb`: Σ_i ρ_{(i)} · √i over currently-live vars, ranked by density; the area equals `static_opt_lb`.
+**Per-tick TU LP floor** — integrand of `global_density`: Σ_i ρ_{(i)} · √i over currently-live vars, ranked by density; the area equals `global_density`.
 
-![](traces/cholesky_n_32_static_opt_floor.png)
+![](traces/cholesky_n_32_global_density_floor.png)
 
-**Per-tick splitting LP floor** — integrand of `split_lb`: Σ_i ρ_{(i)} · √i over the currently-active per-burst virtual intervals; the area equals the geometric portion of `split_lb`.
+**Per-tick splitting LP floor** — integrand of `local_density`: Σ_i ρ_{(i)} · √i over the currently-active per-burst virtual intervals; the area equals the geometric portion of `local_density`.
 
-![](traces/cholesky_n_32_splitting_floor.png)
+![](traces/cholesky_n_32_local_density_floor.png)
 
 **Rolling spatial intensity** — heartbeat plot of `ops / Σ ⌈√d⌉` over a sliding window.
 
@@ -2168,13 +2168,13 @@ of `bytedmd_live` (615,355).
 
 ![](traces/householder_qr_32x32_mrc.png)
 
-**Per-tick TU LP floor** — integrand of `static_opt_lb`: Σ_i ρ_{(i)} · √i over currently-live vars, ranked by density; the area equals `static_opt_lb`.
+**Per-tick TU LP floor** — integrand of `global_density`: Σ_i ρ_{(i)} · √i over currently-live vars, ranked by density; the area equals `global_density`.
 
-![](traces/householder_qr_32x32_static_opt_floor.png)
+![](traces/householder_qr_32x32_global_density_floor.png)
 
-**Per-tick splitting LP floor** — integrand of `split_lb`: Σ_i ρ_{(i)} · √i over the currently-active per-burst virtual intervals; the area equals the geometric portion of `split_lb`.
+**Per-tick splitting LP floor** — integrand of `local_density`: Σ_i ρ_{(i)} · √i over the currently-active per-burst virtual intervals; the area equals the geometric portion of `local_density`.
 
-![](traces/householder_qr_32x32_splitting_floor.png)
+![](traces/householder_qr_32x32_local_density_floor.png)
 
 **Rolling spatial intensity** — heartbeat plot of `ops / Σ ⌈√d⌉` over a sliding window.
 
@@ -2216,7 +2216,7 @@ columns are independent):
   intra-panel update (was `w`).
 Inner body now reads 1 bulk cell plus 2 hot scratchpad cells. Drops
 manual from 1,175,373 to **762,199** (−35%), still above
-`static_opt_lb` (476,803) because full WY factoring (accumulating
+`global_density` (476,803) because full WY factoring (accumulating
 the V·T·Vᵀ block reflector) isn't implemented.
 
 ![](traces/blocked_qr_32x32_nb_8.png)
@@ -2233,13 +2233,13 @@ the V·T·Vᵀ block reflector) isn't implemented.
 
 ![](traces/blocked_qr_32x32_nb_8_mrc.png)
 
-**Per-tick TU LP floor** — integrand of `static_opt_lb`: Σ_i ρ_{(i)} · √i over currently-live vars, ranked by density; the area equals `static_opt_lb`.
+**Per-tick TU LP floor** — integrand of `global_density`: Σ_i ρ_{(i)} · √i over currently-live vars, ranked by density; the area equals `global_density`.
 
-![](traces/blocked_qr_32x32_nb_8_static_opt_floor.png)
+![](traces/blocked_qr_32x32_nb_8_global_density_floor.png)
 
-**Per-tick splitting LP floor** — integrand of `split_lb`: Σ_i ρ_{(i)} · √i over the currently-active per-burst virtual intervals; the area equals the geometric portion of `split_lb`.
+**Per-tick splitting LP floor** — integrand of `local_density`: Σ_i ρ_{(i)} · √i over the currently-active per-burst virtual intervals; the area equals the geometric portion of `local_density`.
 
-![](traces/blocked_qr_32x32_nb_8_splitting_floor.png)
+![](traces/blocked_qr_32x32_nb_8_local_density_floor.png)
 
 **Rolling spatial intensity** — heartbeat plot of `ops / Σ ⌈√d⌉` over a sliding window.
 
@@ -2302,13 +2302,13 @@ Drops manual from 461,782 to **297,513** (−36%), within ~10% of
 
 ![](traces/tsqr_64x16_br_8_mrc.png)
 
-**Per-tick TU LP floor** — integrand of `static_opt_lb`: Σ_i ρ_{(i)} · √i over currently-live vars, ranked by density; the area equals `static_opt_lb`.
+**Per-tick TU LP floor** — integrand of `global_density`: Σ_i ρ_{(i)} · √i over currently-live vars, ranked by density; the area equals `global_density`.
 
-![](traces/tsqr_64x16_br_8_static_opt_floor.png)
+![](traces/tsqr_64x16_br_8_global_density_floor.png)
 
-**Per-tick splitting LP floor** — integrand of `split_lb`: Σ_i ρ_{(i)} · √i over the currently-active per-burst virtual intervals; the area equals the geometric portion of `split_lb`.
+**Per-tick splitting LP floor** — integrand of `local_density`: Σ_i ρ_{(i)} · √i over the currently-active per-burst virtual intervals; the area equals the geometric portion of `local_density`.
 
-![](traces/tsqr_64x16_br_8_splitting_floor.png)
+![](traces/tsqr_64x16_br_8_local_density_floor.png)
 
 **Rolling spatial intensity** — heartbeat plot of `ops / Σ ⌈√d⌉` over a sliding window.
 
@@ -2349,13 +2349,13 @@ Drops manual from 461,782 to **297,513** (−36%), within ~10% of
 
 ![](traces/transpose_naive_n_32_mrc.png)
 
-**Per-tick TU LP floor** — integrand of `static_opt_lb`: Σ_i ρ_{(i)} · √i over currently-live vars, ranked by density; the area equals `static_opt_lb`.
+**Per-tick TU LP floor** — integrand of `global_density`: Σ_i ρ_{(i)} · √i over currently-live vars, ranked by density; the area equals `global_density`.
 
-![](traces/transpose_naive_n_32_static_opt_floor.png)
+![](traces/transpose_naive_n_32_global_density_floor.png)
 
-**Per-tick splitting LP floor** — integrand of `split_lb`: Σ_i ρ_{(i)} · √i over the currently-active per-burst virtual intervals; the area equals the geometric portion of `split_lb`.
+**Per-tick splitting LP floor** — integrand of `local_density`: Σ_i ρ_{(i)} · √i over the currently-active per-burst virtual intervals; the area equals the geometric portion of `local_density`.
 
-![](traces/transpose_naive_n_32_splitting_floor.png)
+![](traces/transpose_naive_n_32_local_density_floor.png)
 
 **Rolling spatial intensity** — heartbeat plot of `ops / Σ ⌈√d⌉` over a sliding window.
 
@@ -2398,13 +2398,13 @@ Drops manual from 461,782 to **297,513** (−36%), within ~10% of
 
 ![](traces/transpose_blocked_n_32_mrc.png)
 
-**Per-tick TU LP floor** — integrand of `static_opt_lb`: Σ_i ρ_{(i)} · √i over currently-live vars, ranked by density; the area equals `static_opt_lb`.
+**Per-tick TU LP floor** — integrand of `global_density`: Σ_i ρ_{(i)} · √i over currently-live vars, ranked by density; the area equals `global_density`.
 
-![](traces/transpose_blocked_n_32_static_opt_floor.png)
+![](traces/transpose_blocked_n_32_global_density_floor.png)
 
-**Per-tick splitting LP floor** — integrand of `split_lb`: Σ_i ρ_{(i)} · √i over the currently-active per-burst virtual intervals; the area equals the geometric portion of `split_lb`.
+**Per-tick splitting LP floor** — integrand of `local_density`: Σ_i ρ_{(i)} · √i over the currently-active per-burst virtual intervals; the area equals the geometric portion of `local_density`.
 
-![](traces/transpose_blocked_n_32_splitting_floor.png)
+![](traces/transpose_blocked_n_32_local_density_floor.png)
 
 **Rolling spatial intensity** — heartbeat plot of `ops / Σ ⌈√d⌉` over a sliding window.
 
@@ -2447,13 +2447,13 @@ Drops manual from 461,782 to **297,513** (−36%), within ~10% of
 
 ![](traces/transpose_recursive_n_32_mrc.png)
 
-**Per-tick TU LP floor** — integrand of `static_opt_lb`: Σ_i ρ_{(i)} · √i over currently-live vars, ranked by density; the area equals `static_opt_lb`.
+**Per-tick TU LP floor** — integrand of `global_density`: Σ_i ρ_{(i)} · √i over currently-live vars, ranked by density; the area equals `global_density`.
 
-![](traces/transpose_recursive_n_32_static_opt_floor.png)
+![](traces/transpose_recursive_n_32_global_density_floor.png)
 
-**Per-tick splitting LP floor** — integrand of `split_lb`: Σ_i ρ_{(i)} · √i over the currently-active per-burst virtual intervals; the area equals the geometric portion of `split_lb`.
+**Per-tick splitting LP floor** — integrand of `local_density`: Σ_i ρ_{(i)} · √i over the currently-active per-burst virtual intervals; the area equals the geometric portion of `local_density`.
 
-![](traces/transpose_recursive_n_32_splitting_floor.png)
+![](traces/transpose_recursive_n_32_local_density_floor.png)
 
 **Rolling spatial intensity** — heartbeat plot of `ops / Σ ⌈√d⌉` over a sliding window.
 
@@ -2496,13 +2496,13 @@ Drops manual from 461,782 to **297,513** (−36%), within ~10% of
 
 ![](traces/stencil_time_naive_16x16_t_4_mrc.png)
 
-**Per-tick TU LP floor** — integrand of `static_opt_lb`: Σ_i ρ_{(i)} · √i over currently-live vars, ranked by density; the area equals `static_opt_lb`.
+**Per-tick TU LP floor** — integrand of `global_density`: Σ_i ρ_{(i)} · √i over currently-live vars, ranked by density; the area equals `global_density`.
 
-![](traces/stencil_time_naive_16x16_t_4_static_opt_floor.png)
+![](traces/stencil_time_naive_16x16_t_4_global_density_floor.png)
 
-**Per-tick splitting LP floor** — integrand of `split_lb`: Σ_i ρ_{(i)} · √i over the currently-active per-burst virtual intervals; the area equals the geometric portion of `split_lb`.
+**Per-tick splitting LP floor** — integrand of `local_density`: Σ_i ρ_{(i)} · √i over the currently-active per-burst virtual intervals; the area equals the geometric portion of `local_density`.
 
-![](traces/stencil_time_naive_16x16_t_4_splitting_floor.png)
+![](traces/stencil_time_naive_16x16_t_4_local_density_floor.png)
 
 **Rolling spatial intensity** — heartbeat plot of `ops / Σ ⌈√d⌉` over a sliding window.
 
@@ -2571,13 +2571,13 @@ worst-ratio offender.
 
 ![](traces/stencil_time_diamond_16x16_t_4_mrc.png)
 
-**Per-tick TU LP floor** — integrand of `static_opt_lb`: Σ_i ρ_{(i)} · √i over currently-live vars, ranked by density; the area equals `static_opt_lb`.
+**Per-tick TU LP floor** — integrand of `global_density`: Σ_i ρ_{(i)} · √i over currently-live vars, ranked by density; the area equals `global_density`.
 
-![](traces/stencil_time_diamond_16x16_t_4_static_opt_floor.png)
+![](traces/stencil_time_diamond_16x16_t_4_global_density_floor.png)
 
-**Per-tick splitting LP floor** — integrand of `split_lb`: Σ_i ρ_{(i)} · √i over the currently-active per-burst virtual intervals; the area equals the geometric portion of `split_lb`.
+**Per-tick splitting LP floor** — integrand of `local_density`: Σ_i ρ_{(i)} · √i over the currently-active per-burst virtual intervals; the area equals the geometric portion of `local_density`.
 
-![](traces/stencil_time_diamond_16x16_t_4_splitting_floor.png)
+![](traces/stencil_time_diamond_16x16_t_4_local_density_floor.png)
 
 **Rolling spatial intensity** — heartbeat plot of `ops / Σ ⌈√d⌉` over a sliding window.
 
@@ -2612,7 +2612,7 @@ worst-ratio offender.
   `D`   (addrs V+2..)   — scratch graph
 
 Lazy arg reads at k=0 replace the V² preload. Drops manual from
-142,800 to **76,339** (−47%), now within 2 % of `static_opt_lb`
+142,800 to **76,339** (−47%), now within 2 % of `global_density`
 (74,923).
 
 ![](traces/floyd_warshall_naive_v_16.png)
@@ -2629,13 +2629,13 @@ Lazy arg reads at k=0 replace the V² preload. Drops manual from
 
 ![](traces/floyd_warshall_naive_v_16_mrc.png)
 
-**Per-tick TU LP floor** — integrand of `static_opt_lb`: Σ_i ρ_{(i)} · √i over currently-live vars, ranked by density; the area equals `static_opt_lb`.
+**Per-tick TU LP floor** — integrand of `global_density`: Σ_i ρ_{(i)} · √i over currently-live vars, ranked by density; the area equals `global_density`.
 
-![](traces/floyd_warshall_naive_v_16_static_opt_floor.png)
+![](traces/floyd_warshall_naive_v_16_global_density_floor.png)
 
-**Per-tick splitting LP floor** — integrand of `split_lb`: Σ_i ρ_{(i)} · √i over the currently-active per-burst virtual intervals; the area equals the geometric portion of `split_lb`.
+**Per-tick splitting LP floor** — integrand of `local_density`: Σ_i ρ_{(i)} · √i over the currently-active per-burst virtual intervals; the area equals the geometric portion of `local_density`.
 
-![](traces/floyd_warshall_naive_v_16_splitting_floor.png)
+![](traces/floyd_warshall_naive_v_16_local_density_floor.png)
 
 **Rolling spatial intensity** — heartbeat plot of `ops / Σ ⌈√d⌉` over a sliding window.
 
@@ -2691,13 +2691,13 @@ single-algorithm wins in the grid.
 
 ![](traces/floyd_warshall_recursive_v_16_mrc.png)
 
-**Per-tick TU LP floor** — integrand of `static_opt_lb`: Σ_i ρ_{(i)} · √i over currently-live vars, ranked by density; the area equals `static_opt_lb`.
+**Per-tick TU LP floor** — integrand of `global_density`: Σ_i ρ_{(i)} · √i over currently-live vars, ranked by density; the area equals `global_density`.
 
-![](traces/floyd_warshall_recursive_v_16_static_opt_floor.png)
+![](traces/floyd_warshall_recursive_v_16_global_density_floor.png)
 
-**Per-tick splitting LP floor** — integrand of `split_lb`: Σ_i ρ_{(i)} · √i over the currently-active per-burst virtual intervals; the area equals the geometric portion of `split_lb`.
+**Per-tick splitting LP floor** — integrand of `local_density`: Σ_i ρ_{(i)} · √i over the currently-active per-burst virtual intervals; the area equals the geometric portion of `local_density`.
 
-![](traces/floyd_warshall_recursive_v_16_splitting_floor.png)
+![](traces/floyd_warshall_recursive_v_16_local_density_floor.png)
 
 **Rolling spatial intensity** — heartbeat plot of `ops / Σ ⌈√d⌉` over a sliding window.
 
@@ -2740,13 +2740,13 @@ single-algorithm wins in the grid.
 
 ![](traces/layernorm_unfused_n_256_mrc.png)
 
-**Per-tick TU LP floor** — integrand of `static_opt_lb`: Σ_i ρ_{(i)} · √i over currently-live vars, ranked by density; the area equals `static_opt_lb`.
+**Per-tick TU LP floor** — integrand of `global_density`: Σ_i ρ_{(i)} · √i over currently-live vars, ranked by density; the area equals `global_density`.
 
-![](traces/layernorm_unfused_n_256_static_opt_floor.png)
+![](traces/layernorm_unfused_n_256_global_density_floor.png)
 
-**Per-tick splitting LP floor** — integrand of `split_lb`: Σ_i ρ_{(i)} · √i over the currently-active per-burst virtual intervals; the area equals the geometric portion of `split_lb`.
+**Per-tick splitting LP floor** — integrand of `local_density`: Σ_i ρ_{(i)} · √i over the currently-active per-burst virtual intervals; the area equals the geometric portion of `local_density`.
 
-![](traces/layernorm_unfused_n_256_splitting_floor.png)
+![](traces/layernorm_unfused_n_256_local_density_floor.png)
 
 **Rolling spatial intensity** — heartbeat plot of `ops / Σ ⌈√d⌉` over a sliding window.
 
@@ -2789,13 +2789,13 @@ single-algorithm wins in the grid.
 
 ![](traces/layernorm_fused_n_256_mrc.png)
 
-**Per-tick TU LP floor** — integrand of `static_opt_lb`: Σ_i ρ_{(i)} · √i over currently-live vars, ranked by density; the area equals `static_opt_lb`.
+**Per-tick TU LP floor** — integrand of `global_density`: Σ_i ρ_{(i)} · √i over currently-live vars, ranked by density; the area equals `global_density`.
 
-![](traces/layernorm_fused_n_256_static_opt_floor.png)
+![](traces/layernorm_fused_n_256_global_density_floor.png)
 
-**Per-tick splitting LP floor** — integrand of `split_lb`: Σ_i ρ_{(i)} · √i over the currently-active per-burst virtual intervals; the area equals the geometric portion of `split_lb`.
+**Per-tick splitting LP floor** — integrand of `local_density`: Σ_i ρ_{(i)} · √i over the currently-active per-burst virtual intervals; the area equals the geometric portion of `local_density`.
 
-![](traces/layernorm_fused_n_256_splitting_floor.png)
+![](traces/layernorm_fused_n_256_local_density_floor.png)
 
 **Rolling spatial intensity** — heartbeat plot of `ops / Σ ⌈√d⌉` over a sliding window.
 
@@ -2838,13 +2838,13 @@ single-algorithm wins in the grid.
 
 ![](traces/matrix_powers_naive_n_16_s_4_mrc.png)
 
-**Per-tick TU LP floor** — integrand of `static_opt_lb`: Σ_i ρ_{(i)} · √i over currently-live vars, ranked by density; the area equals `static_opt_lb`.
+**Per-tick TU LP floor** — integrand of `global_density`: Σ_i ρ_{(i)} · √i over currently-live vars, ranked by density; the area equals `global_density`.
 
-![](traces/matrix_powers_naive_n_16_s_4_static_opt_floor.png)
+![](traces/matrix_powers_naive_n_16_s_4_global_density_floor.png)
 
-**Per-tick splitting LP floor** — integrand of `split_lb`: Σ_i ρ_{(i)} · √i over the currently-active per-burst virtual intervals; the area equals the geometric portion of `split_lb`.
+**Per-tick splitting LP floor** — integrand of `local_density`: Σ_i ρ_{(i)} · √i over the currently-active per-burst virtual intervals; the area equals the geometric portion of `local_density`.
 
-![](traces/matrix_powers_naive_n_16_s_4_splitting_floor.png)
+![](traces/matrix_powers_naive_n_16_s_4_local_density_floor.png)
 
 **Rolling spatial intensity** — heartbeat plot of `ops / Σ ⌈√d⌉` over a sliding window.
 
@@ -2887,13 +2887,13 @@ single-algorithm wins in the grid.
 
 ![](traces/matrix_powers_ca_n_16_s_4_mrc.png)
 
-**Per-tick TU LP floor** — integrand of `static_opt_lb`: Σ_i ρ_{(i)} · √i over currently-live vars, ranked by density; the area equals `static_opt_lb`.
+**Per-tick TU LP floor** — integrand of `global_density`: Σ_i ρ_{(i)} · √i over currently-live vars, ranked by density; the area equals `global_density`.
 
-![](traces/matrix_powers_ca_n_16_s_4_static_opt_floor.png)
+![](traces/matrix_powers_ca_n_16_s_4_global_density_floor.png)
 
-**Per-tick splitting LP floor** — integrand of `split_lb`: Σ_i ρ_{(i)} · √i over the currently-active per-burst virtual intervals; the area equals the geometric portion of `split_lb`.
+**Per-tick splitting LP floor** — integrand of `local_density`: Σ_i ρ_{(i)} · √i over the currently-active per-burst virtual intervals; the area equals the geometric portion of `local_density`.
 
-![](traces/matrix_powers_ca_n_16_s_4_splitting_floor.png)
+![](traces/matrix_powers_ca_n_16_s_4_local_density_floor.png)
 
 **Rolling spatial intensity** — heartbeat plot of `ops / Σ ⌈√d⌉` over a sliding window.
 
@@ -2926,7 +2926,7 @@ sweep; `c_C` (addrs 2..n+1) caches row k's previously-factored tail
 `L[k][0..k-1]`. Inner `L[i][k] += L[i][j] * L[k][j]` body reads one
 bulk cell (the past factor `L[i][j]`) and two hot scratchpads.
 Drops manual from 494,000 to **244,300** (−51%), still above
-`static_opt_lb` (112,864) but well below `bytedmd_classic` (352,335).
+`global_density` (112,864) but well below `bytedmd_classic` (352,335).
 
 ![](traces/cholesky_left_looking_n_32.png)
 
@@ -2942,13 +2942,13 @@ Drops manual from 494,000 to **244,300** (−51%), still above
 
 ![](traces/cholesky_left_looking_n_32_mrc.png)
 
-**Per-tick TU LP floor** — integrand of `static_opt_lb`: Σ_i ρ_{(i)} · √i over currently-live vars, ranked by density; the area equals `static_opt_lb`.
+**Per-tick TU LP floor** — integrand of `global_density`: Σ_i ρ_{(i)} · √i over currently-live vars, ranked by density; the area equals `global_density`.
 
-![](traces/cholesky_left_looking_n_32_static_opt_floor.png)
+![](traces/cholesky_left_looking_n_32_global_density_floor.png)
 
-**Per-tick splitting LP floor** — integrand of `split_lb`: Σ_i ρ_{(i)} · √i over the currently-active per-burst virtual intervals; the area equals the geometric portion of `split_lb`.
+**Per-tick splitting LP floor** — integrand of `local_density`: Σ_i ρ_{(i)} · √i over the currently-active per-burst virtual intervals; the area equals the geometric portion of `local_density`.
 
-![](traces/cholesky_left_looking_n_32_splitting_floor.png)
+![](traces/cholesky_left_looking_n_32_local_density_floor.png)
 
 **Rolling spatial intensity** — heartbeat plot of `ops / Σ ⌈√d⌉` over a sliding window.
 
@@ -2991,13 +2991,13 @@ Drops manual from 494,000 to **244,300** (−51%), still above
 
 ![](traces/spmv_csr_banded_n_32_bw_3_mrc.png)
 
-**Per-tick TU LP floor** — integrand of `static_opt_lb`: Σ_i ρ_{(i)} · √i over currently-live vars, ranked by density; the area equals `static_opt_lb`.
+**Per-tick TU LP floor** — integrand of `global_density`: Σ_i ρ_{(i)} · √i over currently-live vars, ranked by density; the area equals `global_density`.
 
-![](traces/spmv_csr_banded_n_32_bw_3_static_opt_floor.png)
+![](traces/spmv_csr_banded_n_32_bw_3_global_density_floor.png)
 
-**Per-tick splitting LP floor** — integrand of `split_lb`: Σ_i ρ_{(i)} · √i over the currently-active per-burst virtual intervals; the area equals the geometric portion of `split_lb`.
+**Per-tick splitting LP floor** — integrand of `local_density`: Σ_i ρ_{(i)} · √i over the currently-active per-burst virtual intervals; the area equals the geometric portion of `local_density`.
 
-![](traces/spmv_csr_banded_n_32_bw_3_splitting_floor.png)
+![](traces/spmv_csr_banded_n_32_bw_3_local_density_floor.png)
 
 **Rolling spatial intensity** — heartbeat plot of `ops / Σ ⌈√d⌉` over a sliding window.
 
@@ -3040,13 +3040,13 @@ Drops manual from 494,000 to **244,300** (−51%), still above
 
 ![](traces/spmv_csr_random_n_32_nnz_7_mrc.png)
 
-**Per-tick TU LP floor** — integrand of `static_opt_lb`: Σ_i ρ_{(i)} · √i over currently-live vars, ranked by density; the area equals `static_opt_lb`.
+**Per-tick TU LP floor** — integrand of `global_density`: Σ_i ρ_{(i)} · √i over currently-live vars, ranked by density; the area equals `global_density`.
 
-![](traces/spmv_csr_random_n_32_nnz_7_static_opt_floor.png)
+![](traces/spmv_csr_random_n_32_nnz_7_global_density_floor.png)
 
-**Per-tick splitting LP floor** — integrand of `split_lb`: Σ_i ρ_{(i)} · √i over the currently-active per-burst virtual intervals; the area equals the geometric portion of `split_lb`.
+**Per-tick splitting LP floor** — integrand of `local_density`: Σ_i ρ_{(i)} · √i over the currently-active per-burst virtual intervals; the area equals the geometric portion of `local_density`.
 
-![](traces/spmv_csr_random_n_32_nnz_7_splitting_floor.png)
+![](traces/spmv_csr_random_n_32_nnz_7_local_density_floor.png)
 
 **Rolling spatial intensity** — heartbeat plot of `ops / Σ ⌈√d⌉` over a sliding window.
 
@@ -3089,13 +3089,13 @@ Drops manual from 494,000 to **244,300** (−51%), still above
 
 ![](traces/bitonic_sort_n_64_mrc.png)
 
-**Per-tick TU LP floor** — integrand of `static_opt_lb`: Σ_i ρ_{(i)} · √i over currently-live vars, ranked by density; the area equals `static_opt_lb`.
+**Per-tick TU LP floor** — integrand of `global_density`: Σ_i ρ_{(i)} · √i over currently-live vars, ranked by density; the area equals `global_density`.
 
-![](traces/bitonic_sort_n_64_static_opt_floor.png)
+![](traces/bitonic_sort_n_64_global_density_floor.png)
 
-**Per-tick splitting LP floor** — integrand of `split_lb`: Σ_i ρ_{(i)} · √i over the currently-active per-burst virtual intervals; the area equals the geometric portion of `split_lb`.
+**Per-tick splitting LP floor** — integrand of `local_density`: Σ_i ρ_{(i)} · √i over the currently-active per-burst virtual intervals; the area equals the geometric portion of `local_density`.
 
-![](traces/bitonic_sort_n_64_splitting_floor.png)
+![](traces/bitonic_sort_n_64_local_density_floor.png)
 
 **Rolling spatial intensity** — heartbeat plot of `ops / Σ ⌈√d⌉` over a sliding window.
 

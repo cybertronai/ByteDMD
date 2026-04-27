@@ -756,7 +756,7 @@ def _static_opt_intervals(
     Σ_i ρ_{(i)} · sqrt(i) over currently-live vars. This is the
     *geometric-stack* contribution; under the Two-Stack model the
     compulsory arg-stack first-load cost is added separately by
-    `static_opt_lb`. Inputs are scoped [first L2Load, last L2Load]
+    `global_density`. Inputs are scoped [first L2Load, last L2Load]
     here — they live on the (free) arg stack before first use, and
     only enter the geometric stack on promotion. Their first read is
     excluded from the density (`reads -= 1`) since it is paid against
@@ -787,7 +787,7 @@ def _static_opt_intervals(
             reads[ev.var] = reads.get(ev.var, 0) + 1
 
     # The compulsory first read of each input is charged against the
-    # arg stack by `static_opt_lb`, so drop it from the geometric
+    # arg stack by `global_density`, so drop it from the geometric
     # density to avoid double-counting.
     for v in input_arg_idx:
         if v in reads:
@@ -834,18 +834,18 @@ def _static_opt_intervals(
         t_prev = t_next
 
 
-def static_opt_floor_curve(
+def global_density_floor_curve(
     events: Sequence[L2Event],
     input_arg_idx: Optional[Dict[int, int]] = None,
 ) -> Tuple[List[int], List[float]]:
     """Per-tick geometric-stack TU LP floor (the integrand of the geometric
-    portion of `static_opt_lb`).
+    portion of `global_density`).
 
     Returns (times, floors) suitable for a `drawstyle="steps-post"` plot:
     floors[k] is held over [times[k], times[k+1]). The area under the
-    curve equals the geometric-stack portion of `static_opt_lb`; the
+    curve equals the geometric-stack portion of `global_density`; the
     compulsory arg-stack first-load cost is reported separately by
-    `static_opt_lb`. See gemini/optimal-static-floor.md.
+    `global_density`. See gemini/optimal-static-floor.md.
     """
     times: List[int] = []
     floors: List[float] = []
@@ -865,7 +865,7 @@ def static_opt_floor_curve(
     return times, floors
 
 
-def static_opt_lb(
+def global_density(
     events: Sequence[L2Event],
     input_arg_idx: Optional[Dict[int, int]] = None,
 ) -> float:
@@ -932,11 +932,11 @@ def _splitting_intervals(
     """Yield (t_start, t_end, floor) for each stable interval where the
     set of currently-active per-burst virtual intervals (and their
     density ranking) is constant. floor = Σ_i ρ_{(i)} · sqrt(i) over
-    currently-live segments. Both `splitting_lower_bound` (sum
-    (t_end - t_start) * floor) and `splitting_floor_curve` (per-tick
+    currently-live segments. Both `local_density` (sum
+    (t_end - t_start) * floor) and `local_density_floor_curve` (per-tick
     step plot) consume this stream.
 
-    Same half-open + deaths-before-births sweep as `splitting_lower_bound`
+    Same half-open + deaths-before-births sweep as `local_density`
     so consecutive segments [..., l_j) and [l_j, ...) share zero ticks.
     """
     input_arg_idx = input_arg_idx or {}
@@ -995,16 +995,16 @@ def _splitting_intervals(
         t_prev = t_ev
 
 
-def splitting_floor_curve(
+def local_density_floor_curve(
     events: Sequence[L2Event],
     input_arg_idx: Optional[Dict[int, int]] = None,
 ) -> Tuple[List[int], List[float]]:
     """Per-tick fractional Pigeonhole floor — integrand of the geometric
-    portion of `splitting_lower_bound`.
+    portion of `local_density`.
 
     Returns (times, floors) suitable for a `drawstyle="steps-post"` plot:
     floors[k] is held over [times[k], times[k+1]). The area under the
-    curve equals the geometric portion of `splitting_lower_bound`; the
+    curve equals the geometric portion of `local_density`; the
     compulsory arg-stack first-load cost is reported separately.
     See gemini/fractional-lp-splitting.md.
     """
@@ -1025,7 +1025,7 @@ def splitting_floor_curve(
     return times, floors
 
 
-def splitting_lower_bound(
+def local_density(
     events: Sequence[L2Event],
     input_arg_idx: Optional[Dict[int, int]] = None,
 ) -> float:
@@ -1048,11 +1048,11 @@ def splitting_lower_bound(
         Floor(t) = Σ_{i=1}^{A_t}  ρ_(i) · √i
 
     Integrating over all ticks (plus compulsory arg-stack first-read costs
-    for inputs, matching the Two-Stack semantics of static_opt_lb) gives a
+    for inputs, matching the Two-Stack semantics of global_density) gives a
     strict lower bound on any allocator that supports variable splitting /
     explicit DMA copies.
 
-    Key difference vs static_opt_lb: that bound uses one global interval per
+    Key difference vs global_density: that bound uses one global interval per
     variable with density = reads/lifespan; this bound uses one interval per
     inter-access gap with density = 1/gap.  On phase-structured programs a
     variable's local density drops to near zero during dormancy, allowing

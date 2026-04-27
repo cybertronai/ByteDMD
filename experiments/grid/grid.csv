@@ -1,4 +1,4 @@
-algorithm,bytedmd_opt,static_opt_lb,split_lb,polymatroid_lb,bytedmd_live,manual,bytedmd_classic
+algorithm,bytedmd_opt,global_density,local_density,polymatroid_lb,bytedmd_live,manual,bytedmd_classic
 naive_matmul(n=16),111388,76207,75666,,109473,177744,186017
 "naive_2d_tiled_matmul(n=16,T=4)",95571,89266,66011,,95890,177744,167585
 naive_tiled_matmul(n=16),109966,90971,75355,,109637,161084,194732

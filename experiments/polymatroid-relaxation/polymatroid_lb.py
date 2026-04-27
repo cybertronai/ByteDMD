@@ -68,8 +68,8 @@ def _extract_intervals_two_stack(
     """Like `_extract_intervals` but also produces an interval for every
     input variable, scoped [first L2Load, last L2Load] with `reads`
     excluding the compulsory first read (charged separately to the arg
-    stack). Matches the Two-Stack convention used by `static_opt_lb` and
-    `splitting_lower_bound`.
+    stack). Matches the Two-Stack convention used by `global_density` and
+    `local_density`.
     """
     starts: Dict[int, int] = {}
     ends: Dict[int, int] = {}
@@ -122,7 +122,7 @@ def polymatroid_lower_bound(
 ) -> Optional[int]:
     """Discrete polymatroid LP lower bound (see module docstring).
 
-    Two-Stack semantics (matching static_opt_lb / splitting_lower_bound):
+    Two-Stack semantics (matching global_density / local_density):
     inputs sit on the free arg stack until first load. The compulsory
     `⌈√(arg_idx)⌉` first-read cost is added on top of the polymatroid LP
     bound, and inputs enter the polymatroid LP with `reads = k − 1`

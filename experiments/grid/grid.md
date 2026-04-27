@@ -1,4 +1,4 @@
-| algorithm                            | bytedmd_opt | static_opt_lb | split_lb | polymatroid_lb | bytedmd_live | manual  | bytedmd_classic |
+| algorithm                            | bytedmd_opt | global_density | local_density | polymatroid_lb | bytedmd_live | manual  | bytedmd_classic |
 |--------------------------------------|-------------|---------------|----------|----------------|--------------|---------|-----------------|
 | naive_matmul(n=16)                   |     111,388 |        76,207 |   75,666 |              — |      109,473 | 177,744 |         186,017 |
 | naive_2d_tiled_matmul(n=16,T=4)      |      95,571 |        89,266 |   66,011 |              — |       95,890 | 177,744 |         167,585 |

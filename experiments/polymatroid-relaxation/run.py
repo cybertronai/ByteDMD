@@ -30,8 +30,8 @@ from bytedmd_ir import (  # noqa: E402
     bytedmd_opt,
     matmul_rmm,
     matmul_tiled,
-    splitting_lower_bound,
-    static_opt_lb,
+    local_density,
+    global_density,
     trace,
 )
 import algorithms as alg  # noqa: E402
@@ -127,15 +127,15 @@ def main():
 
         # Cross-check against the existing grid columns.
         g = grid.get(name, {})
-        sob = static_opt_lb(events, iidx)
-        sl = splitting_lower_bound(events, iidx)
+        sob = global_density(events, iidx)
+        sl = local_density(events, iidx)
         bo = bytedmd_opt(events, iidx)
 
         row = {
             "algorithm": name,
             "polymatroid_lb": "" if pm is None else pm,
-            "split_lb": int(sl),
-            "static_opt_lb": int(sob),
+            "local_density": int(sl),
+            "global_density": int(sob),
             "bytedmd_opt": bo,
             "bytedmd_live": int(g.get("bytedmd_live", 0) or 0),
             "manual": int(g.get("manual", 0) or 0),
@@ -156,8 +156,8 @@ def main():
     cols = [
         "algorithm",
         "polymatroid_lb",
-        "split_lb",
-        "static_opt_lb",
+        "local_density",
+        "global_density",
         "bytedmd_opt",
         "bytedmd_live",
         "manual",
@@ -182,8 +182,8 @@ def main():
     cols_md = [
         ("algorithm", "algorithm"),
         ("polymatroid_lb", "polymatroid_lb"),
-        ("split_lb", "split_lb"),
-        ("static_opt_lb", "static_opt_lb"),
+        ("local_density", "local_density"),
+        ("global_density", "global_density"),
         ("bytedmd_opt", "bytedmd_opt"),
         ("bytedmd_live", "bytedmd_live"),
         ("manual", "manual"),

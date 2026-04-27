@@ -1,4 +1,4 @@
-algorithm,polymatroid_lb,split_lb,static_opt_lb,bytedmd_opt,bytedmd_live,manual,bytedmd_classic,n_events,poly_seconds,poly_status
+algorithm,polymatroid_lb,local_density,global_density,bytedmd_opt,bytedmd_live,manual,bytedmd_classic,n_events,poly_seconds,poly_status
 naive_matmul(n=16),30052,75234,75671,111132,109473,177744,186017,32000,7.15,ok
 "naive_2d_tiled_matmul(n=16,T=4)",30052,65571,88791,95315,95890,177744,167585,32000,6.98,ok
 tiled_matmul(n=16),31124,53900,94537,79329,82875,67758,160635,32000,5.39,ok

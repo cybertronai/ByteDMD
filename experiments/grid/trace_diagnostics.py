@@ -37,10 +37,10 @@ from bytedmd_ir import (
     L2Load,
     L2Store,
     opt_reuse_distances,
-    splitting_floor_curve,
-    splitting_lower_bound,
-    static_opt_floor_curve,
-    static_opt_lb,
+    local_density_floor_curve,
+    local_density,
+    global_density_floor_curve,
+    global_density,
     trace,
 )
 import run_grid as rg
@@ -406,10 +406,10 @@ def plot_locality_cdf(op_max_costs, title, out_path):
     plt.close(fig)
 
 
-def plot_static_opt_floor(times, floors, total, n_events, title, out_path):
+def plot_global_density_floor(times, floors, total, n_events, title, out_path):
     """Step plot of the per-tick TU LP floor Σ_i ρ_{(i)} · √i over live
     vars (gemini/optimal-static-floor.md). The shaded area equals
-    static_opt_lb. A dashed horizontal line marks the time-average
+    global_density. A dashed horizontal line marks the time-average
     floor — multiplying it by the trace length recovers the bound.
     """
     fig, ax = plt.subplots(figsize=(11, 3.4))
@@ -435,16 +435,16 @@ def plot_static_opt_floor(times, floors, total, n_events, title, out_path):
     plt.close(fig)
 
 
-def plot_splitting_floor(times, floors, total, n_events, title, out_path):
+def plot_local_density_floor(times, floors, total, n_events, title, out_path):
     """Step plot of the per-tick fractional Pigeonhole floor
     Σ_i ρ_{(i)} · √i over the currently-active per-burst virtual
     intervals (gemini/fractional-lp-splitting.md). Same plot style as
-    `plot_static_opt_floor` but the entities at each tick are the
+    `plot_global_density_floor` but the entities at each tick are the
     inter-access bursts of every variable rather than monolithic
     per-variable lifespans, so the curve is finer-grained: a long
     dormant burst gets a low ρ → a high rank → a small per-tick
     contribution. The shaded area equals the geometric portion of
-    `splitting_lower_bound`; the compulsory arg-stack first-load cost
+    `local_density`; the compulsory arg-stack first-load cost
     for inputs is shown in the title.
     """
     fig, ax = plt.subplots(figsize=(11, 3.4))
@@ -578,24 +578,24 @@ def main() -> None:
             f"{name} — miss-ratio curve (LRU vs Bélády OPT)",
             os.path.join(traces_dir, f"{slug}_mrc.png"))
 
-        # Per-tick TU LP floor: integrand of static_opt_lb.
-        sof_t, sof_v = static_opt_floor_curve(events, iidx)
-        sof_total = static_opt_lb(events, iidx)
-        plot_static_opt_floor(
+        # Per-tick TU LP floor: integrand of global_density.
+        sof_t, sof_v = global_density_floor_curve(events, iidx)
+        sof_total = global_density(events, iidx)
+        plot_global_density_floor(
             sof_t, sof_v, sof_total, len(events),
             f"{name} — per-tick TU LP floor "
-            f"(static_opt_lb = {sof_total:,.0f})",
-            os.path.join(traces_dir, f"{slug}_static_opt_floor.png"))
+            f"(global_density = {sof_total:,.0f})",
+            os.path.join(traces_dir, f"{slug}_global_density_floor.png"))
 
         # Per-tick fractional splitting floor: integrand of
-        # splitting_lower_bound (gemini/fractional-lp-splitting.md).
-        spl_t, spl_v = splitting_floor_curve(events, iidx)
-        spl_total = splitting_lower_bound(events, iidx)
-        plot_splitting_floor(
+        # local_density (gemini/fractional-lp-splitting.md).
+        spl_t, spl_v = local_density_floor_curve(events, iidx)
+        spl_total = local_density(events, iidx)
+        plot_local_density_floor(
             spl_t, spl_v, spl_total, len(events),
             f"{name} — per-tick splitting LP floor "
-            f"(split_lb = {spl_total:,.0f})",
-            os.path.join(traces_dir, f"{slug}_splitting_floor.png"))
+            f"(local_density = {spl_total:,.0f})",
+            os.path.join(traces_dir, f"{slug}_local_density_floor.png"))
 
         # Spatial-arithmetic-intensity visualizers
         # (gemini/arithmetic-intensity-visualizers.md).

@@ -39,8 +39,8 @@ identity for `⌈√d⌉`.
    LPs instead of `O(ω)`. ω is the peak live size.
 
 The compulsory arg-stack first-load cost `Σ_inputs ⌈√(arg_idx)⌉` is
-added on top so the bound is directly comparable to `static_opt_lb`,
-`splitting_lower_bound`, etc.
+added on top so the bound is directly comparable to `global_density`,
+`local_density`, etc.
 
 ## Run
 
@@ -54,7 +54,7 @@ added on top so the bound is directly comparable to `static_opt_lb`,
 LP totals (all are *lower bounds* on the cost a static allocator must
 pay, except `bytedmd_live` and `manual` which are achievable costs).
 
-| algorithm                       | polymatroid_lb | split_lb | static_opt_lb | bytedmd_opt | bytedmd_live | manual  |
+| algorithm                       | polymatroid_lb | local_density | global_density | bytedmd_opt | bytedmd_live | manual  |
 |--------------------------------|---------------:|---------:|--------------:|------------:|-------------:|--------:|
 | naive_matmul(n=16)              |         30,052 |   75,234 |        75,671 |     111,132 |      109,217 | 177,744 |
 | naive_2d_tiled_matmul(n=16,T=4) |         30,052 |   65,571 |        88,791 |      95,315 |       95,634 | 177,744 |
@@ -80,16 +80,16 @@ runtime columns.)
 
 ## Observations
 
-- **`polymatroid_lb` and `static_opt_lb` are different relaxations**
+- **`polymatroid_lb` and `global_density` are different relaxations**
   of the same physical model (no splitting, no compaction). They are
   not generally ordered:
-  - `polymatroid_lb < static_opt_lb` on read-uniform traces with
+  - `polymatroid_lb < global_density` on read-uniform traces with
     long-lived inputs (matmul family, matvec). The discrete clique
     LP only constrains how reads can be *packed*, while
-    `static_opt_lb`'s density-weighted time integral charges every
+    `global_density`'s density-weighted time integral charges every
     var for every tick of its lifespan — the latter is much larger
     when inputs are alive throughout a long compute phase.
-  - `polymatroid_lb > static_opt_lb` on phase-structured traces
+  - `polymatroid_lb > global_density` on phase-structured traces
     (LU, Cholesky, blocked_lu). The discrete clique LP pushes
     against the peak live set which is large in these traces (the
     full submatrix or panel), while the density-weighted integral
@@ -99,9 +99,9 @@ runtime columns.)
   per cell. In that regime `M[c²] = c²` for every `c ≤ √ω`, the LP
   collapses to the simple address ladder, and the discrete identity
   recovers `Σ_{cells} ⌈√(rank)⌉` directly.
-- **`split_lb` ≤ `polymatroid_lb` is not universal.** They bound
+- **`local_density` ≤ `polymatroid_lb` is not universal.** They bound
   different optima (a splitting / DMA allocator vs. a pure static
-  allocator). On matmul-style traces `polymatroid_lb < split_lb`
+  allocator). On matmul-style traces `polymatroid_lb < local_density`
   because polymatroid's purely discrete relaxation drops the
   density information that splitting's per-burst integration
   captures; on LU/Cholesky the order flips.
