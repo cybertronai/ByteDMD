@@ -395,12 +395,12 @@ def _polymatroid_lb_capped(events, iidx):
 
 
 METRICS: List[Tuple[str, Callable[[Sequence[L2Event]], int] | None]] = [
-    ("bytedmd_opt",     bytedmd_opt),
-    ("global_density",   global_density),
-    ("local_density",        local_density),
-    ("polymatroid_lb",  _polymatroid_lb_capped),
-    ("bytedmd_live",    bytedmd_live),
     ("manual",          None),
+    ("global_density",  global_density),
+    ("local_density",   local_density),
+    ("polymatroid_lb",  _polymatroid_lb_capped),
+    ("bytedmd_opt",     bytedmd_opt),
+    ("bytedmd_live",    bytedmd_live),
     ("bytedmd_classic", bytedmd_classic),
 ]
 

@@ -22,10 +22,10 @@ disc of radius r holds r² cells). The energy of one access at address
 
 ## Metrics (columns)
 
-Every number in this report — `bytedmd_opt`, `global_density`, `local_density`,
-`polymatroid_lb`, `bytedmd_live`, `manual`, and `bytedmd_classic` —
-is this same sum, evaluated under seven different placement
-strategies / bounds.
+Every number in this report — `manual`, `global_density`,
+`local_density`, `polymatroid_lb`, `bytedmd_opt`, `bytedmd_live`,
+and `bytedmd_classic` — is this same sum, evaluated under seven
+different placement strategies / bounds.
 
 **The trace these metrics are computed against is the manual schedule's
 effective trace**, synthesised by running each row's `manual_*` function
@@ -46,12 +46,12 @@ removes those false violations.
 
 | column            | meaning                                                         |
 |-------------------|-----------------------------------------------------------------|
-| `bytedmd_opt`     | Bélády MIN lower bound (see [gemini/belady-min-lower-bound.md](../../gemini/belady-min-lower-bound.md)): per load charges `⌈√(max_rank[V])⌉` where max_rank is the peak count of live variables with earlier next-use during V's dormancy. The dormancy is `[store_time, first_load]` for the first load of a non-input var (so its `(store, first-load)` interval is included in the global pair set), `[arg_promotion, first_load]` priced as `⌈√(arg_idx)⌉` for inputs, and `[prev_load, this_load]` for every reload. By Pigeonhole + Mattson inclusion, this is a strict lower bound on any demand-fetched allocator that does **not** compact dead vars — i.e., a strict floor on `bytedmd_classic`. Compacting allocators (`bytedmd_live` and scratchpad-heavy manual schedules) effectively use free writes to drop dead neighbors and so can rationally fall below this Pigeonhole floor. |
-| `global_density`   | Totally-unimodular LP lower bound on the optimal **static** allocator (see [gemini/optimal-static-floor.md](../../gemini/optimal-static-floor.md)). Per tick, the Rearrangement Inequality places geom-stack-live vars at physical ranks 1, 2, … in decreasing density ρ = reads/lifespan; the per-tick floor is Σ ρ_{(i)} · sqrt(i) over currently-live vars (continuous sqrt). Inputs sit on the free arg stack until first load and pay the compulsory `⌈√(arg_idx)⌉` at promotion; the LP integral covers only the geometric-stack residency. **Time-integrated**: each var's slot is paid for at every tick of its lifespan, not just at load events, which is what makes this a true lower bound on a static allocator. |
-| `local_density`        | **Splitting Lower Bound** (see [gemini/fractional-lp-splitting.md](../../gemini/fractional-lp-splitting.md)): severs each variable's lifespan into independent inter-access intervals. A variable read at t₁ < t₂ < … < t_k produces k virtual intervals — a cold-miss interval [store_time, t₁] plus one reuse interval [t_{i−1}, t_i] per subsequent read — each with **local** density ρ = 1/gap (continuous sqrt). At every tick the Rearrangement Inequality floor Σ ρ_(i)·√i is re-evaluated over the currently-active virtual intervals. Unlike `global_density` (which uses global density reads/lifespan throughout a variable's entire life), `local_density` lets a variable's density drop to near zero during dormancy phases, so competing hot intervals claim the low ranks. This makes it a lower bound on allocators that support **variable splitting / explicit DMA copies**: a dormant variable evicted to deep memory during another variable's burst is correctly charged only for the DMA re-fetch, not for occupying a low rank throughout the dormancy. Observed: `local_density ≤ global_density`, with the gap widening on phase-structured algorithms (RMM, LU, QR, tiled attention) where variables have highly non-uniform inter-access gaps. Both bounds use the same Two-Stack first-load cost for inputs. |
-| `polymatroid_lb`  | **Discrete polymatroid LP** lower bound on optimal static-allocator cost (see [gemini/polymatroid-relaxation.md](../../gemini/polymatroid-relaxation.md), full study in [`experiments/polymatroid-relaxation/`](../polymatroid-relaxation/)). For each square capacity `c²` (only depths where `⌈√d⌉` steps up), solve a totally-unimodular LP `max Σ reads_v · x_v` s.t. each maximal interval-graph clique uses at most `c²` slots; HiGHS finds the integer optimum by perfect-graph + consecutive-ones structure. The discrete-calculus identity `LB = R_total + Σ_{c=1..⌊√(ω−1)⌋} (R_total − M[c²])` plus the Two-Stack arg-stack cost gives the bound, with O(√ω) LP solves. Computed with a **10s per-cell time budget**: rows that don't fit (LU, Cholesky, Strassen, attention at the grid's tile sizes) are blank (`—` in `grid.md`, empty in `grid.csv`). |
-| `bytedmd_live`    | LRU with liveness compaction; dead variables dropped on last load (recency lower-envelope heuristic) |
 | `manual`          | hand-placed bump-pointer schedule — hot scalars and scratchpads at low addresses, bulk data farther out, recursion uses push/pop |
+| `global_density`  | Totally-unimodular LP lower bound on the optimal **static** allocator (see [gemini/optimal-static-floor.md](../../gemini/optimal-static-floor.md)). Per tick, the Rearrangement Inequality places geom-stack-live vars at physical ranks 1, 2, … in decreasing density ρ = reads/lifespan; the per-tick floor is Σ ρ_{(i)} · sqrt(i) over currently-live vars (continuous sqrt). Inputs sit on the free arg stack until first load and pay the compulsory `⌈√(arg_idx)⌉` at promotion; the LP integral covers only the geometric-stack residency. **Time-integrated**: each var's slot is paid for at every tick of its lifespan, not just at load events, which is what makes this a true lower bound on a static allocator. |
+| `local_density`   | **Splitting Lower Bound** (see [gemini/fractional-lp-splitting.md](../../gemini/fractional-lp-splitting.md)): severs each variable's lifespan into independent inter-access intervals. A variable read at t₁ < t₂ < … < t_k produces k virtual intervals — a cold-miss interval [store_time, t₁] plus one reuse interval [t_{i−1}, t_i] per subsequent read — each with **local** density ρ = 1/gap (continuous sqrt). At every tick the Rearrangement Inequality floor Σ ρ_(i)·√i is re-evaluated over the currently-active virtual intervals. Unlike `global_density` (which uses global density reads/lifespan throughout a variable's entire life), `local_density` lets a variable's density drop to near zero during dormancy phases, so competing hot intervals claim the low ranks. This makes it a lower bound on allocators that support **variable splitting / explicit DMA copies**: a dormant variable evicted to deep memory during another variable's burst is correctly charged only for the DMA re-fetch, not for occupying a low rank throughout the dormancy. Observed: `local_density ≤ global_density`, with the gap widening on phase-structured algorithms (RMM, LU, QR, tiled attention) where variables have highly non-uniform inter-access gaps. Both bounds use the same Two-Stack first-load cost for inputs. |
+| `polymatroid_lb`  | **Discrete polymatroid LP** lower bound on optimal static-allocator cost (see [gemini/polymatroid-relaxation.md](../../gemini/polymatroid-relaxation.md), full study in [`experiments/polymatroid-relaxation/`](../polymatroid-relaxation/)). For each square capacity `c²` (only depths where `⌈√d⌉` steps up), solve a totally-unimodular LP `max Σ reads_v · x_v` s.t. each maximal interval-graph clique uses at most `c²` slots; HiGHS finds the integer optimum by perfect-graph + consecutive-ones structure. The discrete-calculus identity `LB = R_total + Σ_{c=1..⌊√(ω−1)⌋} (R_total − M[c²])` plus the Two-Stack arg-stack cost gives the bound, with O(√ω) LP solves. Computed with a **10s per-cell time budget**: rows that don't fit (LU, Cholesky, Strassen, attention at the grid's tile sizes) are blank (`—` in `grid.md`, empty in `grid.csv`). |
+| `bytedmd_opt`     | Bélády MIN lower bound (see [gemini/belady-min-lower-bound.md](../../gemini/belady-min-lower-bound.md)): per load charges `⌈√(max_rank[V])⌉` where max_rank is the peak count of live variables with earlier next-use during V's dormancy. The dormancy is `[store_time, first_load]` for the first load of a non-input var (so its `(store, first-load)` interval is included in the global pair set), `[arg_promotion, first_load]` priced as `⌈√(arg_idx)⌉` for inputs, and `[prev_load, this_load]` for every reload. By Pigeonhole + Mattson inclusion, this is a strict lower bound on any demand-fetched allocator that does **not** compact dead vars — i.e., a strict floor on `bytedmd_classic`. Compacting allocators (`bytedmd_live` and scratchpad-heavy manual schedules) effectively use free writes to drop dead neighbors and so can rationally fall below this Pigeonhole floor. |
+| `bytedmd_live`    | LRU with liveness compaction; dead variables dropped on last load (recency lower-envelope heuristic) |
 | `bytedmd_classic` | Mattson LRU stack depth with no liveness compaction — dead variables pollute deeper rings (upper-envelope heuristic) |
 
 ## Algorithm families (rows)
@@ -78,56 +78,56 @@ DAGs are identical, so `bytedmd_live` / `bytedmd_classic` match — only
 
 ## Summary table
 
-| algorithm                                                   | bytedmd_opt | global_density | local_density | polymatroid_lb | bytedmd_live |  manual | bytedmd_classic |
-|------------------------------------------------------------|------------:|--------------:|---------:|---------------:|-------------:|--------:|----------------:|
-| [naive_matmul(n=16)](#naive_matmul)                         |     111,388 |        76,207 |   75,666 |              — |      109,473 | 177,744 |         186,017 |
-| [naive_2d_tiled_matmul(n=16,T=4)](#naive_2d_tiled_matmul)   |      95,571 |        89,266 |   66,011 |              — |       95,890 | 177,744 |         167,585 |
-| [naive_tiled_matmul(n=16)](#naive_tiled_matmul)             |     109,966 |        90,971 |   75,355 |              — |      109,637 | 161,084 |         194,732 |
-| [naive_matmul_cached(n=16)](#naive_matmul_cached)           |     112,842 |        77,288 |   76,679 |         41,516 |      111,098 | 114,838 |         188,774 |
-| [tiled_matmul(n=16)](#tiled_matmul)                         |      84,685 |        58,275 |   57,554 |              — |       82,875 |  67,758 |         160,635 |
-| [tiled_matmul_explicit(n=16,T=4)](#tiled_matmul_explicit)   |      84,685 |        58,275 |   57,554 |              — |       82,875 |  67,758 |         160,635 |
-| [rmm(n=16)](#rmm)                                           |      81,909 |        65,572 |   58,570 |              — |       77,352 | 106,835 |         146,225 |
-| [naive_strassen(n=16)](#naive_strassen)                     |     185,175 |       148,128 |  125,715 |              — |      175,185 | 251,486 |         320,092 |
-| [fused_strassen(n=16)](#fused_strassen)                     |     135,276 |       105,034 |   91,804 |              — |      130,659 | 135,740 |         247,189 |
-| [naive_attn(N=64,d=2)](#naive_attn)                         |     625,522 |       436,007 |  398,969 |              — |      636,036 | 532,805 |         759,603 |
-| [flash_attn(N=64,d=2,Bk=8)](#flash_attn)                    |     531,241 |       394,814 |  342,445 |              — |      546,910 | 610,154 |         667,242 |
-| [matvec_row(n=64)](#matvec_row)                             |     234,471 |       213,783 |  213,349 |        218,531 |      234,079 | 218,552 |         258,431 |
-| [matvec_col(n=64)](#matvec_col)                             |     229,731 |       212,529 |  212,150 |        217,810 |      229,780 | 217,952 |         270,386 |
-| [matvec_blocked(n=64,B=8)](#matvec_blocked)                 |     218,373 |       203,980 |  203,466 |        208,790 |      218,218 | 208,832 |         239,875 |
-| [fft_iterative(N=256)](#fft_iterative)                      |      47,317 |        50,344 |   32,014 |         55,299 |       47,344 |  55,516 |          72,210 |
-| [fft_recursive(N=256)](#fft_recursive)                      |      24,094 |        22,108 |   16,698 |         26,951 |       24,112 |  52,704 |          39,883 |
-| [stencil_naive(32x32)](#stencil_naive)                      |      70,322 |        62,995 |   54,294 |              — |       72,360 |  78,968 |         100,964 |
-| [stencil_recursive(32x32,leaf=8)](#stencil_recursive)       |      70,322 |        62,995 |   54,294 |              — |       72,360 |  78,968 |         100,964 |
-| [spatial_conv(32x32,K=5)](#spatial_conv)                    |     404,365 |       315,732 |  271,059 |              — |      404,426 | 595,987 |         706,821 |
-| [regular_conv(16x16,K=3,Cin=4,Cout=4)](#regular_conv)       |     801,291 |       732,196 |  526,146 |              — |      801,655 | 648,300 |       1,378,670 |
-| [fft_conv(N=256)](#fft_conv)                                |      73,434 |        57,400 |   53,402 |              — |       76,335 |  91,922 |         148,053 |
-| [quicksort(N=64)](#quicksort)                               |       3,231 |         2,583 |    2,225 |          2,964 |        3,221 |   4,718 |           4,737 |
-| [heapsort(N=64)](#heapsort)                                 |       5,026 |         3,452 |    3,377 |          4,294 |        4,711 |   5,523 |           8,428 |
-| [mergesort(N=64)](#mergesort)                               |       3,305 |         2,380 |    2,338 |          2,892 |        3,489 |   3,386 |           5,077 |
-| [lcs_dp(32x32)](#lcs_dp)                                    |      24,625 |        20,494 |   15,569 |         15,903 |       25,572 |  27,192 |          29,860 |
-| [lu_no_pivot(n=32)](#lu_no_pivot)                           |     410,190 |       279,391 |  273,448 |              — |      409,523 | 405,592 |         715,687 |
-| [blocked_lu(n=32,NB=8)](#blocked_lu)                        |     268,146 |       192,216 |  179,195 |              — |      277,267 | 250,767 |         464,267 |
-| [recursive_lu(n=32)](#recursive_lu)                         |     321,848 |       238,782 |  215,287 |              — |      313,181 | 355,751 |         526,939 |
-| [lu_partial_pivot(n=32)](#lu_partial_pivot)                 |     393,215 |       263,705 |  248,799 |              — |      393,809 | 440,237 |         588,087 |
-| [cholesky(n=32)](#cholesky)                                 |     171,908 |       124,333 |  115,985 |              — |      171,642 | 251,039 |         297,413 |
-| [householder_qr(32x32)](#householder_qr)                    |     617,519 |       520,108 |  397,355 |              — |      615,355 | 768,959 |         943,613 |
-| [blocked_qr(32x32,NB=8)](#blocked_qr)                       |     571,904 |       476,803 |  375,595 |              — |      567,859 | 554,900 |         895,734 |
-| [tsqr(64x16,br=8)](#tsqr)                                   |     330,473 |       255,975 |  222,220 |              — |      330,984 | 315,433 |         593,540 |
-| [transpose_naive(n=32)](#transpose_naive)                   |      44,704 |        39,033 |   39,030 |              — |       44,704 |  44,704 |          62,799 |
-| [transpose_blocked(n=32)](#transpose_blocked)               |      44,704 |        38,963 |   38,960 |              — |       43,873 |  44,704 |          62,341 |
-| [transpose_recursive(n=32)](#transpose_recursive)           |      44,704 |        38,743 |   38,740 |              — |       42,513 |  44,704 |          61,688 |
-| [stencil_time_naive(16x16,T=4)](#stencil_time_naive)        |      34,646 |        42,111 |   22,955 |         45,330 |       35,200 |  67,258 |          45,039 |
-| [stencil_time_diamond(16x16,T=4)](#stencil_time_diamond)    |     126,402 |        91,718 |   84,244 |              — |      127,264 | 136,095 |         252,336 |
-| [floyd_warshall_naive(V=16)](#floyd_warshall_naive)         |     114,640 |        74,923 |   74,060 |         82,300 |      114,931 |  85,514 |         160,946 |
-| [floyd_warshall_recursive(V=16)](#floyd_warshall_recursive) |      53,369 |        41,624 |   38,336 |              — |       55,116 |  63,334 |         104,355 |
-| [layernorm_unfused(N=256)](#layernorm_unfused)              |      17,259 |        12,360 |   12,210 |          8,542 |       17,485 |  14,571 |          23,340 |
-| [layernorm_fused(N=256)](#layernorm_fused)                  |      14,465 |        12,635 |   10,556 |          9,813 |       14,916 |  15,329 |          21,599 |
-| [matrix_powers_naive(n=16,s=4)](#matrix_powers_naive)       |      25,607 |        17,591 |   17,465 |         10,858 |       25,451 |  27,198 |          34,791 |
-| [matrix_powers_ca(n=16,s=4)](#matrix_powers_ca)             |      25,607 |        17,591 |   17,465 |         10,858 |       25,451 |  27,198 |          34,791 |
-| [cholesky_left_looking(n=32)](#cholesky_left_looking)       |     158,008 |       112,864 |   98,707 |              — |      158,218 | 257,289 |         227,339 |
-| [spmv_csr_banded(n=32,bw=3)](#spmv_csr_banded)              |       4,088 |         3,615 |    3,590 |          3,557 |        4,086 |   6,190 |           4,842 |
-| [spmv_csr_random(n=32,nnz=7)](#spmv_csr_random)             |       4,691 |         4,148 |    4,029 |          3,797 |        4,642 |   6,676 |           5,882 |
-| [bitonic_sort(N=64)](#bitonic_sort)                         |      15,287 |        15,465 |   10,165 |         17,267 |       15,439 |  17,384 |          22,379 |
+| algorithm                                                   | manual  | global_density | local_density | polymatroid_lb | bytedmd_opt | bytedmd_live | bytedmd_classic |
+|------------------------------------------------------------|--------:|---------------:|--------------:|---------------:|------------:|-------------:|----------------:|
+| [naive_matmul(n=16)](#naive_matmul)                         | 177,744 |         76,207 |        75,666 |              — |     111,388 |      109,473 |         186,017 |
+| [naive_2d_tiled_matmul(n=16,T=4)](#naive_2d_tiled_matmul)   | 177,744 |         89,266 |        66,011 |              — |      95,571 |       95,890 |         167,585 |
+| [naive_tiled_matmul(n=16)](#naive_tiled_matmul)             | 161,084 |         90,971 |        75,355 |              — |     109,966 |      109,637 |         194,732 |
+| [naive_matmul_cached(n=16)](#naive_matmul_cached)           | 114,838 |         77,288 |        76,679 |         41,516 |     112,842 |      111,098 |         188,774 |
+| [tiled_matmul(n=16)](#tiled_matmul)                         |  67,758 |         58,275 |        57,554 |         53,477 |      84,685 |       82,875 |         160,635 |
+| [tiled_matmul_explicit(n=16,T=4)](#tiled_matmul_explicit)   |  67,758 |         58,275 |        57,554 |         53,477 |      84,685 |       82,875 |         160,635 |
+| [rmm(n=16)](#rmm)                                           | 106,835 |         65,572 |        58,570 |              — |      81,909 |       77,352 |         146,225 |
+| [naive_strassen(n=16)](#naive_strassen)                     | 251,486 |        148,128 |       125,715 |              — |     185,175 |      175,185 |         320,092 |
+| [fused_strassen(n=16)](#fused_strassen)                     | 135,740 |        105,034 |        91,804 |              — |     135,276 |      130,659 |         247,189 |
+| [naive_attn(N=64,d=2)](#naive_attn)                         | 532,805 |        436,007 |       398,969 |              — |     625,522 |      636,036 |         759,603 |
+| [flash_attn(N=64,d=2,Bk=8)](#flash_attn)                    | 610,154 |        394,814 |       342,445 |              — |     531,241 |      546,910 |         667,242 |
+| [matvec_row(n=64)](#matvec_row)                             | 218,552 |        213,783 |       213,349 |        218,531 |     234,471 |      234,079 |         258,431 |
+| [matvec_col(n=64)](#matvec_col)                             | 217,952 |        212,529 |       212,150 |        217,810 |     229,731 |      229,780 |         270,386 |
+| [matvec_blocked(n=64,B=8)](#matvec_blocked)                 | 208,832 |        203,980 |       203,466 |        208,790 |     218,373 |      218,218 |         239,875 |
+| [fft_iterative(N=256)](#fft_iterative)                      |  55,516 |         50,344 |        32,014 |         55,299 |      47,317 |       47,344 |          72,210 |
+| [fft_recursive(N=256)](#fft_recursive)                      |  52,704 |         22,108 |        16,698 |         26,951 |      24,094 |       24,112 |          39,883 |
+| [stencil_naive(32x32)](#stencil_naive)                      |  78,968 |         62,995 |        54,294 |              — |      70,322 |       72,360 |         100,964 |
+| [stencil_recursive(32x32,leaf=8)](#stencil_recursive)       |  78,968 |         62,995 |        54,294 |              — |      70,322 |       72,360 |         100,964 |
+| [spatial_conv(32x32,K=5)](#spatial_conv)                    | 595,987 |        315,732 |       271,059 |              — |     404,365 |      404,426 |         706,821 |
+| [regular_conv(16x16,K=3,Cin=4,Cout=4)](#regular_conv)       | 648,300 |        732,196 |       526,146 |              — |     801,291 |      801,655 |       1,378,670 |
+| [fft_conv(N=256)](#fft_conv)                                |  91,922 |         57,400 |        53,402 |              — |      73,434 |       76,335 |         148,053 |
+| [quicksort(N=64)](#quicksort)                               |   4,718 |          2,583 |         2,225 |          2,964 |       3,231 |        3,221 |           4,737 |
+| [heapsort(N=64)](#heapsort)                                 |   5,523 |          3,452 |         3,377 |          4,294 |       5,026 |        4,711 |           8,428 |
+| [mergesort(N=64)](#mergesort)                               |   3,386 |          2,380 |         2,338 |          2,892 |       3,305 |        3,489 |           5,077 |
+| [lcs_dp(32x32)](#lcs_dp)                                    |  27,192 |         20,494 |        15,569 |         15,903 |      24,625 |       25,572 |          29,860 |
+| [lu_no_pivot(n=32)](#lu_no_pivot)                           | 405,592 |        279,391 |       273,448 |              — |     410,190 |      409,523 |         715,687 |
+| [blocked_lu(n=32,NB=8)](#blocked_lu)                        | 250,767 |        192,216 |       179,195 |              — |     268,146 |      277,267 |         464,267 |
+| [recursive_lu(n=32)](#recursive_lu)                         | 355,751 |        238,782 |       215,287 |              — |     321,848 |      313,181 |         526,939 |
+| [lu_partial_pivot(n=32)](#lu_partial_pivot)                 | 440,237 |        263,705 |       248,799 |              — |     393,215 |      393,809 |         588,087 |
+| [cholesky(n=32)](#cholesky)                                 | 251,039 |        124,333 |       115,985 |              — |     171,908 |      171,642 |         297,413 |
+| [householder_qr(32x32)](#householder_qr)                    | 768,959 |        520,108 |       397,355 |              — |     617,519 |      615,355 |         943,613 |
+| [blocked_qr(32x32,NB=8)](#blocked_qr)                       | 554,900 |        476,803 |       375,595 |              — |     571,904 |      567,859 |         895,734 |
+| [tsqr(64x16,br=8)](#tsqr)                                   | 315,433 |        255,975 |       222,220 |              — |     330,473 |      330,984 |         593,540 |
+| [transpose_naive(n=32)](#transpose_naive)                   |  44,704 |         39,033 |        39,030 |              — |      44,704 |       44,704 |          62,799 |
+| [transpose_blocked(n=32)](#transpose_blocked)               |  44,704 |         38,963 |        38,960 |              — |      44,704 |       43,873 |          62,341 |
+| [transpose_recursive(n=32)](#transpose_recursive)           |  44,704 |         38,743 |        38,740 |              — |      44,704 |       42,513 |          61,688 |
+| [stencil_time_naive(16x16,T=4)](#stencil_time_naive)        |  67,258 |         42,111 |        22,955 |         45,330 |      34,646 |       35,200 |          45,039 |
+| [stencil_time_diamond(16x16,T=4)](#stencil_time_diamond)    | 136,095 |         91,718 |        84,244 |              — |     126,402 |      127,264 |         252,336 |
+| [floyd_warshall_naive(V=16)](#floyd_warshall_naive)         |  85,514 |         74,923 |        74,060 |         82,300 |     114,640 |      114,931 |         160,946 |
+| [floyd_warshall_recursive(V=16)](#floyd_warshall_recursive) |  63,334 |         41,624 |        38,336 |              — |      53,369 |       55,116 |         104,355 |
+| [layernorm_unfused(N=256)](#layernorm_unfused)              |  14,571 |         12,360 |        12,210 |          8,542 |      17,259 |       17,485 |          23,340 |
+| [layernorm_fused(N=256)](#layernorm_fused)                  |  15,329 |         12,635 |        10,556 |          9,813 |      14,465 |       14,916 |          21,599 |
+| [matrix_powers_naive(n=16,s=4)](#matrix_powers_naive)       |  27,198 |         17,591 |        17,465 |         10,858 |      25,607 |       25,451 |          34,791 |
+| [matrix_powers_ca(n=16,s=4)](#matrix_powers_ca)             |  27,198 |         17,591 |        17,465 |         10,858 |      25,607 |       25,451 |          34,791 |
+| [cholesky_left_looking(n=32)](#cholesky_left_looking)       | 257,289 |        112,864 |        98,707 |              — |     158,008 |      158,218 |         227,339 |
+| [spmv_csr_banded(n=32,bw=3)](#spmv_csr_banded)              |   6,190 |          3,615 |         3,590 |          3,557 |       4,088 |        4,086 |           4,842 |
+| [spmv_csr_random(n=32,nnz=7)](#spmv_csr_random)             |   6,676 |          4,148 |         4,029 |          3,797 |       4,691 |        4,642 |           5,882 |
+| [bitonic_sort(N=64)](#bitonic_sort)                         |  17,384 |         15,465 |        10,165 |         17,267 |      15,287 |       15,439 |          22,379 |
 
 ## Run
 
@@ -321,13 +321,13 @@ see the reordering:
 
 | metric            | naive_matmul | naive_2d_tiled | Δ |
 |-------------------|-------------:|---------------:|---:|
-| `bytedmd_opt`     | 111,388      | **95,571**     | −14 % |
-| `global_density`   | 76,207       | **89,266**     | +17 % |
-| `local_density`        | 75,666       | **66,011**     | −13 % |
+| `manual`          | 177,744      | 177,744        | 0 |
+| `global_density`  | 76,207       | **89,266**     | +17 % |
+| `local_density`   | 75,666       | **66,011**     | −13 % |
 | `polymatroid_lb`  | —            | —              | both > 10 s budget |
+| `bytedmd_opt`     | 111,388      | **95,571**     | −14 % |
 | `bytedmd_live`    | 109,473      | **95,890**     | −12 % |
 | `bytedmd_classic` | 186,017      | **167,585**    | −10 % |
-| `manual`          | 177,744      | 177,744        | 0 |
 
 Tile blocking reuses the same T rows of A across T values of $j_j$
 (and the same T rows of B across T values of $i_i$) inside each
