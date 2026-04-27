@@ -315,7 +315,22 @@ def main() -> None:
     events, input_vars = trace(FN, ARGS)
     iidx = {{v: i + 1 for i, v in enumerate(input_vars)}}
 
-    poly = polymatroid_lower_bound(events, iidx, time_budget=10.0)
+    # Single LP sweep shared by polymatroid_lb and the floor curve.
+    _poly_solved = _polymatroid_solve(events, iidx, time_budget=30.0)
+    if _poly_solved is None:
+        poly = None
+        _poly_intervals: list = []
+        _poly_depth: list = []
+    else:
+        _arg_cost_p, _poly_intervals, _M_p, _poly_depth = _poly_solved
+        if _poly_intervals and _M_p:
+            _R_total = sum(iv.reads for iv in _poly_intervals)
+            poly = _R_total + sum(_R_total - _M_p[c] for c in _M_p) + _arg_cost_p
+        elif _poly_intervals:
+            poly = _arg_cost_p + sum(iv.reads for iv in _poly_intervals)
+        else:
+            poly = _arg_cost_p
+
     costs = {{
         "manual":          MANUAL(),
         "global_density":  global_density(events, iidx),
@@ -374,16 +389,14 @@ def main() -> None:
         f"(local_density = {{spl_total:,.0f}})",
         _os.path.join(out_dir, f"{{SLUG}}_local_density_floor.png"))
 
-    if poly is not None:
-        poly_curve = polymatroid_floor_curve(events, iidx, time_budget=30.0)
-        if poly_curve is not None:
-            poly_t, poly_v = poly_curve
-            if poly_t:
-                plot_polymatroid_floor(
-                    poly_t, poly_v, poly, len(events),
-                    f"{{NAME}} — per-tick polymatroid LP floor "
-                    f"(polymatroid_lb = {{poly:,.0f}})",
-                    _os.path.join(out_dir, f"{{SLUG}}_polymatroid_floor.png"))
+    if poly is not None and _poly_intervals:
+        poly_t, poly_v = _curve_from_depth(_poly_intervals, _poly_depth)
+        if poly_t:
+            plot_polymatroid_floor(
+                poly_t, poly_v, poly, len(events),
+                f"{{NAME}} — per-tick polymatroid LP floor "
+                f"(polymatroid_lb = {{poly:,.0f}})",
+                _os.path.join(out_dir, f"{{SLUG}}_polymatroid_floor.png"))
 
     window = pick_wss_window(rd_d, len(events))
     wss_t, wss_s = working_set_over_time(events, window)

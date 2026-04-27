@@ -53,10 +53,14 @@ try:
     from polymatroid_lb import (
         polymatroid_lower_bound,
         polymatroid_floor_curve,
+        _polymatroid_solve,
+        _curve_from_depth,
     )
 except Exception:
     polymatroid_lower_bound = None
     polymatroid_floor_curve = None
+    _polymatroid_solve = None
+    _curve_from_depth = None
 
 
 def slugify(name: str) -> str:
@@ -646,20 +650,26 @@ def main() -> None:
         # Per-tick polymatroid floor: each variable's LP-implied depth
         # d_v gives a per-tick density ρ̃_v = reads · ⌈√d_v⌉ / lifespan.
         # Skip if scipy isn't available or the LP sweep exceeds 30s.
-        if polymatroid_floor_curve is not None:
-            poly_curve = polymatroid_floor_curve(
-                events, iidx, time_budget=30.0)
-            if poly_curve is not None:
-                poly_t, poly_v = poly_curve
-                poly_total = polymatroid_lower_bound(
-                    events, iidx, time_budget=30.0)
-                if poly_total is not None and poly_t:
-                    plot_polymatroid_floor(
-                        poly_t, poly_v, poly_total, len(events),
-                        f"{name} — per-tick polymatroid LP floor "
-                        f"(polymatroid_lb = {poly_total:,.0f})",
-                        os.path.join(traces_dir,
-                                     f"{slug}_polymatroid_floor.png"))
+        # Use the shared solver so the bound and the curve come from a
+        # single LP sweep (otherwise we'd double the LP time per row).
+        if _polymatroid_solve is not None and _curve_from_depth is not None:
+            solved = _polymatroid_solve(events, iidx, time_budget=30.0)
+            if solved is not None:
+                arg_cost, intervals_p, M, depth = solved
+                if intervals_p and M:
+                    R_total = sum(iv.reads for iv in intervals_p)
+                    poly_total = R_total
+                    for cap in M:
+                        poly_total += R_total - M[cap]
+                    poly_total += arg_cost
+                    poly_t, poly_v = _curve_from_depth(intervals_p, depth)
+                    if poly_t:
+                        plot_polymatroid_floor(
+                            poly_t, poly_v, poly_total, len(events),
+                            f"{name} — per-tick polymatroid LP floor "
+                            f"(polymatroid_lb = {poly_total:,.0f})",
+                            os.path.join(traces_dir,
+                                         f"{slug}_polymatroid_floor.png"))
 
         # Spatial-arithmetic-intensity visualizers
         # (gemini/arithmetic-intensity-visualizers.md).

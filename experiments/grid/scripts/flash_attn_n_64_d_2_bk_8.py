@@ -1558,6 +1558,71 @@ def _arg_stack_first_load_cost(
     return cost
 
 
+def _polymatroid_solve(
+    events: Sequence[L2Event],
+    input_arg_idx: Optional[Dict[int, int]],
+    time_budget: Optional[float],
+):
+    """Run the LP sweep once and return the data both
+    `polymatroid_lower_bound` and `polymatroid_floor_curve` need:
+    `(arg_cost, intervals, M, depth)` where M[c²] is the LP optimum
+    at capacity c² and depth[i] is the smallest c² at which interval
+    i was selected (or last_cap+1 if it never was).  Returns `None`
+    if the time budget is exceeded mid-sweep.
+    """
+    import time as _time
+
+    input_arg_idx = input_arg_idx or {}
+    deadline = (_time.perf_counter() + time_budget
+                if time_budget is not None else None)
+
+    arg_cost = _arg_stack_first_load_cost(events, input_arg_idx)
+    intervals = _extract_intervals_two_stack(events, input_arg_idx)
+    if not intervals:
+        return arg_cost, [], {}, []
+
+    cliques = _extract_cliques(events, intervals)
+    omega = max((len(c) for c in cliques), default=0)
+    if omega == 0:
+        return arg_cost, intervals, {}, [1] * len(intervals)
+
+    N = len(intervals)
+    var_to_idx = {iv.var_id: i for i, iv in enumerate(intervals)}
+    c_obj = np.array([-iv.reads for iv in intervals], dtype=float)
+
+    A = lil_matrix((len(cliques), N))
+    for i, clique in enumerate(cliques):
+        for v in clique:
+            j = var_to_idx.get(v)
+            if j is not None:
+                A[i, j] = 1
+    A = A.tocsr()
+    bounds = [(0.0, 1.0)] * N
+
+    # Only square capacities cause the ceil-sqrt step to advance.
+    max_c = math.isqrt(omega - 1) if omega > 1 else 0
+    capacities = [c * c for c in range(1, max_c + 1)]
+
+    M: Dict[int, int] = {}
+    last_cap = capacities[-1] if capacities else 1
+    depth: List[int] = [last_cap + 1] * N
+    for cap in capacities:
+        if deadline is not None and _time.perf_counter() > deadline:
+            return None
+        b = np.full(len(cliques), float(cap))
+        res = linprog(
+            c_obj, A_ub=A, b_ub=b, bounds=bounds, method="highs",
+        )
+        if not res.success:
+            raise RuntimeError(f"LP failed at capacity={cap}: {res.message}")
+        M[cap] = int(round(-res.fun))
+        x = res.x
+        for i in range(N):
+            if depth[i] > cap and x[i] > 0.5:
+                depth[i] = cap
+    return arg_cost, intervals, M, depth
+
+
 def polymatroid_lower_bound(
     events: Sequence[L2Event],
     input_arg_idx: Optional[Dict[int, int]] = None,
@@ -1576,59 +1641,17 @@ def polymatroid_lower_bound(
     budget, returning `None`.  Useful for the grid driver, which needs
     a hard cap per cell.
     """
-    import time as _time
-
-    input_arg_idx = input_arg_idx or {}
-    deadline = (_time.perf_counter() + time_budget
-                if time_budget is not None else None)
-
-    arg_cost = _arg_stack_first_load_cost(events, input_arg_idx)
-    intervals = _extract_intervals_two_stack(events, input_arg_idx)
+    out = _polymatroid_solve(events, input_arg_idx, time_budget)
+    if out is None:
+        return None
+    arg_cost, intervals, M, _depth = out
     if not intervals:
         return arg_cost
-    cliques = _extract_cliques(events, intervals)
-    omega = max((len(c) for c in cliques), default=0)
-    if omega == 0:
-        return arg_cost + sum(iv.reads for iv in intervals)
-
     R_total = sum(iv.reads for iv in intervals)
-    N = len(intervals)
-    var_to_idx = {iv.var_id: i for i, iv in enumerate(intervals)}
-    c_obj = np.array([-iv.reads for iv in intervals], dtype=float)
-
-    # Constraint rows = maximal cliques, columns = intervals.
-    A = lil_matrix((len(cliques), N))
-    for i, clique in enumerate(cliques):
-        for v in clique:
-            j = var_to_idx.get(v)
-            if j is not None:
-                A[i, j] = 1
-    A = A.tocsr()
-    bounds = [(0.0, 1.0)] * N
-
-    # Only square capacities cause the ceil-sqrt step to advance.
-    max_c = math.isqrt(omega - 1) if omega > 1 else 0
-    capacities = [c * c for c in range(1, max_c + 1)]
-
-    M: Dict[int, int] = {}
-    for cap in capacities:
-        if deadline is not None and _time.perf_counter() > deadline:
-            return None
-        b = np.full(len(cliques), float(cap))
-        res = linprog(
-            c_obj,
-            A_ub=A,
-            b_ub=b,
-            bounds=bounds,
-            method="highs",
-        )
-        if not res.success:
-            raise RuntimeError(f"LP failed at capacity={cap}: {res.message}")
-        M[cap] = int(round(-res.fun))
-
-    # Discrete-calculus identity.
+    if not M:
+        return int(arg_cost + R_total)
     lb = R_total
-    for cap in capacities:
+    for cap in M:
         lb += R_total - M[cap]
     return int(lb) + arg_cost
 
@@ -1656,58 +1679,18 @@ def polymatroid_floor_curve(
 
     Returns `None` if the LP sweep exceeds `time_budget` seconds.
     """
-    import time as _time
-
-    input_arg_idx = input_arg_idx or {}
-    deadline = (_time.perf_counter() + time_budget
-                if time_budget is not None else None)
-
-    intervals = _extract_intervals_two_stack(events, input_arg_idx)
+    out = _polymatroid_solve(events, input_arg_idx, time_budget)
+    if out is None:
+        return None
+    _arg_cost, intervals, _M, depth = out
     if not intervals:
         return [], []
-    cliques = _extract_cliques(events, intervals)
-    omega = max((len(c) for c in cliques), default=0)
-    if omega == 0:
-        return [], []
+    return _curve_from_depth(intervals, depth)
 
-    N = len(intervals)
-    var_to_idx = {iv.var_id: i for i, iv in enumerate(intervals)}
-    c_obj = np.array([-iv.reads for iv in intervals], dtype=float)
 
-    A = lil_matrix((len(cliques), N))
-    for i, clique in enumerate(cliques):
-        for v in clique:
-            j = var_to_idx.get(v)
-            if j is not None:
-                A[i, j] = 1
-    A = A.tocsr()
-    bounds = [(0.0, 1.0)] * N
-
-    max_c = math.isqrt(omega - 1) if omega > 1 else 0
-    capacities = [c * c for c in range(1, max_c + 1)]
-
-    # depth_idx[i] = smallest c² where interval i is selected, or
-    # max_c²+1 if never selected.  Iterate capacities in increasing
-    # order; once a variable enters S_{c²} we keep it (the LP at a
-    # larger capacity could in principle re-shuffle, but a monotone
-    # placement keeps the bound a valid lower bound and matches the
-    # discrete-calculus identity used by `polymatroid_lower_bound`).
-    last_cap = capacities[-1] if capacities else 1
-    depth: List[int] = [last_cap + 1] * N
-    for cap in capacities:
-        if deadline is not None and _time.perf_counter() > deadline:
-            return None
-        b = np.full(len(cliques), float(cap))
-        res = linprog(
-            c_obj, A_ub=A, b_ub=b, bounds=bounds, method="highs",
-        )
-        if not res.success:
-            raise RuntimeError(f"LP failed at capacity={cap}: {res.message}")
-        x = res.x
-        for i in range(N):
-            if depth[i] > cap and x[i] > 0.5:
-                depth[i] = cap
-
+def _curve_from_depth(intervals, depth):
+    """Build the per-tick polymatroid floor curve from already-solved
+    LP outputs.  Pure post-processing — no LP solve."""
     # Per-interval polymatroid density:
     #   ρ̃_v = reads(v) · ⌈√d_v⌉ / lifespan(v)
     # Floor(t) = Σ_{v live at t} ρ̃_v.  Sweep deaths before births at
@@ -1740,7 +1723,12 @@ def polymatroid_floor_curve(
     return times, floors
 
 
-__all__ = ["polymatroid_lower_bound", "polymatroid_floor_curve"]
+__all__ = [
+    "polymatroid_lower_bound",
+    "polymatroid_floor_curve",
+    "_polymatroid_solve",
+    "_curve_from_depth",
+]
 
 # ===========================================================================
 # manual.py — Allocator + every hand-placed schedule
@@ -6493,7 +6481,22 @@ def main() -> None:
     events, input_vars = trace(FN, ARGS)
     iidx = {v: i + 1 for i, v in enumerate(input_vars)}
 
-    poly = polymatroid_lower_bound(events, iidx, time_budget=10.0)
+    # Single LP sweep shared by polymatroid_lb and the floor curve.
+    _poly_solved = _polymatroid_solve(events, iidx, time_budget=30.0)
+    if _poly_solved is None:
+        poly = None
+        _poly_intervals: list = []
+        _poly_depth: list = []
+    else:
+        _arg_cost_p, _poly_intervals, _M_p, _poly_depth = _poly_solved
+        if _poly_intervals and _M_p:
+            _R_total = sum(iv.reads for iv in _poly_intervals)
+            poly = _R_total + sum(_R_total - _M_p[c] for c in _M_p) + _arg_cost_p
+        elif _poly_intervals:
+            poly = _arg_cost_p + sum(iv.reads for iv in _poly_intervals)
+        else:
+            poly = _arg_cost_p
+
     costs = {
         "manual":          MANUAL(),
         "global_density":  global_density(events, iidx),
@@ -6552,16 +6555,14 @@ def main() -> None:
         f"(local_density = {spl_total:,.0f})",
         _os.path.join(out_dir, f"{SLUG}_local_density_floor.png"))
 
-    if poly is not None:
-        poly_curve = polymatroid_floor_curve(events, iidx, time_budget=30.0)
-        if poly_curve is not None:
-            poly_t, poly_v = poly_curve
-            if poly_t:
-                plot_polymatroid_floor(
-                    poly_t, poly_v, poly, len(events),
-                    f"{NAME} — per-tick polymatroid LP floor "
-                    f"(polymatroid_lb = {poly:,.0f})",
-                    _os.path.join(out_dir, f"{SLUG}_polymatroid_floor.png"))
+    if poly is not None and _poly_intervals:
+        poly_t, poly_v = _curve_from_depth(_poly_intervals, _poly_depth)
+        if poly_t:
+            plot_polymatroid_floor(
+                poly_t, poly_v, poly, len(events),
+                f"{NAME} — per-tick polymatroid LP floor "
+                f"(polymatroid_lb = {poly:,.0f})",
+                _os.path.join(out_dir, f"{SLUG}_polymatroid_floor.png"))
 
     window = pick_wss_window(rd_d, len(events))
     wss_t, wss_s = working_set_over_time(events, window)
