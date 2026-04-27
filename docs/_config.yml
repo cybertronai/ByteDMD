@@ -1,0 +1,12 @@
+title: ByteDMD
+description: Byte-level Data Movement Distance — research notes and experiment grid.
+theme: jekyll-theme-cayman
+markdown: kramdown
+kramdown:
+  math_engine: mathjax
+  syntax_highlighter: rouge
+defaults:
+  - scope:
+      path: ""
+    values:
+      mathjax: true
