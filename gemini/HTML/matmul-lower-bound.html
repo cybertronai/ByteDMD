@@ -1,0 +1,58 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Matmul Lower Bound</title>
+<style>
+  body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif; max-width: 800px; margin: 40px auto; padding: 0 20px; line-height: 1.6; color: #333; }
+  pre { background: #f6f8fa; padding: 16px; border-radius: 6px; overflow-x: auto; }
+  code { background: #f6f8fa; padding: 2px 6px; border-radius: 3px; font-size: 0.9em; }
+  pre code { background: none; padding: 0; }
+  table { border-collapse: collapse; width: 100%; }
+  th, td { border: 1px solid #ddd; padding: 8px 12px; text-align: left; }
+  th { background: #f6f8fa; }
+  img { max-width: 100%; }
+  blockquote { border-left: 4px solid #ddd; margin: 0; padding-left: 16px; color: #666; }
+</style>
+</head>
+<body>
+<p>Source: https://docs.google.com/document/d/1NtC6nzBFOo2OGvi_LG9zOX0rt9kvpciIrEwNqbS9RG4/edit</p>
+<p>If you modify the ByteDMD (Data Movement Distance) metric to explicitly allow for the <strong>management of temporaries</strong>—meaning dead variables are free()'d and evicted rather than endlessly sinking to the bottom of the "Infinite Graveyard" LRU stack—the stack depth accurately reflects the localized, active memory footprint.</p>
+<p>Under this modified metric, the absolute lower bound for the metric complexity of matrix multiplication is <strong>$\Theta(N^3)$</strong>.</p>
+<p>Surprisingly, standard $O(N^3)$ arithmetic matrix multiplication algorithms <strong>cannot</strong> achieve this lower bound. It is uniquely achieved by sub-cubic algorithms like <strong>Strassen’s Algorithm</strong>, provided they are executed with <strong>strict recursive memory management</strong>.</p>
+<p>Here is the mathematical breakdown of why this is the absolute theoretical floor, and how the algorithm achieves it.</p>
+<h3 id="-">---</h3>
+<p><strong>1. The Absolute Lower Bound is $\Omega(N^3)$</strong></p>
+<p>Under the ByteDMD model, fetching an element at LRU stack depth $d$ incurs a data movement cost of $\sqrt{d}$.</p>
+<p>Any algorithm that multiplies two $N \times N$ matrices must, at a bare minimum, read the input matrices ($A$ and $B$) and write the output matrix ($C$). This requires bringing $O(N^2)$ unique elements into the cache.</p>
+<p>Under ByteDMD’s demand-paged initialization, the first time these elements are accessed, they incur "cold misses" priced at the DRAM frontier. Even with an optimal cache, inserting $O(N^2)$ elements naturally fills the LRU stack from depth $1$ up to $O(N^2)$. The data movement cost of simply touching the required data for the first time is the integral of these insertion depths:</p>
+<p>$$\text{Compulsory Cost} = \sum_{d=1}^{O(N^2)} \sqrt{d} \approx \int_{0}^{O(N^2)} x^{1/2} dx = \Theta\left((N^2)^{1.5}\right) = \mathbf{\Omega(N^3)}$$</p>
+<p>This reveals a profound property of the ByteDMD metric: <strong>For fast matrix multiplication algorithms (where $\omega &lt; 3$), the asymptotic cost of data movement ($\Omega(N^3)$) strictly dominates the arithmetic operation count ($O(N^{2.81})$).</strong> It is mathematically impossible for <em>any</em> matrix multiplication algorithm to have a Data Movement Distance lower than $\Omega(N^3)$.</p>
+<h3 id="2-the-algorithm-that-achieves-thetan3"><strong>2. The Algorithm that Achieves $\Theta(N^3)$</strong></h3>
+<p>To perfectly hit this lower bound, you must use <strong>Strassen's Algorithm</strong> (or any fast matrix multiplication with $\omega &lt; 3$) implemented with a <strong>depth-first traversal and eager temporary memory management</strong>.</p>
+<p>Normally, Strassen generates a massive amount of intermediate matrices (the $M_1 \dots M_7$ sums), which ruins locality if left unmanaged. However, if you explicitly free() these temporaries the moment they are consumed at each recursive level, the algorithm optimally bounds its stack depth:</p>
+<ol>
+<li><strong>Strict Local Footprint:</strong> At any recursive subproblem of size $K \times K$, the algorithm performs a series of matrix additions. Because dead temporaries from sibling branches are eagerly freed, the active memory footprint (and thus the maximum LRU stack depth) is tightly bounded to $O(K^2)$.  </li>
+<li><strong>Cost per Subproblem:</strong> The additions require $O(K^2)$ memory reads. Because the stack depth is bounded to $O(K^2)$, the reuse distance cost for each read is at most $\sqrt{O(K^2)} = O(K)$. Therefore, the total ByteDMD cost for the additions at this node is $O(K^2) \text{ reads} \times O(K) \text{ cost/read} = \mathbf{O(K^3)}$.  </li>
+<li>
+<p><strong>The Recurrence Relation:</strong> Strassen splits the problem into 7 recursive calls of size $K/2$. Under the ByteDMD metric, the recurrence relation for the total data movement cost becomes:<br />
+   $$D(N) = 7 \cdot D(N/2) + \Theta(N^3)$$</p>
+</li>
+<li>
+<p><strong>Master Theorem Convergence:</strong> By the Master Theorem, because the branching factor ($7$) is strictly less than the geometric decay of the work ($2^3 = 8$), the geometric series converges rapidly: $\sum (7/8)^i \to 8$.</p>
+</li>
+</ol>
+<p>Because the routing costs decay exponentially, the total cost is completely dominated by the top-level root node. The algorithm achieves an overall Data Movement Distance of exactly <strong>$\Theta(N^3)$</strong>.</p>
+<h3 id="3-why-standard-algorithms-fail-to-achieve-it"><strong>3. Why Standard Algorithms Fail to Achieve It</strong></h3>
+<p>To understand why Strassen's behavior under this metric is so remarkable, contrast it with standard Cache-Oblivious Recursive Matrix Multiplication (RMM) performing standard $O(N^3)$ arithmetic.</p>
+<p>Even with perfect memory management, RMM splits into <strong>8</strong> subproblems. Its ByteDMD recurrence relation is:</p>
+<p>$$D(N) = 8 \cdot D(N/2) + \Theta(N^3)$$</p>
+<p>Because the branching factor ($8$) equals the work decay ($2^3$), the data movement cost is perfectly balanced across all levels of the recursion tree. Summing $\Theta(N^3)$ across $\log_2 N$ levels yields a metric complexity of <strong>$\Theta(N^3 \log N)$</strong>.</p>
+<p>This aligns beautifully with Hong &amp; Kung’s foundational I/O lower bound, which dictates that standard $O(N^3)$ operations must mathematically incur a logarithmic hierarchy penalty across caches, permanently bottlenecking them at $\Omega(N^3 \log N)$.</p>
+<h3 id="-_1">---</h3>
+<p><strong>A Note on the Provided Paper's Bounds</strong></p>
+<p><em>You may notice the provided 2022 arXiv paper derives higher upper bounds for memory-managed algorithms: $O(N^{3.23})$ for Strassen and $O(N^{3.33})$ for RMM.</em></p>
+<p>This discrepancy exists because the authors took a mathematically conservative shortcut. Instead of modeling the dynamically shrinking $O(K^2)$ stack depths produced by recursive free() calls, they took the naive "Infinite Graveyard" reuse distances and simply capped them at a global maximum of the peak memory usage limit ($\approx 3N^2$). When you properly evaluate the metric with a localized, actively managed stack, Strassen's complexity drops precisely to the $\Theta(N^3)$ absolute mathematical floor.</p>
+</body>
+</html>

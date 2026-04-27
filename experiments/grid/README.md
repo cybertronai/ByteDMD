@@ -151,6 +151,7 @@ semantics), so the costs match the `bytedmd_live` column in the table.
 | `<slug>_mrc.png`           | Miss-ratio curve `M(c) = #loads with reuse distance > c` for both LRU and OPT. The area between the curves weighted by `Δ_c = ⌈√(c+1)⌉ − ⌈√c⌉` is the `bytedmd_live − bytedmd_opt` energy gap. | [belady-min-lower-bound.md](../../gemini/belady-min-lower-bound.md) |
 | `<slug>_global_density_floor.png` | Per-tick TU LP floor `Σ_i ρ_{(i)} · √i` over currently-live vars (orange step curve, shaded area = `global_density`). Dashed red line marks the time-average. | [optimal-static-floor.md](../../gemini/optimal-static-floor.md) |
 | `<slug>_local_density_floor.png` | Per-tick fractional Pigeonhole floor for `local_density` — same `Σ_i ρ_{(i)} · √i` shape as `_global_density_floor.png`, but the entities at each tick are the per-burst virtual intervals of every variable rather than monolithic per-variable lifespans (cyan step curve, shaded area = the geometric portion of `local_density`). On phase-structured traces a long dormant burst gets a low ρ → high rank → small per-tick contribution, so this curve sits below `_global_density_floor.png`. | [fractional-lp-splitting.md](../../gemini/fractional-lp-splitting.md) |
+| `<slug>_polymatroid_floor.png` | Per-tick polymatroid LP floor `Σ_v ρ̃_v` over live vars, where each variable's LP-implied depth `d_v = min{c² : v ∈ S_{c²}}` from the discrete polymatroid LP gives `ρ̃_v = reads(v) · ⌈√d_v⌉ / lifespan(v)` (purple step curve, shaded area = the geometric portion of `polymatroid_lb`). Models the rigid-spatial-lock-in regime, so this curve sits **above** `_global_density_floor.png` whenever both render. **Skipped** when the LP exceeds the 30 s wall-time budget or the row hits the `events ≤ 100k AND peak_live ≤ 1000` pre-screen — that excludes LU/QR/Cholesky/Strassen/attention/transpose/spatial+regular conv. | [polymatroid-relaxation.md](../../gemini/polymatroid-relaxation.md) |
 | `<slug>_intensity.png`     | **Heartbeat** — rolling spatial arithmetic intensity (`ops / Σ ⌈√d⌉`) over a sliding window. Tiled / blocked algorithms show square-wave plateaus while a tile is in cache; naive variants stay near the floor. | [arithmetic-intensity-visualizers.md §1](../../gemini/arithmetic-intensity-visualizers.md) |
 | `<slug>_phase_diagram.png` | **Spatial Phase Diagram** — cumulative ops (y) vs cumulative fetch cost (x). The line slope = instantaneous intensity; tiled algorithms trace a steep staircase, naive ones a shallow diagonal. | [arithmetic-intensity-visualizers.md §2](../../gemini/arithmetic-intensity-visualizers.md) |
 | `<slug>_gravity_well.png`  | **Gravity Well** — per-load fetch-cost `⌈√d⌉` scatter. Dense low bands = tight orbital footprint (most reads near the ALU); high spray = excursions into deep memory. | [arithmetic-intensity-visualizers.md §3](../../gemini/arithmetic-intensity-visualizers.md) |
@@ -274,6 +275,10 @@ with-scratchpad variant that drops 35 % off this baseline.
 
 ![](traces/naive_matmul_n_16_local_density_floor.png)
 
+**Per-tick polymatroid LP floor** — integrand of `polymatroid_lb`: Σ_v reads_v · ⌈√d_v⌉ / lifespan(v) over live vars, where d_v is each variable's LP-implied static depth (gemini/polymatroid-relaxation.md). The area equals the geometric portion of `polymatroid_lb`.
+
+![](traces/naive_matmul_n_16_polymatroid_floor.png)
+
 **Rolling spatial intensity** — heartbeat plot of `ops / Σ ⌈√d⌉` over a sliding window.
 
 ![](traces/naive_matmul_n_16_intensity.png)
@@ -363,6 +368,10 @@ into a hot buffer).
 
 ![](traces/naive_2d_tiled_matmul_n_16_t_4_local_density_floor.png)
 
+**Per-tick polymatroid LP floor** — integrand of `polymatroid_lb`: Σ_v reads_v · ⌈√d_v⌉ / lifespan(v) over live vars, where d_v is each variable's LP-implied static depth (gemini/polymatroid-relaxation.md). The area equals the geometric portion of `polymatroid_lb`.
+
+![](traces/naive_2d_tiled_matmul_n_16_t_4_polymatroid_floor.png)
+
 **Rolling spatial intensity** — heartbeat plot of `ops / Σ ⌈√d⌉` over a sliding window.
 
 ![](traces/naive_2d_tiled_matmul_n_16_t_4_intensity.png)
@@ -445,6 +454,10 @@ which adds register-level stationary-operand scheduling on top.
 
 ![](traces/naive_tiled_matmul_n_16_local_density_floor.png)
 
+**Per-tick polymatroid LP floor** — integrand of `polymatroid_lb`: Σ_v reads_v · ⌈√d_v⌉ / lifespan(v) over live vars, where d_v is each variable's LP-implied static depth (gemini/polymatroid-relaxation.md). The area equals the geometric portion of `polymatroid_lb`.
+
+![](traces/naive_tiled_matmul_n_16_polymatroid_floor.png)
+
 **Rolling spatial intensity** — heartbeat plot of `ops / Σ ⌈√d⌉` over a sliding window.
 
 ![](traces/naive_tiled_matmul_n_16_intensity.png)
@@ -505,6 +518,10 @@ what closes the gap further.
 **Per-tick splitting LP floor** — integrand of `local_density`: Σ_i ρ_{(i)} · √i over the currently-active per-burst virtual intervals; the area equals the geometric portion of `local_density`.
 
 ![](traces/naive_matmul_cached_n_16_local_density_floor.png)
+
+**Per-tick polymatroid LP floor** — integrand of `polymatroid_lb`: Σ_v reads_v · ⌈√d_v⌉ / lifespan(v) over live vars, where d_v is each variable's LP-implied static depth (gemini/polymatroid-relaxation.md). The area equals the geometric portion of `polymatroid_lb`.
+
+![](traces/naive_matmul_cached_n_16_polymatroid_floor.png)
 
 **Rolling spatial intensity** — heartbeat plot of `ops / Σ ⌈√d⌉` over a sliding window.
 
@@ -583,6 +600,10 @@ accumulator footprint realised here). Below both other heuristics
 **Per-tick splitting LP floor** — integrand of `local_density`: Σ_i ρ_{(i)} · √i over the currently-active per-burst virtual intervals; the area equals the geometric portion of `local_density`.
 
 ![](traces/tiled_matmul_n_16_local_density_floor.png)
+
+**Per-tick polymatroid LP floor** — integrand of `polymatroid_lb`: Σ_v reads_v · ⌈√d_v⌉ / lifespan(v) over live vars, where d_v is each variable's LP-implied static depth (gemini/polymatroid-relaxation.md). The area equals the geometric portion of `polymatroid_lb`.
+
+![](traces/tiled_matmul_n_16_polymatroid_floor.png)
 
 **Rolling spatial intensity** — heartbeat plot of `ops / Σ ⌈√d⌉` over a sliding window.
 
@@ -710,6 +731,10 @@ C while 1 skips the pre-fetch.
 **Per-tick splitting LP floor** — integrand of `local_density`: Σ_i ρ_{(i)} · √i over the currently-active per-burst virtual intervals; the area equals the geometric portion of `local_density`.
 
 ![](traces/rmm_n_16_local_density_floor.png)
+
+**Per-tick polymatroid LP floor** — integrand of `polymatroid_lb`: Σ_v reads_v · ⌈√d_v⌉ / lifespan(v) over live vars, where d_v is each variable's LP-implied static depth (gemini/polymatroid-relaxation.md). The area equals the geometric portion of `polymatroid_lb`.
+
+![](traces/rmm_n_16_polymatroid_floor.png)
 
 **Rolling spatial intensity** — heartbeat plot of `ops / Σ ⌈√d⌉` over a sliding window.
 
@@ -1022,6 +1047,10 @@ Drops manual from 455,587 to **218,552** (−52%), now within 2 % of
 
 ![](traces/matvec_row_n_64_local_density_floor.png)
 
+**Per-tick polymatroid LP floor** — integrand of `polymatroid_lb`: Σ_v reads_v · ⌈√d_v⌉ / lifespan(v) over live vars, where d_v is each variable's LP-implied static depth (gemini/polymatroid-relaxation.md). The area equals the geometric portion of `polymatroid_lb`.
+
+![](traces/matvec_row_n_64_polymatroid_floor.png)
+
 **Rolling spatial intensity** — heartbeat plot of `ops / Σ ⌈√d⌉` over a sliding window.
 
 ![](traces/matvec_row_n_64_intensity.png)
@@ -1075,6 +1104,10 @@ again, the sum is fixed.
 **Per-tick splitting LP floor** — integrand of `local_density`: Σ_i ρ_{(i)} · √i over the currently-active per-burst virtual intervals; the area equals the geometric portion of `local_density`.
 
 ![](traces/matvec_col_n_64_local_density_floor.png)
+
+**Per-tick polymatroid LP floor** — integrand of `polymatroid_lb`: Σ_v reads_v · ⌈√d_v⌉ / lifespan(v) over live vars, where d_v is each variable's LP-implied static depth (gemini/polymatroid-relaxation.md). The area equals the geometric portion of `polymatroid_lb`.
+
+![](traces/matvec_col_n_64_polymatroid_floor.png)
 
 **Rolling spatial intensity** — heartbeat plot of `ops / Σ ⌈√d⌉` over a sliding window.
 
@@ -1163,6 +1196,10 @@ term of the doc's exact breakdown:
 
 ![](traces/matvec_blocked_n_64_b_8_local_density_floor.png)
 
+**Per-tick polymatroid LP floor** — integrand of `polymatroid_lb`: Σ_v reads_v · ⌈√d_v⌉ / lifespan(v) over live vars, where d_v is each variable's LP-implied static depth (gemini/polymatroid-relaxation.md). The area equals the geometric portion of `polymatroid_lb`.
+
+![](traces/matvec_blocked_n_64_b_8_polymatroid_floor.png)
+
 **Rolling spatial intensity** — heartbeat plot of `ops / Σ ⌈√d⌉` over a sliding window.
 
 ![](traces/matvec_blocked_n_64_b_8_intensity.png)
@@ -1218,6 +1255,10 @@ anticipate once the working set fits entirely at low addresses.
 **Per-tick splitting LP floor** — integrand of `local_density`: Σ_i ρ_{(i)} · √i over the currently-active per-burst virtual intervals; the area equals the geometric portion of `local_density`.
 
 ![](traces/fft_iterative_n_256_local_density_floor.png)
+
+**Per-tick polymatroid LP floor** — integrand of `polymatroid_lb`: Σ_v reads_v · ⌈√d_v⌉ / lifespan(v) over live vars, where d_v is each variable's LP-implied static depth (gemini/polymatroid-relaxation.md). The area equals the geometric portion of `polymatroid_lb`.
+
+![](traces/fft_iterative_n_256_polymatroid_floor.png)
 
 **Rolling spatial intensity** — heartbeat plot of `ops / Σ ⌈√d⌉` over a sliding window.
 
@@ -1278,6 +1319,10 @@ butterfly passes + 1 output epilogue), and it even beats
 
 ![](traces/fft_recursive_n_256_local_density_floor.png)
 
+**Per-tick polymatroid LP floor** — integrand of `polymatroid_lb`: Σ_v reads_v · ⌈√d_v⌉ / lifespan(v) over live vars, where d_v is each variable's LP-implied static depth (gemini/polymatroid-relaxation.md). The area equals the geometric portion of `polymatroid_lb`.
+
+![](traces/fft_recursive_n_256_polymatroid_floor.png)
+
 **Rolling spatial intensity** — heartbeat plot of `ops / Σ ⌈√d⌉` over a sliding window.
 
 ![](traces/fft_recursive_n_256_intensity.png)
@@ -1336,6 +1381,10 @@ Drops manual from 121,628 to **78,968** (−35%).
 
 ![](traces/stencil_naive_32x32_local_density_floor.png)
 
+**Per-tick polymatroid LP floor** — integrand of `polymatroid_lb`: Σ_v reads_v · ⌈√d_v⌉ / lifespan(v) over live vars, where d_v is each variable's LP-implied static depth (gemini/polymatroid-relaxation.md). The area equals the geometric portion of `polymatroid_lb`.
+
+![](traces/stencil_naive_32x32_polymatroid_floor.png)
+
 **Rolling spatial intensity** — heartbeat plot of `ops / Σ ⌈√d⌉` over a sliding window.
 
 ![](traces/stencil_naive_32x32_intensity.png)
@@ -1391,6 +1440,10 @@ effects only.
 **Per-tick splitting LP floor** — integrand of `local_density`: Σ_i ρ_{(i)} · √i over the currently-active per-burst virtual intervals; the area equals the geometric portion of `local_density`.
 
 ![](traces/stencil_recursive_32x32_leaf_8_local_density_floor.png)
+
+**Per-tick polymatroid LP floor** — integrand of `polymatroid_lb`: Σ_v reads_v · ⌈√d_v⌉ / lifespan(v) over live vars, where d_v is each variable's LP-implied static depth (gemini/polymatroid-relaxation.md). The area equals the geometric portion of `polymatroid_lb`.
+
+![](traces/stencil_recursive_32x32_leaf_8_polymatroid_floor.png)
 
 **Rolling spatial intensity** — heartbeat plot of `ops / Σ ⌈√d⌉` over a sliding window.
 
@@ -1562,6 +1615,10 @@ manual **273,318 → 91,922** (−66 %), cheaper than `bytedmd_live`
 
 ![](traces/fft_conv_n_256_local_density_floor.png)
 
+**Per-tick polymatroid LP floor** — integrand of `polymatroid_lb`: Σ_v reads_v · ⌈√d_v⌉ / lifespan(v) over live vars, where d_v is each variable's LP-implied static depth (gemini/polymatroid-relaxation.md). The area equals the geometric portion of `polymatroid_lb`.
+
+![](traces/fft_conv_n_256_polymatroid_floor.png)
+
 **Rolling spatial intensity** — heartbeat plot of `ops / Σ ⌈√d⌉` over a sliding window.
 
 ![](traces/fft_conv_n_256_intensity.png)
@@ -1619,6 +1676,10 @@ the pivot at depth 1 after its first read inside the inner loop.
 **Per-tick splitting LP floor** — integrand of `local_density`: Σ_i ρ_{(i)} · √i over the currently-active per-burst virtual intervals; the area equals the geometric portion of `local_density`.
 
 ![](traces/quicksort_n_64_local_density_floor.png)
+
+**Per-tick polymatroid LP floor** — integrand of `polymatroid_lb`: Σ_v reads_v · ⌈√d_v⌉ / lifespan(v) over live vars, where d_v is each variable's LP-implied static depth (gemini/polymatroid-relaxation.md). The area equals the geometric portion of `polymatroid_lb`.
+
+![](traces/quicksort_n_64_polymatroid_floor.png)
 
 **Rolling spatial intensity** — heartbeat plot of `ops / Σ ⌈√d⌉` over a sliding window.
 
@@ -1679,6 +1740,10 @@ backbone of a pointer-less heap. `manual` (4,779) lands between
 **Per-tick splitting LP floor** — integrand of `local_density`: Σ_i ρ_{(i)} · √i over the currently-active per-burst virtual intervals; the area equals the geometric portion of `local_density`.
 
 ![](traces/heapsort_n_64_local_density_floor.png)
+
+**Per-tick polymatroid LP floor** — integrand of `polymatroid_lb`: Σ_v reads_v · ⌈√d_v⌉ / lifespan(v) over live vars, where d_v is each variable's LP-implied static depth (gemini/polymatroid-relaxation.md). The area equals the geometric portion of `polymatroid_lb`.
+
+![](traces/heapsort_n_64_polymatroid_floor.png)
 
 **Rolling spatial intensity** — heartbeat plot of `ops / Σ ⌈√d⌉` over a sliding window.
 
@@ -1750,6 +1815,10 @@ ping-pong rewrite) → **3,386** (−63% from original). Now beats
 
 ![](traces/mergesort_n_64_local_density_floor.png)
 
+**Per-tick polymatroid LP floor** — integrand of `polymatroid_lb`: Σ_v reads_v · ⌈√d_v⌉ / lifespan(v) over live vars, where d_v is each variable's LP-implied static depth (gemini/polymatroid-relaxation.md). The area equals the geometric portion of `polymatroid_lb`.
+
+![](traces/mergesort_n_64_polymatroid_floor.png)
+
 **Rolling spatial intensity** — heartbeat plot of `ops / Σ ⌈√d⌉` over a sliding window.
 
 ![](traces/mergesort_n_64_intensity.png)
@@ -1808,6 +1877,10 @@ manual from 80,940 to **27,192** (−66%), just above `global_density`
 **Per-tick splitting LP floor** — integrand of `local_density`: Σ_i ρ_{(i)} · √i over the currently-active per-burst virtual intervals; the area equals the geometric portion of `local_density`.
 
 ![](traces/lcs_dp_32x32_local_density_floor.png)
+
+**Per-tick polymatroid LP floor** — integrand of `polymatroid_lb`: Σ_v reads_v · ⌈√d_v⌉ / lifespan(v) over live vars, where d_v is each variable's LP-implied static depth (gemini/polymatroid-relaxation.md). The area equals the geometric portion of `polymatroid_lb`.
+
+![](traces/lcs_dp_32x32_polymatroid_floor.png)
 
 **Rolling spatial intensity** — heartbeat plot of `ops / Σ ⌈√d⌉` over a sliding window.
 
@@ -2504,6 +2577,10 @@ Drops manual from 461,782 to **297,513** (−36%), within ~10% of
 
 ![](traces/stencil_time_naive_16x16_t_4_local_density_floor.png)
 
+**Per-tick polymatroid LP floor** — integrand of `polymatroid_lb`: Σ_v reads_v · ⌈√d_v⌉ / lifespan(v) over live vars, where d_v is each variable's LP-implied static depth (gemini/polymatroid-relaxation.md). The area equals the geometric portion of `polymatroid_lb`.
+
+![](traces/stencil_time_naive_16x16_t_4_polymatroid_floor.png)
+
 **Rolling spatial intensity** — heartbeat plot of `ops / Σ ⌈√d⌉` over a sliding window.
 
 ![](traces/stencil_time_naive_16x16_t_4_intensity.png)
@@ -2637,6 +2714,10 @@ Lazy arg reads at k=0 replace the V² preload. Drops manual from
 
 ![](traces/floyd_warshall_naive_v_16_local_density_floor.png)
 
+**Per-tick polymatroid LP floor** — integrand of `polymatroid_lb`: Σ_v reads_v · ⌈√d_v⌉ / lifespan(v) over live vars, where d_v is each variable's LP-implied static depth (gemini/polymatroid-relaxation.md). The area equals the geometric portion of `polymatroid_lb`.
+
+![](traces/floyd_warshall_naive_v_16_polymatroid_floor.png)
+
 **Rolling spatial intensity** — heartbeat plot of `ops / Σ ⌈√d⌉` over a sliding window.
 
 ![](traces/floyd_warshall_naive_v_16_intensity.png)
@@ -2699,6 +2780,10 @@ single-algorithm wins in the grid.
 
 ![](traces/floyd_warshall_recursive_v_16_local_density_floor.png)
 
+**Per-tick polymatroid LP floor** — integrand of `polymatroid_lb`: Σ_v reads_v · ⌈√d_v⌉ / lifespan(v) over live vars, where d_v is each variable's LP-implied static depth (gemini/polymatroid-relaxation.md). The area equals the geometric portion of `polymatroid_lb`.
+
+![](traces/floyd_warshall_recursive_v_16_polymatroid_floor.png)
+
 **Rolling spatial intensity** — heartbeat plot of `ops / Σ ⌈√d⌉` over a sliding window.
 
 ![](traces/floyd_warshall_recursive_v_16_intensity.png)
@@ -2747,6 +2832,10 @@ single-algorithm wins in the grid.
 **Per-tick splitting LP floor** — integrand of `local_density`: Σ_i ρ_{(i)} · √i over the currently-active per-burst virtual intervals; the area equals the geometric portion of `local_density`.
 
 ![](traces/layernorm_unfused_n_256_local_density_floor.png)
+
+**Per-tick polymatroid LP floor** — integrand of `polymatroid_lb`: Σ_v reads_v · ⌈√d_v⌉ / lifespan(v) over live vars, where d_v is each variable's LP-implied static depth (gemini/polymatroid-relaxation.md). The area equals the geometric portion of `polymatroid_lb`.
+
+![](traces/layernorm_unfused_n_256_polymatroid_floor.png)
 
 **Rolling spatial intensity** — heartbeat plot of `ops / Σ ⌈√d⌉` over a sliding window.
 
@@ -2797,6 +2886,10 @@ single-algorithm wins in the grid.
 
 ![](traces/layernorm_fused_n_256_local_density_floor.png)
 
+**Per-tick polymatroid LP floor** — integrand of `polymatroid_lb`: Σ_v reads_v · ⌈√d_v⌉ / lifespan(v) over live vars, where d_v is each variable's LP-implied static depth (gemini/polymatroid-relaxation.md). The area equals the geometric portion of `polymatroid_lb`.
+
+![](traces/layernorm_fused_n_256_polymatroid_floor.png)
+
 **Rolling spatial intensity** — heartbeat plot of `ops / Σ ⌈√d⌉` over a sliding window.
 
 ![](traces/layernorm_fused_n_256_intensity.png)
@@ -2846,6 +2939,10 @@ single-algorithm wins in the grid.
 
 ![](traces/matrix_powers_naive_n_16_s_4_local_density_floor.png)
 
+**Per-tick polymatroid LP floor** — integrand of `polymatroid_lb`: Σ_v reads_v · ⌈√d_v⌉ / lifespan(v) over live vars, where d_v is each variable's LP-implied static depth (gemini/polymatroid-relaxation.md). The area equals the geometric portion of `polymatroid_lb`.
+
+![](traces/matrix_powers_naive_n_16_s_4_polymatroid_floor.png)
+
 **Rolling spatial intensity** — heartbeat plot of `ops / Σ ⌈√d⌉` over a sliding window.
 
 ![](traces/matrix_powers_naive_n_16_s_4_intensity.png)
@@ -2894,6 +2991,10 @@ single-algorithm wins in the grid.
 **Per-tick splitting LP floor** — integrand of `local_density`: Σ_i ρ_{(i)} · √i over the currently-active per-burst virtual intervals; the area equals the geometric portion of `local_density`.
 
 ![](traces/matrix_powers_ca_n_16_s_4_local_density_floor.png)
+
+**Per-tick polymatroid LP floor** — integrand of `polymatroid_lb`: Σ_v reads_v · ⌈√d_v⌉ / lifespan(v) over live vars, where d_v is each variable's LP-implied static depth (gemini/polymatroid-relaxation.md). The area equals the geometric portion of `polymatroid_lb`.
+
+![](traces/matrix_powers_ca_n_16_s_4_polymatroid_floor.png)
 
 **Rolling spatial intensity** — heartbeat plot of `ops / Σ ⌈√d⌉` over a sliding window.
 
@@ -2999,6 +3100,10 @@ Drops manual from 494,000 to **244,300** (−51%), still above
 
 ![](traces/spmv_csr_banded_n_32_bw_3_local_density_floor.png)
 
+**Per-tick polymatroid LP floor** — integrand of `polymatroid_lb`: Σ_v reads_v · ⌈√d_v⌉ / lifespan(v) over live vars, where d_v is each variable's LP-implied static depth (gemini/polymatroid-relaxation.md). The area equals the geometric portion of `polymatroid_lb`.
+
+![](traces/spmv_csr_banded_n_32_bw_3_polymatroid_floor.png)
+
 **Rolling spatial intensity** — heartbeat plot of `ops / Σ ⌈√d⌉` over a sliding window.
 
 ![](traces/spmv_csr_banded_n_32_bw_3_intensity.png)
@@ -3048,6 +3153,10 @@ Drops manual from 494,000 to **244,300** (−51%), still above
 
 ![](traces/spmv_csr_random_n_32_nnz_7_local_density_floor.png)
 
+**Per-tick polymatroid LP floor** — integrand of `polymatroid_lb`: Σ_v reads_v · ⌈√d_v⌉ / lifespan(v) over live vars, where d_v is each variable's LP-implied static depth (gemini/polymatroid-relaxation.md). The area equals the geometric portion of `polymatroid_lb`.
+
+![](traces/spmv_csr_random_n_32_nnz_7_polymatroid_floor.png)
+
 **Rolling spatial intensity** — heartbeat plot of `ops / Σ ⌈√d⌉` over a sliding window.
 
 ![](traces/spmv_csr_random_n_32_nnz_7_intensity.png)
@@ -3096,6 +3205,10 @@ Drops manual from 494,000 to **244,300** (−51%), still above
 **Per-tick splitting LP floor** — integrand of `local_density`: Σ_i ρ_{(i)} · √i over the currently-active per-burst virtual intervals; the area equals the geometric portion of `local_density`.
 
 ![](traces/bitonic_sort_n_64_local_density_floor.png)
+
+**Per-tick polymatroid LP floor** — integrand of `polymatroid_lb`: Σ_v reads_v · ⌈√d_v⌉ / lifespan(v) over live vars, where d_v is each variable's LP-implied static depth (gemini/polymatroid-relaxation.md). The area equals the geometric portion of `polymatroid_lb`.
+
+![](traces/bitonic_sort_n_64_polymatroid_floor.png)
 
 **Rolling spatial intensity** — heartbeat plot of `ops / Σ ⌈√d⌉` over a sliding window.
 

@@ -1,0 +1,75 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Intersection Of Lifetimes</title>
+<style>
+  body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif; max-width: 800px; margin: 40px auto; padding: 0 20px; line-height: 1.6; color: #333; }
+  pre { background: #f6f8fa; padding: 16px; border-radius: 6px; overflow-x: auto; }
+  code { background: #f6f8fa; padding: 2px 6px; border-radius: 3px; font-size: 0.9em; }
+  pre code { background: none; padding: 0; }
+  table { border-collapse: collapse; width: 100%; }
+  th, td { border: 1px solid #ddd; padding: 8px 12px; text-align: left; }
+  th { background: #f6f8fa; }
+  img { max-width: 100%; }
+  blockquote { border-left: 4px solid #ddd; margin: 0; padding-left: 16px; color: #666; }
+</style>
+</head>
+<body>
+<p>To intuitively understand the <strong>"Intersection of Lifetimes"</strong> and exactly how Bélády’s optimal strategy (OPT) behaves, we can move away from abstract stacks and arrays. Instead, we can visualize the memory of your program as pure <strong>2D Geometry on a Time-Deadline plane</strong>.</p>
+<p>This visualization transforms the messy mechanics of cache evictions into a pristine geometric landscape. It makes it instantly obvious why max_rank calculates the absolute physical floor for data movement.</p>
+<p>Here is how an optimal spatial compiler "sees" memory in 2D space.</p>
+<h3 id="-">---</h3>
+<p><strong>1. The 2D Landscape: The Time-Deadline Plane</strong></p>
+<p>Imagine a 2D graph that maps the entire execution of your algorithm:</p>
+<ul>
+<li><strong>The X-Axis (Current Time):</strong> The clock ticking forward as instructions execute ($t=1, 2, 3 \dots$).  </li>
+<li><strong>The Y-Axis (Deadline):</strong> The exact time in the future when a variable will be needed by the <strong>ALU</strong>.</li>
+</ul>
+<p>Because a variable's deadline must exist in the future ($deadline \ge current\_time$), every single live variable exists as a point strictly <strong>above the diagonal line $y \= x$</strong>.</p>
+<p>This diagonal line $y \= x$ represents the <strong>ALU</strong>. When a variable's deadline matches the current time, it hits the diagonal and is consumed!</p>
+<h3 id="2-the-trajectories-of-variables"><strong>2. The Trajectories of Variables</strong></h3>
+<p>When a variable $V$ is accessed and goes dormant at time $t_{start}$, and is needed next at time $d_V$, it materializes on the graph as a point at $(t_{start}, d_V)$.</p>
+<p>As your program runs, the clock ticks forward.</p>
+<ul>
+<li>Geometrically, the point moves <strong>horizontally to the right</strong>.  </li>
+<li>It stays at a perfectly flat height of $y \= d_V$, because its deadline does not change while it waits.  </li>
+<li>When the point finally hits the diagonal ALU line ($y \= x$), it is read. The algorithm calculates a <em>new</em> deadline for it, and the point instantly teleports straight up to a new Y-coordinate, beginning a new horizontal journey.</li>
+</ul>
+<h3 id="3-reading-the-physical-distance-the-sweep-line"><strong>3. Reading the Physical Distance (The Sweep Line)</strong></h3>
+<p>At any specific moment $t$, freeze the simulation and draw a vertical line straight up from the X-axis. This vertical slice intersects the horizontal paths of all currently live variables.</p>
+<p>How does the optimal spatial compiler assign physical distances (Depth 1, Depth 2, Depth 3) to these variables in Bill Dally's 2D grid?</p>
+<p>Because Bélády prioritizes data needed soonest, <strong>it simply reads the vertical slice from bottom to top!</strong></p>
+<ul>
+<li>The point closest to the diagonal (smallest Y) gets Depth 1.  </li>
+<li>The point directly above it gets Depth 2.  </li>
+<li>The highest point (furthest deadline) gets pushed to the very outer edges of the chip.</li>
+</ul>
+<h3 id="-_1">---</h3>
+<p><strong>4. The "Intersection of Lifetimes" Bottleneck</strong></p>
+<p>Now, look at a specific hot variable $V$, peacefully traveling along its horizontal path at height $y \= d_V$. What forces $V$ to be pushed further from the ALU?</p>
+<p>The <em>only</em> things that can physically push $V$ upward in the depth rankings are the points that exist <strong>strictly below $V$'s horizontal path</strong>.</p>
+<p>These are variables that are active while $V$ is dormant, but have deadlines <em>sooner</em> than $V$ ($y_{deadline} \&lt; d_V$).</p>
+<p>We can call these variables the <strong>"Undercutters."</strong> Their lifetimes geometrically intersect $V$'s wait-time, and they demand the ALU before $V$ does.</p>
+<p>The true, unassailable optimal distance—the <strong>Max-Rank</strong>—is simply the <strong>thickest vertical cluster of Undercutters</strong> that $V$ encounters anywhere along its journey.</p>
+<ul>
+<li>If a burst of temporaries is spawned, a swarm of dots appears below $V$. $V$ is pushed away.  </li>
+<li>When those temporaries hit the diagonal and die, the space below $V$ empties out. $V$ falls back closer to the ALU!  </li>
+<li>If a massive array is streamed in the background, its deadlines are far in the future. It spawns a swarm of dots <em>above</em> $V$. The optimal compiler maps the array to the edges of the chip, and $V$ stays perfectly undisturbed near the ALU.</li>
+</ul>
+<h3 id="-_2">---</h3>
+<p><strong>5. Why LRU (Live ByteDMD) Fails the Geometry</strong></p>
+<p>This visual perfectly illustrates why Live ByteDMD (LRU) overestimates your energy cost.</p>
+<p>How does LRU assign depths on this exact same graph? Instead of sorting the vertical slice by Y-coordinate (Deadline), LRU sorts the slice by <strong>how far the point is from its birth (left edge)</strong>.</p>
+<p>If you access a background variable $X$ that isn't needed for a million cycles, it materializes as a dot floating at a massive height of $y \= 1,000,000$.</p>
+<p>Because it was <em>just</em> born, LRU magically grants $X$ Depth 1! Geometrically, LRU forces a dot at the top of the sky to violently sink through all the other horizontal lines, pushing $V$ (and everything else) away from the ALU.</p>
+<p>LRU violates the geometric flow of time. It allows long-term background data to disrupt short-term bottlenecks.</p>
+<h3 id="summary-volume-vs-density"><strong>Summary: Volume vs. Density</strong></h3>
+<ul>
+<li><strong>Live ByteDMD (LRU)</strong> counts the total geometric <strong>Volume</strong> of activity. If a million variables are touched while $V$ waits, LRU accumulates them and pushes $V$ a million units away, even if they never existed at the exact same time.  </li>
+<li><strong>Bélády OPT (Intersection)</strong> counts the maximum geometric <strong>Density</strong>. By tracking the max_rank, you are finding the single vertical cross-section where the maximum number of overlapping lifetimes physically choked the space around the ALU.</li>
+</ul>
+<p>By applying this Intersection of Lifetimes, your lower bound strips away the illusion of cache-thrashing and isolates the pure, mathematically unavoidable spatial bottleneck dictated by the data dependencies of the algorithm itself.</p>
+</body>
+</html>

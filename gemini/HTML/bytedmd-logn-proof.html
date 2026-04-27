@@ -1,0 +1,166 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Bytedmd Logn Proof</title>
+<style>
+  body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif; max-width: 800px; margin: 40px auto; padding: 0 20px; line-height: 1.6; color: #333; }
+  pre { background: #f6f8fa; padding: 16px; border-radius: 6px; overflow-x: auto; }
+  code { background: #f6f8fa; padding: 2px 6px; border-radius: 3px; font-size: 0.9em; }
+  pre code { background: none; padding: 0; }
+  table { border-collapse: collapse; width: 100%; }
+  th, td { border: 1px solid #ddd; padding: 8px 12px; text-align: left; }
+  th { background: #f6f8fa; }
+  img { max-width: 100%; }
+  blockquote { border-left: 4px solid #ddd; margin: 0; padding-left: 16px; color: #666; }
+</style>
+</head>
+<body>
+<h1 id="bytedmd-rmm-proof-that-live-byte-cost-scales-as-n3-log-n">ByteDMD × RMM — proof that live-byte cost scales as $N^3 \log N$</h1>
+<p><strong>Prompt.</strong> Prove that RMM under ByteDMD cost (counting live bytes only)<br />
+scales as $N^3 \log N$.</p>
+<hr />
+<p>To rigorously prove that the ByteDMD cost of standard Recursive Matrix<br />
+Multiplication (RMM) scales as $\Theta(N^3 \log N)$, we must analyze the<br />
+algorithm's memory access patterns through the mechanics of ByteDMD's<br />
+LRU stack-distance penalty ($\sqrt{d}$) and its aggressive liveness<br />
+compaction.</p>
+<p>We can mathematically prove this scaling using two elegant approaches:<br />
+establishing the algorithm's data-movement recurrence relation, and<br />
+using an integral identity that links ByteDMD to standard cache<br />
+complexity.</p>
+<hr />
+<h2 id="part-1-why-live-bytes-only-is-the-crucial-clamping-rule">Part 1: Why "live bytes only" is the crucial clamping rule</h2>
+<p>In an $N \times N$ RMM, the algorithm allocates intermediate blocks<br />
+($M_1 \dots M_8$) at every step of the recursion. Over the algorithm's<br />
+lifecycle, this creates $\Theta(N^3)$ temporary elements.</p>
+<p>If dead variables were left on the stack, inputs accessed late in the<br />
+execution (like $A_{22}$) would be pushed under all these $\Theta(N^3)$<br />
+temporaries. Fetching them would incur a disastrous<br />
+$\sqrt{\Theta(N^3)} = \Theta(N^{1.5})$ penalty per element, inflating<br />
+the overall scaling to $\Theta(N^{3.5})$.</p>
+<p>However, ByteDMD strictly tracks <strong>live bytes only</strong>. The moment an<br />
+intermediate result is consumed (e.g., $M_1$ and $M_2$ vaporize after<br />
+computing $C_{11} = M_1 + M_2$), they are evicted. This optimal garbage<br />
+collection ensures the stack footprint is strictly clamped to the active<br />
+working set.</p>
+<ul>
+<li><strong>The bound.</strong> At any recursion level operating on $K \times K$ blocks,<br />
+  the stack contains only the inputs, the output, and a constant number<br />
+  of active temporaries. The maximum stack depth $d_\text{max}$ is<br />
+  therefore strictly bounded by $\Theta(K^2)$.</li>
+<li><strong>The penalty.</strong> The maximum cost to read any live element during a<br />
+  size-$K$ subproblem is $\sqrt{\Theta(K^2)} = \Theta(K)$.</li>
+</ul>
+<hr />
+<h2 id="part-2-the-proof-by-recurrence-relation">Part 2: The proof by recurrence relation</h2>
+<p>RMM computes $C = A \times B$ by making 8 recursive calls of size<br />
+$(N/2) \times (N/2)$ and performing 4 matrix additions. Let $T(N)$ be<br />
+the total ByteDMD cost. At any recursive level, we incur local<br />
+data-movement overhead $f(N)$ from two sources.</p>
+<h3 id="1-the-matrix-addition-penalty-thetan3">1. The matrix-addition penalty $\Theta(N^3)$</h3>
+<p>Consider the addition $C_{11} = M_1 + M_2$.</p>
+<ul>
+<li>$M_1$ is computed first.</li>
+<li>Next, $M_2$ executes, allocating its own temporaries and fetching its<br />
+  inputs ($A_{12}, B_{21}$). This brings $\Theta(N^2)$ elements to the<br />
+  top of the stack.</li>
+<li>Because $M_1$ is idle during $M_2$'s execution, the LRU policy pushes<br />
+  $M_1$ down to a depth of $\Omega(N^2)$.</li>
+<li>When the addition executes, reading the $N^2/4$ elements of $M_1$ from<br />
+  depth $\Omega(N^2)$ incurs a cost of $\sqrt{\Omega(N^2)} = \Theta(N)$<br />
+  per element.</li>
+<li>Across the 4 matrix additions, the total ByteDMD routing cost is<br />
+  $4 \times \tfrac{N^2}{4} \times \Theta(N) = \Theta(N^3)$.</li>
+</ul>
+<h3 id="2-the-context-switch-penalty-thetan3">2. The context-switch penalty $\Theta(N^3)$</h3>
+<p>Between recursive calls (e.g., pivoting from $M_1 = A_{11}B_{11}$ to<br />
+$M_3 = A_{11}B_{12}$), the active working set shifts. Intervening<br />
+subproblems push required inputs down the stack. Pulling an<br />
+$N/2 \times N/2$ block back to the top of the stack from depth<br />
+$\Theta(N^2)$ requires another<br />
+$\Theta(N^2) \times \Theta(N) = \Theta(N^3)$ in data movement.</p>
+<h3 id="3-applying-the-master-theorem">3. Applying the Master Theorem</h3>
+<p>Once inputs are fetched to the top, the subproblem operates locally.<br />
+Because it continuously hits the top of the stack, its execution<br />
+perfectly mirrors a standalone smaller problem, costing $T(N/2)$.</p>
+<p>We get the divide-and-conquer recurrence</p>
+<p>$$<br />
+T(N) = 8\, T(N/2) + \Theta(N^3).<br />
+$$</p>
+<p>Applying the Master Theorem ($T(N) = a\, T(N/b) + \Theta(N^c)$):</p>
+<ul>
+<li>$a = 8$ (sub-problems)</li>
+<li>$b = 2$ (shrink factor)</li>
+<li>$c = 3$ (overhead scaling exponent)</li>
+</ul>
+<p>Since $a = b^c$ (i.e., $8 = 2^3$), we fall precisely into <strong>Case 2</strong> of<br />
+the Master Theorem. The geometric proliferation of sub-branches exactly<br />
+balances the local data-movement overhead. The work distributes evenly<br />
+across all $\log_2 N$ levels of the tree, yielding</p>
+<p>$$<br />
+T(N) = \Theta(N^3 \log N). \qquad \blacksquare<br />
+$$</p>
+<hr />
+<h2 id="part-3-the-proof-by-continuous-cache-miss-integral">Part 3: The proof by continuous cache-miss integral</h2>
+<p>We can cross-verify this result using a beautiful integral identity<br />
+linking the ByteDMD $\sqrt{d}$ penalty to the standard I/O cache<br />
+complexity $Q(M)$ for an ideal LRU cache of size $M$.</p>
+<p>An element read at depth $d_i$ represents a cache miss in an LRU cache<br />
+of size $M$ if and only if $d_i &gt; M$. We can rewrite the ByteDMD cost<br />
+square root as an integral:</p>
+<p>$$<br />
+\sum_{\text{reads}} \sqrt{d_i}<br />
+\;=\; \sum_i \int_0^{d_i} \frac{1}{2\sqrt{M}}\, dM.<br />
+$$</p>
+<p>By interchanging the sum and the integral, we get an indicator function<br />
+$\mathbb{1}(d_i &gt; M)$, which exactly equals the cache-miss complexity<br />
+$Q(M)$:</p>
+<p>$$<br />
+\text{Total Cost}<br />
+\;=\; \int_0^\infty \frac{\sum_i \mathbb{1}(d_i &gt; M)}{2\sqrt{M}}\, dM<br />
+\;=\; \frac{1}{2} \int_0^\infty \frac{Q(M)}{\sqrt{M}}\, dM.<br />
+$$</p>
+<h3 id="integrating-the-rmm-bound">Integrating the RMM bound</h3>
+<p>It is a well-known theorem (Hong &amp; Kung, 1981) that the cache-oblivious<br />
+complexity of standard RMM is $Q(M) = \Theta(N^3 / \sqrt{M})$.</p>
+<p>Furthermore, because ByteDMD utilizes eager initialization (inputs are<br />
+pre-loaded) and liveness clamping (temporaries are vaporized), the stack<br />
+never exceeds $M_\text{max} = \Theta(N^2)$. Thus, for any cache capacity<br />
+$M &gt; \Theta(N^2)$, the hit rate is 100% and $Q(M) = 0$.</p>
+<p>Plugging this into our identity perfectly extracts the ByteDMD cost:</p>
+<p>$$<br />
+\text{Cost}<br />
+\;=\; \Theta(1) \int_1^{\Theta(N^2)} \frac{\Theta(N^3 / \sqrt{M})}{\sqrt{M}}\, dM<br />
+\;=\; \Theta(N^3) \int_1^{\Theta(N^2)} \frac{1}{M}\, dM.<br />
+$$</p>
+<p>Evaluating $\int \tfrac{1}{M}\, dM = \ln M$:</p>
+<p>$$<br />
+\text{Cost} = \Theta(N^3) \Big[\ln M\Big]_1^{\Theta(N^2)}<br />
+= \Theta!\left(N^3 \ln(N^2)\right)<br />
+= \Theta(N^3 \log N).<br />
+$$</p>
+<hr />
+<h2 id="bonus-insight-why-strassen-dominates-rmm-under-bytedmd">Bonus insight: why Strassen dominates RMM under ByteDMD</h2>
+<p>This mathematical framing cleanly reveals why Strassen's algorithm<br />
+dominates standard RMM under the ByteDMD metric (as mentioned in the<br />
+prompt's reports).</p>
+<p>Strassen requires only <strong>7</strong> recursive sub-calls instead of 8, while<br />
+retaining the exact same $\Theta(N^3)$ matrix-addition footprint<br />
+overhead. Its recurrence becomes</p>
+<p>$$<br />
+T(N) = 7\, T(N/2) + \Theta(N^3).<br />
+$$</p>
+<p>Because $7 &lt; 2^3$, Strassen falls into <strong>Case 3</strong> of the Master Theorem.<br />
+The geometric decay of the sub-problems means the cost is overwhelmingly<br />
+bound by the top-level overhead.</p>
+<p>Under ByteDMD, Strassen's true theoretical advantage isn't scaling as<br />
+$N^{2.81}$ — its spatial cost scales strictly as</p>
+<p>$$<br />
+T(N) = \Theta(N^3).<br />
+$$</p>
+<p>It overtakes naive RMM by mathematically stripping away the entire<br />
+$\log N$ spatial-routing penalty.</p>
+</body>
+</html>

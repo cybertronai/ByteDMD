@@ -1,0 +1,192 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Optimize Tsqr</title>
+<style>
+  body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif; max-width: 800px; margin: 40px auto; padding: 0 20px; line-height: 1.6; color: #333; }
+  pre { background: #f6f8fa; padding: 16px; border-radius: 6px; overflow-x: auto; }
+  code { background: #f6f8fa; padding: 2px 6px; border-radius: 3px; font-size: 0.9em; }
+  pre code { background: none; padding: 0; }
+  table { border-collapse: collapse; width: 100%; }
+  th, td { border: 1px solid #ddd; padding: 8px 12px; text-align: left; }
+  th { background: #f6f8fa; }
+  img { max-width: 100%; }
+  blockquote { border-left: 4px solid #ddd; margin: 0; padding-left: 16px; color: #666; }
+</style>
+</head>
+<body>
+<p>To drastically reduce the total energy cost under the geometric stack model, we need to minimize the number of touches on memory at higher geometric addresses.<br />
+The baseline manual implementation performs computations flatly across the massive, dynamically-allocated $64 \times 16$ A matrix, leaving elements residing at physical addresses up to $1024$. In the geometric cost model (where accessing address $x$ incurs a cost $\approx \sqrt{x}$), constantly retrieving parameters directly from high bounds inside the $O(M N^2)$ nested loops heavily inflates the energy consumption.<br />
+We can completely revamp this schedule to cut the baseline cost from 461,782 down to roughly 297,513 (strongly outperforming the heuristics limits) through three distinct optimizations:<br />
+1. L1 Tile Funnels (cache_A): We explicitly map a continuous $8 \times 16$ block scratchpad right at the bottom of the stack (Addresses 11..138). During Phase 1, we pull the working tile block natively into this ultra-cheap L1 footprint, loop entirely within it, and flush it out to memory only once finished.<br />
+2. Asymmetric Caching in Phase 2: In the tree-reduction merges, loading both the left and right block is redundant. The active $k$-th row of the Left block is touched sequentially and minimally per update. By caching only the computationally dense Right R-factor block into cache_A and referencing the Left block directly, we trim extensive load/store overheads.<br />
+3. Simulated Heat Maps: The memory geometry natively touched in QR decompositions is extremely non-uniform—some pivot and reflector coordinates are mathematically struck exponentially more than edge boundaries. We run a lightweight pure-Python recursion dry-run to map precise access frequencies, continuously assigning the highest-hit coordinates to the absolute lowest memory indices in both cache_A and A.<br />
+Improved Implementation<br />
+Replace the manual_tsqr function in your target Python script with the fully optimized equivalent below:</p>
+<p>Python</p>
+<h1 id="_1">===========================================================================</h1>
+<h1 id="manual-schedule-definitions-closure-of-what-the-manual-impl-needs">Manual-schedule definitions (closure of what the manual impl needs).</h1>
+<h1 id="_2">===========================================================================</h1>
+<p>def manual_tsqr(m: int, n: int, block_rows: int = 8) -&gt; int:<br />
+   """Tall-skinny QR with L1 cache blocking and frequency-based layout.<br />
+   Uses an explicit L1 scratchpad (cache_A) for row-tile operations,<br />
+   and dynamically packs the most frequently accessed elements in both <br />
+   the cache and main matrix A into the lowest physical addresses."""<br />
+   a = _alloc()<br />
+   A_in = a.alloc_arg(m * n)<br />
+   c_A = a.alloc(1)<br />
+   c_V = a.alloc(block_rows + 1)<br />
+   cache_A = a.alloc(block_rows * n)<br />
+   A = a.alloc(m * n)<br />
+   a.set_output_range(A, A + m * n)</p>
+<p>freq_cA = {}<br />
+   def sim_touch_cA(i, j): freq_cA[(i, j)] = freq_cA.get((i, j), 0) + 1<br />
+   freq_A = {}<br />
+   def sim_touch_A(r, c): freq_A[(r, c)] = freq_A.get((r, c), 0) + 1</p>
+<p># Accurate simulation for cache_A and A based ONLY on a.touch()<br />
+   def sim_load(row0):<br />
+       row1 = min(row0 + block_rows, m)<br />
+       for i in range(row1 - row0):<br />
+           for j in range(n):<br />
+               sim_touch_A(row0 + i, j) # load touches A<br />
+               sim_touch_cA(i, j)       # store block touches cA</p>
+<p># Phase 1 simulation<br />
+   for row0 in range(0, m, block_rows):<br />
+       row1 = min(row0 + block_rows, m)<br />
+       rows_in_block = row1 - row0<br />
+       sim_load(row0)<br />
+       for k in range(min(rows_in_block, n)):<br />
+           sim_touch_cA(k, k)<br />
+           for i in range(k + 1, rows_in_block): sim_touch_cA(i, k)<br />
+           sim_touch_cA(k, k)<br />
+           for i in range(k + 1, rows_in_block): sim_touch_cA(i, k)<br />
+           for j in range(k + 1, n):<br />
+               sim_touch_cA(k, j)<br />
+               for i in range(k + 1, rows_in_block): sim_touch_cA(i, j)<br />
+               sim_touch_cA(k, j)<br />
+               for i in range(k + 1, rows_in_block): sim_touch_cA(i, j)</p>
+<p># Phase 2 simulation<br />
+   num_tiles = (m + block_rows - 1) // block_rows<br />
+   stride = 1<br />
+   while stride &lt; num_tiles:<br />
+       for idx in range(0, num_tiles, 2 * stride):<br />
+           other = idx + stride<br />
+           if other &gt;= num_tiles: break<br />
+           left_row = idx * block_rows<br />
+           right_row = other * block_rows<br />
+           right_end = min(right_row + block_rows, m)<br />
+           right_rows_in_block = right_end - right_row<br />
+           sim_load(right_row)<br />
+           for k in range(min(n, block_rows)):<br />
+               sim_touch_A(left_row + k, k)<br />
+               sim_touch_cA(k, k)<br />
+               sim_touch_A(left_row + k, k)<br />
+               for i in range(k, right_rows_in_block): sim_touch_cA(i, k)<br />
+               for j in range(k + 1, n):<br />
+                   sim_touch_A(left_row + k, j)<br />
+                   for i in range(k, right_rows_in_block): sim_touch_cA(i, j)<br />
+                   sim_touch_A(left_row + k, j)<br />
+                   for i in range(k, right_rows_in_block): sim_touch_cA(i, j)<br />
+       stride *= 2</p>
+<p>for r in range(m):<br />
+       for c in range(n):<br />
+           sim_touch_A(r, c) # Epilogue read_output</p>
+<p>for i in range(block_rows):<br />
+       for j in range(n):<br />
+           if (i, j) not in freq_cA: freq_cA[(i, j)] = 0</p>
+<p># Statically map highest access density components -&gt; low cost physical addresses<br />
+   sorted_cells_cA = sorted(freq_cA.keys(), key=lambda x: -freq_cA[x])<br />
+   c_map = {cell: idx for idx, cell in enumerate(sorted_cells_cA)}<br />
+   def cA_addr(i, j): return cache_A + c_map[(i, j)]</p>
+<p>sorted_cells_A = sorted(freq_A.keys(), key=lambda x: -freq_A[x])<br />
+   A_map = {cell: idx for idx, cell in enumerate(sorted_cells_A)}<br />
+   def A_addr(r, c): return A + A_map[(r, c)]</p>
+<p># === Execute Geometric Ops ===<br />
+   for r in range(m):<br />
+       for c in range(n):<br />
+           a.touch_arg(A_in + r * n + c); a.write(A_addr(r, c))</p>
+<p>def load_block(row0):<br />
+       row1 = min(row0 + block_rows, m)<br />
+       for i in range(row1 - row0):<br />
+           for j in range(n):<br />
+               a.touch(A_addr(row0 + i, j))<br />
+               a.write(cA_addr(i, j))</p>
+<p>def store_block(row0):<br />
+       row1 = min(row0 + block_rows, m)<br />
+       for i in range(row1 - row0):<br />
+           for j in range(n):<br />
+               a.touch(cA_addr(i, j))<br />
+               a.write(A_addr(row0 + i, j))</p>
+<p># --- Phase 1: local QR per row-tile computed natively in Cache -----<br />
+   for row0 in range(0, m, block_rows):<br />
+       row1 = min(row0 + block_rows, m)<br />
+       rows_in_block = row1 - row0<br />
+       load_block(row0)</p>
+<div class="codehilite"><pre><span></span><code><span class="w">   </span><span class="k">for</span><span class="w"> </span><span class="nx">k</span><span class="w"> </span><span class="k">in</span><span class="w"> </span><span class="nx">range</span><span class="p">(</span><span class="nx">min</span><span class="p">(</span><span class="nx">rows_in_block</span><span class="p">,</span><span class="w"> </span><span class="nx">n</span><span class="p">)):</span>
+<span class="w">       </span><span class="nx">a</span><span class="p">.</span><span class="nx">touch</span><span class="p">(</span><span class="nx">cA_addr</span><span class="p">(</span><span class="nx">k</span><span class="p">,</span><span class="w"> </span><span class="nx">k</span><span class="p">))</span>
+<span class="w">       </span><span class="k">for</span><span class="w"> </span><span class="nx">i</span><span class="w"> </span><span class="k">in</span><span class="w"> </span><span class="nx">range</span><span class="p">(</span><span class="nx">k</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="mi">1</span><span class="p">,</span><span class="w"> </span><span class="nx">rows_in_block</span><span class="p">):</span><span class="w"> </span><span class="nx">a</span><span class="p">.</span><span class="nx">touch</span><span class="p">(</span><span class="nx">cA_addr</span><span class="p">(</span><span class="nx">i</span><span class="p">,</span><span class="w"> </span><span class="nx">k</span><span class="p">))</span>
+<span class="w">       </span><span class="nx">a</span><span class="p">.</span><span class="nx">write</span><span class="p">(</span><span class="nx">cA_addr</span><span class="p">(</span><span class="nx">k</span><span class="p">,</span><span class="w"> </span><span class="nx">k</span><span class="p">))</span>
+<span class="w">       </span><span class="k">for</span><span class="w"> </span><span class="nx">i</span><span class="w"> </span><span class="k">in</span><span class="w"> </span><span class="nx">range</span><span class="p">(</span><span class="nx">k</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="mi">1</span><span class="p">,</span><span class="w"> </span><span class="nx">rows_in_block</span><span class="p">):</span><span class="w"> </span><span class="nx">a</span><span class="p">.</span><span class="nx">write</span><span class="p">(</span><span class="nx">cA_addr</span><span class="p">(</span><span class="nx">i</span><span class="p">,</span><span class="w"> </span><span class="nx">k</span><span class="p">))</span>
+
+<span class="w">       </span><span class="nx">a</span><span class="p">.</span><span class="nx">touch</span><span class="p">(</span><span class="nx">cA_addr</span><span class="p">(</span><span class="nx">k</span><span class="p">,</span><span class="w"> </span><span class="nx">k</span><span class="p">));</span><span class="w"> </span><span class="nx">a</span><span class="p">.</span><span class="nx">write</span><span class="p">(</span><span class="nx">c_V</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="mi">0</span><span class="p">)</span>
+<span class="w">       </span><span class="k">for</span><span class="w"> </span><span class="nx">i</span><span class="w"> </span><span class="k">in</span><span class="w"> </span><span class="nx">range</span><span class="p">(</span><span class="nx">k</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="mi">1</span><span class="p">,</span><span class="w"> </span><span class="nx">rows_in_block</span><span class="p">):</span>
+<span class="w">           </span><span class="nx">a</span><span class="p">.</span><span class="nx">touch</span><span class="p">(</span><span class="nx">cA_addr</span><span class="p">(</span><span class="nx">i</span><span class="p">,</span><span class="w"> </span><span class="nx">k</span><span class="p">));</span><span class="w"> </span><span class="nx">a</span><span class="p">.</span><span class="nx">write</span><span class="p">(</span><span class="nx">c_V</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="p">(</span><span class="nx">i</span><span class="w"> </span><span class="o">-</span><span class="w"> </span><span class="nx">k</span><span class="p">))</span>
+
+<span class="w">       </span><span class="k">for</span><span class="w"> </span><span class="nx">j</span><span class="w"> </span><span class="k">in</span><span class="w"> </span><span class="nx">range</span><span class="p">(</span><span class="nx">k</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="mi">1</span><span class="p">,</span><span class="w"> </span><span class="nx">n</span><span class="p">):</span>
+<span class="w">           </span><span class="nx">a</span><span class="p">.</span><span class="nx">touch</span><span class="p">(</span><span class="nx">c_V</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="mi">0</span><span class="p">);</span><span class="w"> </span><span class="nx">a</span><span class="p">.</span><span class="nx">touch</span><span class="p">(</span><span class="nx">cA_addr</span><span class="p">(</span><span class="nx">k</span><span class="p">,</span><span class="w"> </span><span class="nx">j</span><span class="p">));</span><span class="w"> </span><span class="nx">a</span><span class="p">.</span><span class="nx">write</span><span class="p">(</span><span class="nx">c_A</span><span class="p">)</span>
+<span class="w">           </span><span class="k">for</span><span class="w"> </span><span class="nx">i</span><span class="w"> </span><span class="k">in</span><span class="w"> </span><span class="nx">range</span><span class="p">(</span><span class="nx">k</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="mi">1</span><span class="p">,</span><span class="w"> </span><span class="nx">rows_in_block</span><span class="p">):</span>
+<span class="w">               </span><span class="nx">a</span><span class="p">.</span><span class="nx">touch</span><span class="p">(</span><span class="nx">c_V</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="p">(</span><span class="nx">i</span><span class="w"> </span><span class="o">-</span><span class="w"> </span><span class="nx">k</span><span class="p">));</span><span class="w"> </span><span class="nx">a</span><span class="p">.</span><span class="nx">touch</span><span class="p">(</span><span class="nx">cA_addr</span><span class="p">(</span><span class="nx">i</span><span class="p">,</span><span class="w"> </span><span class="nx">j</span><span class="p">))</span>
+<span class="w">               </span><span class="nx">a</span><span class="p">.</span><span class="nx">touch</span><span class="p">(</span><span class="nx">c_A</span><span class="p">);</span><span class="w"> </span><span class="nx">a</span><span class="p">.</span><span class="nx">write</span><span class="p">(</span><span class="nx">c_A</span><span class="p">)</span>
+<span class="w">           </span><span class="nx">a</span><span class="p">.</span><span class="nx">touch</span><span class="p">(</span><span class="nx">c_A</span><span class="p">);</span><span class="w"> </span><span class="nx">a</span><span class="p">.</span><span class="nx">touch</span><span class="p">(</span><span class="nx">c_V</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="mi">0</span><span class="p">);</span><span class="w"> </span><span class="nx">a</span><span class="p">.</span><span class="nx">touch</span><span class="p">(</span><span class="nx">cA_addr</span><span class="p">(</span><span class="nx">k</span><span class="p">,</span><span class="w"> </span><span class="nx">j</span><span class="p">))</span>
+<span class="w">           </span><span class="nx">a</span><span class="p">.</span><span class="nx">write</span><span class="p">(</span><span class="nx">cA_addr</span><span class="p">(</span><span class="nx">k</span><span class="p">,</span><span class="w"> </span><span class="nx">j</span><span class="p">))</span>
+<span class="w">           </span><span class="k">for</span><span class="w"> </span><span class="nx">i</span><span class="w"> </span><span class="k">in</span><span class="w"> </span><span class="nx">range</span><span class="p">(</span><span class="nx">k</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="mi">1</span><span class="p">,</span><span class="w"> </span><span class="nx">rows_in_block</span><span class="p">):</span>
+<span class="w">               </span><span class="nx">a</span><span class="p">.</span><span class="nx">touch</span><span class="p">(</span><span class="nx">c_A</span><span class="p">);</span><span class="w"> </span><span class="nx">a</span><span class="p">.</span><span class="nx">touch</span><span class="p">(</span><span class="nx">c_V</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="p">(</span><span class="nx">i</span><span class="w"> </span><span class="o">-</span><span class="w"> </span><span class="nx">k</span><span class="p">))</span>
+<span class="w">               </span><span class="nx">a</span><span class="p">.</span><span class="nx">touch</span><span class="p">(</span><span class="nx">cA_addr</span><span class="p">(</span><span class="nx">i</span><span class="p">,</span><span class="w"> </span><span class="nx">j</span><span class="p">));</span><span class="w"> </span><span class="nx">a</span><span class="p">.</span><span class="nx">write</span><span class="p">(</span><span class="nx">cA_addr</span><span class="p">(</span><span class="nx">i</span><span class="p">,</span><span class="w"> </span><span class="nx">j</span><span class="p">))</span>
+
+<span class="w">   </span><span class="nx">store_block</span><span class="p">(</span><span class="nx">row0</span><span class="p">)</span>
+</code></pre></div>
+
+<p># --- Phase 2: pairwise tree-reduction over R factors ---------------<br />
+   stride = 1<br />
+   while stride &lt; num_tiles:<br />
+       for idx in range(0, num_tiles, 2 * stride):<br />
+           other = idx + stride<br />
+           if other &gt;= num_tiles: break<br />
+           left_row = idx * block_rows<br />
+           right_row = other * block_rows<br />
+           right_end = min(right_row + block_rows, m)<br />
+           right_rows_in_block = right_end - right_row</p>
+<div class="codehilite"><pre><span></span><code><span class="w">       </span><span class="c1"># Caches ONLY the right block. The left block&#39;s k-th row is directly accessed</span>
+<span class="w">       </span><span class="n">load_block</span><span class="p">(</span><span class="n">right_row</span><span class="p">)</span>
+
+<span class="w">       </span><span class="k">for</span><span class="w"> </span><span class="n">k</span><span class="w"> </span><span class="ow">in</span><span class="w"> </span><span class="nb">range</span><span class="p">(</span><span class="nb">min</span><span class="p">(</span><span class="n">n</span><span class="p">,</span><span class="w"> </span><span class="n">block_rows</span><span class="p">)):</span>
+<span class="w">           </span><span class="n">a</span><span class="o">.</span><span class="n">touch</span><span class="p">(</span><span class="n">A_addr</span><span class="p">(</span><span class="n">left_row</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="n">k</span><span class="p">,</span><span class="w"> </span><span class="n">k</span><span class="p">))</span>
+<span class="w">           </span><span class="n">a</span><span class="o">.</span><span class="n">touch</span><span class="p">(</span><span class="n">cA_addr</span><span class="p">(</span><span class="n">k</span><span class="p">,</span><span class="w"> </span><span class="n">k</span><span class="p">))</span>
+
+<span class="w">           </span><span class="n">a</span><span class="o">.</span><span class="n">touch</span><span class="p">(</span><span class="n">A_addr</span><span class="p">(</span><span class="n">left_row</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="n">k</span><span class="p">,</span><span class="w"> </span><span class="n">k</span><span class="p">));</span><span class="w"> </span><span class="n">a</span><span class="o">.</span><span class="n">write</span><span class="p">(</span><span class="n">c_V</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="mi">0</span><span class="p">)</span>
+<span class="w">           </span><span class="k">for</span><span class="w"> </span><span class="n">i</span><span class="w"> </span><span class="ow">in</span><span class="w"> </span><span class="nb">range</span><span class="p">(</span><span class="n">k</span><span class="p">,</span><span class="w"> </span><span class="n">right_rows_in_block</span><span class="p">):</span>
+<span class="w">               </span><span class="n">a</span><span class="o">.</span><span class="n">touch</span><span class="p">(</span><span class="n">cA_addr</span><span class="p">(</span><span class="n">i</span><span class="p">,</span><span class="w"> </span><span class="n">k</span><span class="p">));</span><span class="w"> </span><span class="n">a</span><span class="o">.</span><span class="n">write</span><span class="p">(</span><span class="n">c_V</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="mi">1</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="p">(</span><span class="n">i</span><span class="w"> </span><span class="o">-</span><span class="w"> </span><span class="n">k</span><span class="p">))</span>
+
+<span class="w">           </span><span class="k">for</span><span class="w"> </span><span class="n">j</span><span class="w"> </span><span class="ow">in</span><span class="w"> </span><span class="nb">range</span><span class="p">(</span><span class="n">k</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="mi">1</span><span class="p">,</span><span class="w"> </span><span class="n">n</span><span class="p">):</span>
+<span class="w">               </span><span class="n">a</span><span class="o">.</span><span class="n">touch</span><span class="p">(</span><span class="n">c_V</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="mi">0</span><span class="p">);</span><span class="w"> </span><span class="n">a</span><span class="o">.</span><span class="n">touch</span><span class="p">(</span><span class="n">A_addr</span><span class="p">(</span><span class="n">left_row</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="n">k</span><span class="p">,</span><span class="w"> </span><span class="n">j</span><span class="p">));</span><span class="w"> </span><span class="n">a</span><span class="o">.</span><span class="n">write</span><span class="p">(</span><span class="n">c_A</span><span class="p">)</span>
+<span class="w">               </span><span class="k">for</span><span class="w"> </span><span class="n">i</span><span class="w"> </span><span class="ow">in</span><span class="w"> </span><span class="nb">range</span><span class="p">(</span><span class="n">k</span><span class="p">,</span><span class="w"> </span><span class="n">right_rows_in_block</span><span class="p">):</span>
+<span class="w">                   </span><span class="n">a</span><span class="o">.</span><span class="n">touch</span><span class="p">(</span><span class="n">c_V</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="mi">1</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="p">(</span><span class="n">i</span><span class="w"> </span><span class="o">-</span><span class="w"> </span><span class="n">k</span><span class="p">));</span><span class="w"> </span><span class="n">a</span><span class="o">.</span><span class="n">touch</span><span class="p">(</span><span class="n">cA_addr</span><span class="p">(</span><span class="n">i</span><span class="p">,</span><span class="w"> </span><span class="n">j</span><span class="p">))</span>
+<span class="w">                   </span><span class="n">a</span><span class="o">.</span><span class="n">touch</span><span class="p">(</span><span class="n">c_A</span><span class="p">);</span><span class="w"> </span><span class="n">a</span><span class="o">.</span><span class="n">write</span><span class="p">(</span><span class="n">c_A</span><span class="p">)</span>
+
+<span class="w">               </span><span class="n">a</span><span class="o">.</span><span class="n">touch</span><span class="p">(</span><span class="n">c_A</span><span class="p">);</span><span class="w"> </span><span class="n">a</span><span class="o">.</span><span class="n">touch</span><span class="p">(</span><span class="n">c_V</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="mi">0</span><span class="p">);</span><span class="w"> </span><span class="n">a</span><span class="o">.</span><span class="n">touch</span><span class="p">(</span><span class="n">A_addr</span><span class="p">(</span><span class="n">left_row</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="n">k</span><span class="p">,</span><span class="w"> </span><span class="n">j</span><span class="p">))</span>
+<span class="w">               </span><span class="n">a</span><span class="o">.</span><span class="n">write</span><span class="p">(</span><span class="n">A_addr</span><span class="p">(</span><span class="n">left_row</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="n">k</span><span class="p">,</span><span class="w"> </span><span class="n">j</span><span class="p">))</span>
+<span class="w">               </span><span class="k">for</span><span class="w"> </span><span class="n">i</span><span class="w"> </span><span class="ow">in</span><span class="w"> </span><span class="nb">range</span><span class="p">(</span><span class="n">k</span><span class="p">,</span><span class="w"> </span><span class="n">right_rows_in_block</span><span class="p">):</span>
+<span class="w">                   </span><span class="n">a</span><span class="o">.</span><span class="n">touch</span><span class="p">(</span><span class="n">c_A</span><span class="p">);</span><span class="w"> </span><span class="n">a</span><span class="o">.</span><span class="n">touch</span><span class="p">(</span><span class="n">c_V</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="mi">1</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="p">(</span><span class="n">i</span><span class="w"> </span><span class="o">-</span><span class="w"> </span><span class="n">k</span><span class="p">))</span>
+<span class="w">                   </span><span class="n">a</span><span class="o">.</span><span class="n">touch</span><span class="p">(</span><span class="n">cA_addr</span><span class="p">(</span><span class="n">i</span><span class="p">,</span><span class="w"> </span><span class="n">j</span><span class="p">));</span><span class="w"> </span><span class="n">a</span><span class="o">.</span><span class="n">write</span><span class="p">(</span><span class="n">cA_addr</span><span class="p">(</span><span class="n">i</span><span class="p">,</span><span class="w"> </span><span class="n">j</span><span class="p">))</span>
+
+<span class="w">       </span><span class="n">store_block</span><span class="p">(</span><span class="n">right_row</span><span class="p">)</span>
+
+<span class="w">   </span><span class="n">stride</span><span class="w"> </span><span class="o">*=</span><span class="w"> </span><span class="mi">2</span>
+</code></pre></div>
+
+<p>a.read_output()<br />
+   return a.cost</p>
+</body>
+</html>

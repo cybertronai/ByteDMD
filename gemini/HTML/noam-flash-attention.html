@@ -1,0 +1,145 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Noam Flash Attention</title>
+<style>
+  body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif; max-width: 800px; margin: 40px auto; padding: 0 20px; line-height: 1.6; color: #333; }
+  pre { background: #f6f8fa; padding: 16px; border-radius: 6px; overflow-x: auto; }
+  code { background: #f6f8fa; padding: 2px 6px; border-radius: 3px; font-size: 0.9em; }
+  pre code { background: none; padding: 0; }
+  table { border-collapse: collapse; width: 100%; }
+  th, td { border: 1px solid #ddd; padding: 8px 12px; text-align: left; }
+  th { background: #f6f8fa; }
+  img { max-width: 100%; }
+  blockquote { border-left: 4px solid #ddd; margin: 0; padding-left: 16px; color: #666; }
+</style>
+</head>
+<body>
+<p>Here is a canonical, highly readable implementation of <strong>Flash Attention</strong> (specifically the forward pass of Flash Attention 2) utilizing Noam Shazeer’s shape-suffix convention.</p>
+<p>Flash Attention is notoriously dense and difficult to read because it relies heavily on block-tiling and computing an "online softmax" trick to avoid materializing the massive attention matrix. However, by explicitly adding row (R) and column (C) block sizes to our dimension key and using torch.einsum, the notoriously complex block algebra becomes beautifully straightforward.</p>
+<p><em>(Note: I silently fixed a few minor variable name typos from Noam's original pseudo-code snippet, such as hiddden_BLD, the missing layer_num iterator, and projecting values using w_v_DHK to make the snippet cohesive).</em></p>
+<p>Python</p>
+<p>""" Example Flash Attention code with shape suffixes.</p>
+<p>This code is incomplete and possibly has bugs. Don't try to run it.<br />
+Its purpose is to illustrate shape suffixes for complex block operations.</p>
+<p>Dimension key:</p>
+<p>B: batch size<br />
+L: sequence length<br />
+M: memory length (length of sequence being attended to)<br />
+D: model dimension (sometimes called d_model or embedding_dim)<br />
+V: vocabulary size<br />
+F: feed-forward subnetwork hidden size<br />
+H: number of attention heads in a layer<br />
+K: size of each attention key or value (sometimes called d_kv)<br />
+R: row block size (query sequence length in a single tile)<br />
+C: column block size (memory sequence length in a single tile)<br />
+"""</p>
+<p>import torch</p>
+<p>def transformer(input_token_id_BL, params):<br />
+    hidden_BLD \= params.embedding_VD[input_token_id_BL]<br />
+    for layer_num in range(params.num_layers):<br />
+        hidden_BLD += flash_attention(hidden_BLD, params.attention_params[layer_num])<br />
+        hidden_BLD += ffn(hidden_BLD, params.ffn_params[layer_num])<br />
+    hidden_BLD \= layer_norm(hidden_BLD, params.final_layernorm_params)<br />
+    logits_BLV \= torch.matmul(hidden_BLD, params.embedding_VD.T)<br />
+    return logits_BLV</p>
+<p>def ffn(input_BLD, params):<br />
+    input_BLD \= layer_norm(input_BLD, params.layernorm_params)<br />
+    hidden_BLF \= torch.gelu(torch.matmul(input_BLD, params.w_in_DF))<br />
+    output_BLD \= torch.matmul(hidden_BLF, params.w_out_FD)<br />
+    return output_BLD</p>
+<p>def flash_attention(input_BLD, params, Br=64, Bc=64, is_causal=True):<br />
+    input_BLD \= layer_norm(input_BLD, params.layernorm_params)  </p>
+<div class="codehilite"><pre><span></span><code>\<span class="c1"># We use &#39;M&#39; in the einsum string to represent memory length (M \== L for self-attention)  </span>
+<span class="n">query</span>\<span class="n">_BLHK</span><span class="w"> </span>\<span class="o">=</span><span class="w"> </span><span class="n">torch</span><span class="o">.</span><span class="n">einsum</span><span class="p">(</span><span class="s1">&#39;BLD,DHK-\&gt;BLHK&#39;</span><span class="p">,</span><span class="w"> </span><span class="n">input</span>\<span class="n">_BLD</span><span class="p">,</span><span class="w"> </span><span class="n">params</span><span class="o">.</span><span class="n">w</span>\<span class="n">_q</span>\<span class="n">_DHK</span><span class="p">)</span><span class="w">  </span>
+<span class="n">key</span>\<span class="n">_BMHK</span><span class="w">   </span>\<span class="o">=</span><span class="w"> </span><span class="n">torch</span><span class="o">.</span><span class="n">einsum</span><span class="p">(</span><span class="s1">&#39;BMD,DHK-\&gt;BMHK&#39;</span><span class="p">,</span><span class="w"> </span><span class="n">input</span>\<span class="n">_BLD</span><span class="p">,</span><span class="w"> </span><span class="n">params</span><span class="o">.</span><span class="n">w</span>\<span class="n">_k</span>\<span class="n">_DHK</span><span class="p">)</span><span class="w">  </span>
+<span class="n">value</span>\<span class="n">_BMHK</span><span class="w"> </span>\<span class="o">=</span><span class="w"> </span><span class="n">torch</span><span class="o">.</span><span class="n">einsum</span><span class="p">(</span><span class="s1">&#39;BMD,DHK-\&gt;BMHK&#39;</span><span class="p">,</span><span class="w"> </span><span class="n">input</span>\<span class="n">_BLD</span><span class="p">,</span><span class="w"> </span><span class="n">params</span><span class="o">.</span><span class="n">w</span>\<span class="n">_v</span>\<span class="n">_DHK</span><span class="p">)</span>
+
+<span class="n">B</span><span class="p">,</span><span class="w"> </span><span class="n">L</span><span class="p">,</span><span class="w"> </span><span class="n">H</span><span class="p">,</span><span class="w"> </span><span class="n">K</span><span class="w"> </span>\<span class="o">=</span><span class="w"> </span><span class="n">query</span>\<span class="n">_BLHK</span><span class="o">.</span><span class="n">shape</span><span class="w">  </span>
+\<span class="n">_</span><span class="p">,</span><span class="w"> </span><span class="n">M</span><span class="p">,</span><span class="w"> </span>\<span class="n">_</span><span class="p">,</span><span class="w"> </span>\<span class="n">_</span><span class="w"> </span>\<span class="o">=</span><span class="w"> </span><span class="n">key</span>\<span class="n">_BMHK</span><span class="o">.</span><span class="n">shape</span>
+
+\<span class="c1"># Initialize output in global High Bandwidth Memory (HBM)  </span>
+<span class="n">out</span>\<span class="n">_BLHK</span><span class="w"> </span>\<span class="o">=</span><span class="w"> </span><span class="n">torch</span><span class="o">.</span><span class="n">zeros</span>\<span class="n">_like</span><span class="p">(</span><span class="n">query</span>\<span class="n">_BLHK</span><span class="p">)</span>
+
+\<span class="c1"># 1\. Outer loop over sequence blocks (Rows of the attention matrix)  </span>
+<span class="k">for</span><span class="w"> </span><span class="n">i</span><span class="w"> </span><span class="ow">in</span><span class="w"> </span><span class="nb">range</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span><span class="w"> </span><span class="n">L</span><span class="p">,</span><span class="w"> </span><span class="n">Br</span><span class="p">):</span><span class="w">  </span>
+<span class="w">    </span><span class="n">query</span>\<span class="n">_BRHK</span><span class="w"> </span>\<span class="o">=</span><span class="w"> </span><span class="n">query</span>\<span class="n">_BLHK</span>\<span class="p">[:,</span><span class="w"> </span><span class="n">i</span><span class="p">:</span><span class="n">i</span><span class="o">+</span><span class="n">Br</span><span class="p">,</span><span class="w"> </span><span class="p">:,</span><span class="w"> </span><span class="p">:</span>\<span class="p">]</span><span class="w">  </span>
+<span class="w">    </span><span class="n">R</span><span class="w"> </span>\<span class="o">=</span><span class="w"> </span><span class="n">query</span>\<span class="n">_BRHK</span><span class="o">.</span><span class="n">shape</span>\<span class="p">[</span><span class="mi">1</span>\<span class="p">]</span><span class="w"> </span>\<span class="c1"># Actual row block size (handles sequence boundaries safely)</span>
+
+<span class="w">    </span>\<span class="c1"># Initialize running statistics for the online softmax trick (in fast SRAM)  </span>
+<span class="w">    </span><span class="nb">max</span>\<span class="n">_BHR</span><span class="w"> </span>\<span class="o">=</span><span class="w"> </span><span class="n">torch</span><span class="o">.</span><span class="n">full</span><span class="p">((</span><span class="n">B</span><span class="p">,</span><span class="w"> </span><span class="n">H</span><span class="p">,</span><span class="w"> </span><span class="n">R</span><span class="p">),</span><span class="w"> </span><span class="nb nb-Type">float</span><span class="p">(</span><span class="s1">&#39;-inf&#39;</span><span class="p">),</span><span class="w"> </span><span class="n">device</span><span class="o">=</span><span class="n">input</span>\<span class="n">_BLD</span><span class="o">.</span><span class="n">device</span><span class="p">)</span><span class="w">  </span>
+<span class="w">    </span><span class="n">sum</span>\<span class="n">_BHR</span><span class="w"> </span>\<span class="o">=</span><span class="w"> </span><span class="n">torch</span><span class="o">.</span><span class="n">zeros</span><span class="p">((</span><span class="n">B</span><span class="p">,</span><span class="w"> </span><span class="n">H</span><span class="p">,</span><span class="w"> </span><span class="n">R</span><span class="p">),</span><span class="w"> </span><span class="n">device</span><span class="o">=</span><span class="n">input</span>\<span class="n">_BLD</span><span class="o">.</span><span class="n">device</span><span class="p">)</span><span class="w">  </span>
+<span class="w">    </span><span class="n">out</span>\<span class="n">_BRHK</span><span class="w"> </span>\<span class="o">=</span><span class="w"> </span><span class="n">torch</span><span class="o">.</span><span class="n">zeros</span>\<span class="n">_like</span><span class="p">(</span><span class="n">query</span>\<span class="n">_BRHK</span><span class="p">)</span>
+
+<span class="w">    </span>\<span class="c1"># 2\. Inner loop over memory blocks (Columns of the attention matrix)  </span>
+<span class="w">    </span><span class="k">for</span><span class="w"> </span><span class="n">j</span><span class="w"> </span><span class="ow">in</span><span class="w"> </span><span class="nb">range</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span><span class="w"> </span><span class="n">M</span><span class="p">,</span><span class="w"> </span><span class="n">Bc</span><span class="p">):</span><span class="w">  </span>
+<span class="w">        </span>\<span class="c1"># Causal mask optimization: completely skip fully masked future blocks  </span>
+<span class="w">        </span><span class="k">if</span><span class="w"> </span><span class="k">is</span>\<span class="n">_causal</span><span class="w"> </span><span class="ow">and</span><span class="w"> </span><span class="n">j</span><span class="w"> </span>\<span class="o">&gt;=</span><span class="w"> </span><span class="n">i</span><span class="w"> </span>\<span class="o">+</span><span class="w"> </span><span class="n">R</span><span class="p">:</span><span class="w">  </span>
+<span class="w">            </span><span class="k">break</span>
+
+<span class="w">        </span><span class="n">key</span>\<span class="n">_BCHK</span><span class="w">   </span>\<span class="o">=</span><span class="w"> </span><span class="n">key</span>\<span class="n">_BMHK</span>\<span class="p">[:,</span><span class="w"> </span><span class="n">j</span><span class="p">:</span><span class="n">j</span><span class="o">+</span><span class="n">Bc</span><span class="p">,</span><span class="w"> </span><span class="p">:,</span><span class="w"> </span><span class="p">:</span>\<span class="p">]</span><span class="w">  </span>
+<span class="w">        </span><span class="n">value</span>\<span class="n">_BCHK</span><span class="w"> </span>\<span class="o">=</span><span class="w"> </span><span class="n">value</span>\<span class="n">_BMHK</span>\<span class="p">[:,</span><span class="w"> </span><span class="n">j</span><span class="p">:</span><span class="n">j</span><span class="o">+</span><span class="n">Bc</span><span class="p">,</span><span class="w"> </span><span class="p">:,</span><span class="w"> </span><span class="p">:</span>\<span class="p">]</span><span class="w">  </span>
+<span class="w">        </span><span class="n">C</span><span class="w"> </span>\<span class="o">=</span><span class="w"> </span><span class="n">key</span>\<span class="n">_BCHK</span><span class="o">.</span><span class="n">shape</span>\<span class="p">[</span><span class="mi">1</span>\<span class="p">]</span>
+
+<span class="w">        </span>\<span class="c1"># Unnormalized attention scores for this block pair  </span>
+<span class="w">        </span><span class="n">logits</span>\<span class="n">_BHRC</span><span class="w"> </span>\<span class="o">=</span><span class="w"> </span><span class="n">torch</span><span class="o">.</span><span class="n">einsum</span><span class="p">(</span><span class="s1">&#39;BRHK,BCHK-\&gt;BHRC&#39;</span><span class="p">,</span><span class="w"> </span><span class="n">query</span>\<span class="n">_BRHK</span><span class="p">,</span><span class="w"> </span><span class="n">key</span>\<span class="n">_BCHK</span><span class="p">)</span><span class="w">  </span>
+<span class="w">        </span><span class="n">logits</span>\<span class="n">_BHRC</span><span class="w"> </span><span class="o">/=</span><span class="w"> </span><span class="n">K</span><span class="w"> </span>\<span class="o">*</span>\<span class="o">*</span><span class="w"> </span><span class="mf">0.5</span>
+
+<span class="w">        </span>\<span class="c1"># Causal mask trick applied dynamically within the block  </span>
+<span class="w">        </span><span class="k">if</span><span class="w"> </span><span class="k">is</span>\<span class="n">_causal</span><span class="p">:</span><span class="w">  </span>
+<span class="w">            </span>\<span class="c1"># i+r is absolute query index, j+c is absolute key index  </span>
+<span class="w">            </span><span class="n">q</span>\<span class="n">_idx</span>\<span class="n">_R1</span><span class="w"> </span>\<span class="o">=</span><span class="w"> </span><span class="n">torch</span><span class="o">.</span><span class="n">arange</span><span class="p">(</span><span class="n">i</span><span class="p">,</span><span class="w"> </span><span class="n">i</span><span class="o">+</span><span class="n">R</span><span class="p">,</span><span class="w"> </span><span class="n">device</span><span class="o">=</span><span class="n">input</span>\<span class="n">_BLD</span><span class="o">.</span><span class="n">device</span><span class="p">)</span><span class="o">.</span><span class="n">unsqueeze</span><span class="p">(</span><span class="mi">1</span><span class="p">)</span><span class="w">  </span>
+<span class="w">            </span><span class="n">k</span>\<span class="n">_idx</span>\<span class="n">_1C</span><span class="w"> </span>\<span class="o">=</span><span class="w"> </span><span class="n">torch</span><span class="o">.</span><span class="n">arange</span><span class="p">(</span><span class="n">j</span><span class="p">,</span><span class="w"> </span><span class="n">j</span><span class="o">+</span><span class="n">C</span><span class="p">,</span><span class="w"> </span><span class="n">device</span><span class="o">=</span><span class="n">input</span>\<span class="n">_BLD</span><span class="o">.</span><span class="n">device</span><span class="p">)</span><span class="o">.</span><span class="n">unsqueeze</span><span class="p">(</span><span class="mi">0</span><span class="p">)</span><span class="w">  </span>
+<span class="w">            </span><span class="n">masked</span>\<span class="n">_out</span>\<span class="n">_RC</span><span class="w"> </span>\<span class="o">=</span><span class="w"> </span><span class="n">q</span>\<span class="n">_idx</span>\<span class="n">_R1</span><span class="w"> </span>\<span class="o">&lt;</span><span class="w"> </span><span class="n">k</span>\<span class="n">_idx</span>\<span class="n">_1C</span><span class="w">  </span>
+<span class="w">            </span><span class="n">logits</span>\<span class="n">_BHRC</span><span class="w"> </span>\<span class="o">+=</span><span class="w"> </span><span class="n">torch</span><span class="o">.</span><span class="n">where</span><span class="p">(</span><span class="n">masked</span>\<span class="n">_out</span>\<span class="n">_RC</span><span class="p">,</span><span class="w"> </span><span class="nb nb-Type">float</span><span class="p">(</span><span class="s1">&#39;-inf&#39;</span><span class="p">),</span><span class="w"> </span><span class="mf">0.0</span><span class="p">)</span>
+
+<span class="w">        </span>\<span class="c1"># \--- Flash Attention Softmax Trick \---</span>
+
+<span class="w">        </span>\<span class="c1"># Find the new maximum for numerical stability  </span>
+<span class="w">        </span><span class="n">block</span>\<span class="n">_max</span>\<span class="n">_BHR</span><span class="w"> </span>\<span class="o">=</span><span class="w"> </span><span class="n">torch</span><span class="o">.</span><span class="n">max</span><span class="p">(</span><span class="n">logits</span>\<span class="n">_BHRC</span><span class="p">,</span><span class="w"> </span><span class="n">dim</span><span class="o">=-</span><span class="mi">1</span><span class="p">)</span><span class="o">.</span><span class="n">values</span><span class="w">  </span>
+<span class="w">        </span><span class="n">new</span>\<span class="n">_max</span>\<span class="n">_BHR</span><span class="w"> </span>\<span class="o">=</span><span class="w"> </span><span class="n">torch</span><span class="o">.</span><span class="n">maximum</span><span class="p">(</span><span class="nb">max</span>\<span class="n">_BHR</span><span class="p">,</span><span class="w"> </span><span class="n">block</span>\<span class="n">_max</span>\<span class="n">_BHR</span><span class="p">)</span>
+
+<span class="w">        </span>\<span class="c1"># Shift logits to prevent overflow. (nan\_to\_num catches fully masked \-inf rows)  </span>
+<span class="w">        </span><span class="n">shifted</span>\<span class="n">_logits</span>\<span class="n">_BHRC</span><span class="w"> </span>\<span class="o">=</span><span class="w"> </span><span class="n">logits</span>\<span class="n">_BHRC</span><span class="w"> </span>\<span class="o">-</span><span class="w"> </span><span class="n">new</span>\<span class="n">_max</span>\<span class="n">_BHR</span><span class="o">.</span><span class="n">unsqueeze</span><span class="p">(</span><span class="o">-</span><span class="mi">1</span><span class="p">)</span><span class="w">  </span>
+<span class="w">        </span><span class="n">shifted</span>\<span class="n">_logits</span>\<span class="n">_BHRC</span><span class="w"> </span>\<span class="o">=</span><span class="w"> </span><span class="n">torch</span><span class="o">.</span><span class="n">nan</span>\<span class="n">_to</span>\<span class="n">_num</span><span class="p">(</span><span class="n">shifted</span>\<span class="n">_logits</span>\<span class="n">_BHRC</span><span class="p">,</span><span class="w"> </span><span class="n">nan</span><span class="o">=</span><span class="nb nb-Type">float</span><span class="p">(</span><span class="s1">&#39;-inf&#39;</span><span class="p">))</span><span class="w">  </span>
+<span class="w">        </span><span class="nb">exp</span>\<span class="n">_logits</span>\<span class="n">_BHRC</span><span class="w"> </span>\<span class="o">=</span><span class="w"> </span><span class="n">torch</span><span class="o">.</span><span class="n">exp</span><span class="p">(</span><span class="n">shifted</span>\<span class="n">_logits</span>\<span class="n">_BHRC</span><span class="p">)</span>
+
+<span class="w">        </span><span class="n">block</span>\<span class="n">_sum</span>\<span class="n">_BHR</span><span class="w"> </span>\<span class="o">=</span><span class="w"> </span><span class="n">torch</span><span class="o">.</span><span class="n">sum</span><span class="p">(</span><span class="nb">exp</span>\<span class="n">_logits</span>\<span class="n">_BHRC</span><span class="p">,</span><span class="w"> </span><span class="n">dim</span><span class="o">=-</span><span class="mi">1</span><span class="p">)</span>
+
+<span class="w">        </span>\<span class="c1"># Calculate correction factor to decay old stats based on the new max  </span>
+<span class="w">        </span><span class="n">scale</span>\<span class="n">_BHR</span><span class="w"> </span>\<span class="o">=</span><span class="w"> </span><span class="n">torch</span><span class="o">.</span><span class="n">exp</span><span class="p">(</span><span class="nb">max</span>\<span class="n">_BHR</span><span class="w"> </span>\<span class="o">-</span><span class="w"> </span><span class="n">new</span>\<span class="n">_max</span>\<span class="n">_BHR</span><span class="p">)</span><span class="w">  </span>
+<span class="w">        </span><span class="n">scale</span>\<span class="n">_BHR</span><span class="w"> </span>\<span class="o">=</span><span class="w"> </span><span class="n">torch</span><span class="o">.</span><span class="n">nan</span>\<span class="n">_to</span>\<span class="n">_num</span><span class="p">(</span><span class="n">scale</span>\<span class="n">_BHR</span><span class="p">,</span><span class="w"> </span><span class="n">nan</span><span class="o">=</span><span class="mf">0.0</span><span class="p">)</span>
+
+<span class="w">        </span>\<span class="c1"># Update the running denominator sum  </span>
+<span class="w">        </span><span class="n">sum</span>\<span class="n">_BHR</span><span class="w"> </span>\<span class="o">=</span><span class="w"> </span><span class="n">sum</span>\<span class="n">_BHR</span><span class="w"> </span>\<span class="o">*</span><span class="w"> </span><span class="n">scale</span>\<span class="n">_BHR</span><span class="w"> </span>\<span class="o">+</span><span class="w"> </span><span class="n">block</span>\<span class="n">_sum</span>\<span class="n">_BHR</span>
+
+<span class="w">        </span>\<span class="c1"># Calculate the new weighted values for this block  </span>
+<span class="w">        </span><span class="n">wtd</span>\<span class="n">_values</span>\<span class="n">_BRHK</span><span class="w"> </span>\<span class="o">=</span><span class="w"> </span><span class="n">torch</span><span class="o">.</span><span class="n">einsum</span><span class="p">(</span><span class="s1">&#39;BHRC,BCHK-\&gt;BRHK&#39;</span><span class="p">,</span><span class="w"> </span><span class="nb">exp</span>\<span class="n">_logits</span>\<span class="n">_BHRC</span><span class="p">,</span><span class="w"> </span><span class="n">value</span>\<span class="n">_BCHK</span><span class="p">)</span>
+
+<span class="w">        </span>\<span class="c1"># Update the running output   </span>
+<span class="w">        </span><span class="n">out</span>\<span class="n">_BRHK</span><span class="w"> </span>\<span class="o">=</span><span class="w"> </span><span class="n">torch</span><span class="o">.</span><span class="n">einsum</span><span class="p">(</span><span class="s1">&#39;BRHK,BHR-\&gt;BRHK&#39;</span><span class="p">,</span><span class="w"> </span><span class="n">out</span>\<span class="n">_BRHK</span><span class="p">,</span><span class="w"> </span><span class="n">scale</span>\<span class="n">_BHR</span><span class="p">)</span><span class="w"> </span>\<span class="o">+</span><span class="w"> </span><span class="n">wtd</span>\<span class="n">_values</span>\<span class="n">_BRHK</span>
+
+<span class="w">        </span>\<span class="c1"># Commit loop variables for the next memory block iteration  </span>
+<span class="w">        </span><span class="nb">max</span>\<span class="n">_BHR</span><span class="w"> </span>\<span class="o">=</span><span class="w"> </span><span class="n">new</span>\<span class="n">_max</span>\<span class="n">_BHR</span>
+
+<span class="w">    </span>\<span class="c1"># 3\. Final normalization step (divide by the final running sum)  </span>
+<span class="w">    </span><span class="n">out</span>\<span class="n">_BRHK</span><span class="w"> </span>\<span class="o">=</span><span class="w"> </span><span class="n">torch</span><span class="o">.</span><span class="n">einsum</span><span class="p">(</span><span class="s1">&#39;BRHK,BHR-\&gt;BRHK&#39;</span><span class="p">,</span><span class="w"> </span><span class="n">out</span>\<span class="n">_BRHK</span><span class="p">,</span><span class="w"> </span><span class="mf">1.0</span><span class="w"> </span><span class="o">/</span><span class="w"> </span><span class="n">sum</span>\<span class="n">_BHR</span><span class="p">)</span>
+
+<span class="w">    </span>\<span class="c1"># Write updated block back to global HBM tensor  </span>
+<span class="w">    </span><span class="n">out</span>\<span class="n">_BLHK</span>\<span class="p">[:,</span><span class="w"> </span><span class="n">i</span><span class="p">:</span><span class="n">i</span><span class="o">+</span><span class="n">R</span><span class="p">,</span><span class="w"> </span><span class="p">:,</span><span class="w"> </span><span class="p">:</span>\<span class="p">]</span><span class="w"> </span>\<span class="o">=</span><span class="w"> </span><span class="n">out</span>\<span class="n">_BRHK</span>
+
+\<span class="c1"># 4\. Final dense projection  </span>
+<span class="n">out</span>\<span class="n">_BLD</span><span class="w"> </span>\<span class="o">=</span><span class="w"> </span><span class="n">torch</span><span class="o">.</span><span class="n">einsum</span><span class="p">(</span><span class="s1">&#39;BLHK,HKD-\&gt;BLD&#39;</span><span class="p">,</span><span class="w"> </span><span class="n">out</span>\<span class="n">_BLHK</span><span class="p">,</span><span class="w"> </span><span class="n">params</span><span class="o">.</span><span class="n">w</span>\<span class="n">_o</span>\<span class="n">_HKD</span><span class="p">)</span><span class="w">  </span>
+<span class="k">return</span><span class="w"> </span><span class="n">out</span>\<span class="n">_BLD</span>
+</code></pre></div>
+
+<h3 id="why-shape-suffixes-make-flash-attention-remarkably-readable"><strong>Why shape suffixes make Flash Attention remarkably readable:</strong></h3>
+<ol>
+<li><strong>Transposes Disappear:</strong> Traditional PyTorch attention logic requires deeply nested transformations like query.transpose(1, 2) @ key.transpose(1, 2).transpose(2, 3) just to align axes for block multiplication. Suffixes make torch.einsum('BRHK,BCHK-&gt;BHRC', ...) profoundly trivial.  </li>
+<li><strong>Implicit Matrix Broadcasting:</strong> Decaying the accumulated outputs by the max-scaling factor traditionally demands visual horrors like out * scale.unsqueeze(1).unsqueeze(-1). Using shape suffixes, torch.einsum('BRHK,BHR-&gt;BRHK', out, scale) tells einsum to do the heavy lifting of flawlessly matching the B, H, and R dimensions for you.  </li>
+<li><strong>Safe Reductions:</strong> Knowing your unnormalized block logic sits in logits_BHRC guarantees that calling .max(dim=-1) and .sum(dim=-1) collapses the C suffix. Visually, you instantly know it cleanly resolves into our target running state _BHR tracking tensors without a second thought.</li>
+</ol>
+</body>
+</html>

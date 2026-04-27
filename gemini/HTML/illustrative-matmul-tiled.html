@@ -1,0 +1,160 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Illustrative Matmul Tiled</title>
+<style>
+  body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif; max-width: 800px; margin: 40px auto; padding: 0 20px; line-height: 1.6; color: #333; }
+  pre { background: #f6f8fa; padding: 16px; border-radius: 6px; overflow-x: auto; }
+  code { background: #f6f8fa; padding: 2px 6px; border-radius: 3px; font-size: 0.9em; }
+  pre code { background: none; padding: 0; }
+  table { border-collapse: collapse; width: 100%; }
+  th, td { border: 1px solid #ddd; padding: 8px 12px; text-align: left; }
+  th { background: #f6f8fa; }
+  img { max-width: 100%; }
+  blockquote { border-left: 4px solid #ddd; margin: 0; padding-left: 16px; color: #666; }
+</style>
+</head>
+<body>
+<p>Here is a clear, step-by-step mathematical walkthrough and a self-contained Python script that completely strips away LRU caches to show why <strong>manual memory placement (scratchpad management)</strong> is mathematically optimal on a 2D spatial grid.</p>
+<h3 id="1-the-physical-memory-model"><strong>1. The Physical Memory Model</strong></h3>
+<p>Imagine memory as a continuous 1D array of addresses ($1, 2, 3 \dots$) mapped onto a 2D physical silicon grid spiraling outward from the processor (ALU).</p>
+<p>Because the area of a 2D shape grows quadratically with its radius ($A = \pi r^2$), the physical distance (wire length) to reach address $X$ scales as $\sqrt{X}$.</p>
+<ul>
+<li><strong>The Rule:</strong> Reading from address addr costs $\lceil\sqrt{\text{addr}}\rceil$. (Writes are free).  </li>
+<li><strong>The Layout:</strong> We enforce a two-tiered manual layout.  </li>
+<li><strong>Below (Scratchpad):</strong> The absolute lowest addresses ($1 \dots S$) are permanently pinned to our L1 tile buffers.  </li>
+<li><strong>Above (Arguments):</strong> The large matrices $A$ and $B$ are allocated <em>after</em> the scratchpad, pushing them out into deeper, more expensive physical addresses.</li>
+</ul>
+<h3 id="-">---</h3>
+<p><strong>2. Step-by-Step Walkthrough ($16 \times 16$ Matrices, $T=4$)</strong></p>
+<p>Let's compute the memory cost to multiply two $16 \times 16$ matrices. Both $A$ and $B$ contain 256 elements.</p>
+<h4 id="strategy-a-naive-matmul-direct-fetching"><strong>Strategy A: Naive Matmul (Direct Fetching)</strong></h4>
+<p>In the naive approach, we don't allocate a scratchpad. The matrices start immediately at Address 1.</p>
+<ul>
+<li>Matrix $A$ is at addresses 1 to 256 (Average read cost $\approx 11$)  </li>
+<li>Matrix $B$ is at addresses 257 to 512 (Average read cost $\approx 19$)</li>
+</ul>
+<p>To compute a single element of $C$, the ALU does 16 multiply-accumulates (MACs). It reaches out to $A$ and $B$ for every single calculation.</p>
+<ul>
+<li><strong>Cost for 1 element:</strong> $16 \text{ reads} \times (11 + 19) \approx \mathbf{480}$ cost.  </li>
+<li><strong>Total Cost for all 256 elements:</strong> $256 \times 480 \approx \mathbf{122,880}$ distance cost.</li>
+</ul>
+<h4 id="strategy-b-manual-tiled-matmul"><strong>Strategy B: Manual Tiled Matmul</strong></h4>
+<p>We allocate three $4 \times 4$ local scratchpads first, pushing $A$ and $B$ further away.</p>
+<ul>
+<li>fast_A (Addr 1 to 16) $\rightarrow$ Avg cost: $\mathbf{3}$  </li>
+<li>fast_B (Addr 17 to 32) $\rightarrow$ Avg cost: $\mathbf{5}$  </li>
+<li>fast_C (Addr 33 to 48) $\rightarrow$ Avg cost: $\mathbf{6}$  </li>
+<li><em>Notice: $A$ and $B$ now start at address 49, making them slightly more expensive to read from than before!</em></li>
+</ul>
+<p>We compute the $16 \times 16$ output by breaking it into sixteen $4 \times 4$ blocks. Let's trace <strong>one</strong> block:</p>
+<p><strong>Phase 1: DMA Block Fetch (Pay the heavy toll)</strong></p>
+<p>We fetch a $4 \times 4$ block of $A$ and a $4 \times 4$ block of $B$ from deep memory and save them to the scratchpad.</p>
+<ul>
+<li><strong>Fetch Cost:</strong> 16 elements of $A$ (cost $\sim 13$) + 16 elements of $B$ (cost $\sim 21$) $\approx \mathbf{544}$ cost.</li>
+</ul>
+<p><strong>Phase 2: Compute locally in the Scratchpad (The Payout)</strong></p>
+<p>Now we compute the 16 output elements of this block. Each element requires 4 MACs, but we read <em>exclusively</em> from our perfectly pinned addresses $1 \dots 48$.</p>
+<ul>
+<li><strong>Cost for 1 element:</strong> $4 \text{ reads} \times (\text{fast-A} + \text{fast-B} + \text{fast-C}) \rightarrow 4 \times (3 + 5 + 6) = \mathbf{56}$ cost.  </li>
+<li><strong>Cost for all 16 elements in the block:</strong> $16 \times 56 = \mathbf{896}$ cost.</li>
+</ul>
+<p><strong>Net Result per block:</strong></p>
+<ul>
+<li><strong>Naive Cost:</strong> $16 \text{ elements} \times 480 \text{ cost} = \mathbf{7,680}$  </li>
+<li><strong>Tiled Cost:</strong> $544 \text{ (Fetch)} + 896 \text{ (Compute)} = \mathbf{1,440}$</li>
+</ul>
+<p>Even though we penalized $A$ and $B$ by pushing them into higher addresses, <strong>the Manual Tiled approach mathematically crushes the Naive approach</strong> because it converts $O(N^3)$ long-distance wire routing into $O(N^3)$ ultra-local wire routing.</p>
+<h3 id="-_1">---</h3>
+<p><strong>3. Minimal Runnable Python Proof</strong></p>
+<p>Here is the exact implementation of the manual continuous DMD stack layout.</p>
+<p>Python</p>
+<p>import math</p>
+<p>class ContinuousAllocator:<br />
+    """A bump-allocator representing a continuous 2D physical grid."""<br />
+    def __init__(self):<br />
+        self.ptr \= 1<br />
+        self.cost \= 0</p>
+<div class="codehilite"><pre><span></span><code><span class="nx">def</span><span class="w"> </span><span class="nx">alloc</span><span class="p">(</span><span class="kp">self</span><span class="p">,</span><span class="w"> </span><span class="nx">size</span><span class="p">:</span><span class="w"> </span><span class="nx">int</span><span class="p">)</span><span class="w"> </span><span class="err">\</span><span class="o">-</span><span class="err">\</span><span class="p">&gt;</span><span class="w"> </span><span class="nx">int</span><span class="p">:</span><span class="w">  </span>
+<span class="w">    </span><span class="kd">addr</span><span class="w"> </span><span class="err">\</span><span class="p">=</span><span class="w"> </span><span class="kp">self</span><span class="p">.</span><span class="nx">ptr</span><span class="w">  </span>
+<span class="w">    </span><span class="kp">self</span><span class="p">.</span><span class="nx">ptr</span><span class="w"> </span><span class="err">\</span><span class="o">+=</span><span class="w"> </span><span class="nx">size</span><span class="w">  </span>
+<span class="w">    </span><span class="k">return</span><span class="w"> </span><span class="kd">addr</span>
+
+<span class="nx">def</span><span class="w"> </span><span class="nx">read</span><span class="p">(</span><span class="kp">self</span><span class="p">,</span><span class="w"> </span><span class="kd">addr</span><span class="p">:</span><span class="w"> </span><span class="nx">int</span><span class="p">):</span><span class="w">  </span>
+<span class="w">    </span><span class="err">\#</span><span class="w"> </span><span class="mi">2</span><span class="nx">D</span><span class="w"> </span><span class="nx">Routing</span><span class="w"> </span><span class="nx">Cost</span><span class="p">:</span><span class="w"> </span><span class="nx">ceil</span><span class="p">(</span><span class="nx">sqrt</span><span class="p">(</span><span class="kd">addr</span><span class="p">))</span><span class="w">  </span>
+<span class="w">    </span><span class="kp">self</span><span class="p">.</span><span class="nx">cost</span><span class="w"> </span><span class="err">\</span><span class="o">+=</span><span class="w"> </span><span class="nx">math</span><span class="p">.</span><span class="nx">isqrt</span><span class="p">(</span><span class="nx">max</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span><span class="w"> </span><span class="kd">addr</span><span class="w"> </span><span class="err">\</span><span class="o">-</span><span class="w"> </span><span class="mi">1</span><span class="p">))</span><span class="w"> </span><span class="err">\</span><span class="o">+</span><span class="w"> </span><span class="mi">1</span>
+</code></pre></div>
+
+<p>def naive_matmul(N: int):<br />
+    mem \= ContinuousAllocator()  </p>
+<div class="codehilite"><pre><span></span><code>\# Arguments allocated immediately (Starts at Address 1\)  
+A \= mem.alloc(N \* N)  
+B \= mem.alloc(N \* N)  
+C \= mem.alloc(N \* N)
+
+for i in range(N):  
+    for j in range(N):  
+        for k in range(N):  
+            \# O(N^3) expensive reads directly from distant main memory  
+            mem.read(A \+ i \* N \+ k)  
+            mem.read(B \+ k \* N \+ j)  
+            mem.read(C \+ i \* N \+ j) \# Read accumulator
+
+return mem.cost
+</code></pre></div>
+
+<p>def tiled_matmul(N: int, T: int):<br />
+    mem \= ContinuousAllocator()  </p>
+<div class="codehilite"><pre><span></span><code><span class="err">\#</span><span class="w"> </span><span class="mi">1</span><span class="err">\</span><span class="p">.</span><span class="w"> </span><span class="nx">Scratchpad</span><span class="w"> </span><span class="nx">allocated</span><span class="w"> </span><span class="nx">BELOW</span><span class="w"> </span><span class="p">(</span><span class="nx">Addresses</span><span class="w"> </span><span class="mi">1</span><span class="w"> </span><span class="nx">to</span><span class="w"> </span><span class="mi">3</span><span class="err">\</span><span class="o">*</span><span class="nx">T</span><span class="o">^</span><span class="mi">2</span><span class="p">)</span><span class="w">  </span>
+<span class="err">\#</span><span class="w"> </span><span class="nx">These</span><span class="w"> </span><span class="nx">become</span><span class="w"> </span><span class="nx">permanently</span><span class="w"> </span><span class="nx">pinned</span><span class="w"> </span><span class="nx">to</span><span class="w"> </span><span class="nx">the</span><span class="w"> </span><span class="nx">cheapest</span><span class="w"> </span><span class="nx">physical</span><span class="w"> </span><span class="nx">addresses</span><span class="p">.</span><span class="w">  </span>
+<span class="nx">fast</span><span class="err">\</span><span class="nx">_A</span><span class="w"> </span><span class="err">\</span><span class="p">=</span><span class="w"> </span><span class="nx">mem</span><span class="p">.</span><span class="nx">alloc</span><span class="p">(</span><span class="nx">T</span><span class="w"> </span><span class="err">\</span><span class="o">*</span><span class="w"> </span><span class="nx">T</span><span class="p">)</span><span class="w">  </span>
+<span class="nx">fast</span><span class="err">\</span><span class="nx">_B</span><span class="w"> </span><span class="err">\</span><span class="p">=</span><span class="w"> </span><span class="nx">mem</span><span class="p">.</span><span class="nx">alloc</span><span class="p">(</span><span class="nx">T</span><span class="w"> </span><span class="err">\</span><span class="o">*</span><span class="w"> </span><span class="nx">T</span><span class="p">)</span><span class="w">  </span>
+<span class="nx">fast</span><span class="err">\</span><span class="nx">_C</span><span class="w"> </span><span class="err">\</span><span class="p">=</span><span class="w"> </span><span class="nx">mem</span><span class="p">.</span><span class="nx">alloc</span><span class="p">(</span><span class="nx">T</span><span class="w"> </span><span class="err">\</span><span class="o">*</span><span class="w"> </span><span class="nx">T</span><span class="p">)</span>
+
+<span class="err">\#</span><span class="w"> </span><span class="mi">2</span><span class="err">\</span><span class="p">.</span><span class="w"> </span><span class="nx">Arguments</span><span class="w"> </span><span class="nx">allocated</span><span class="w"> </span><span class="nx">ABOVE</span><span class="w"> </span><span class="p">(</span><span class="nx">pushed</span><span class="w"> </span><span class="nx">out</span><span class="w"> </span><span class="nx">to</span><span class="w"> </span><span class="nx">higher</span><span class="p">,</span><span class="w"> </span><span class="nx">more</span><span class="w"> </span><span class="nx">expensive</span><span class="w"> </span><span class="nx">addresses</span><span class="p">)</span><span class="w">  </span>
+<span class="nx">A</span><span class="w"> </span><span class="err">\</span><span class="p">=</span><span class="w"> </span><span class="nx">mem</span><span class="p">.</span><span class="nx">alloc</span><span class="p">(</span><span class="nx">N</span><span class="w"> </span><span class="err">\</span><span class="o">*</span><span class="w"> </span><span class="nx">N</span><span class="p">)</span><span class="w">  </span>
+<span class="nx">B</span><span class="w"> </span><span class="err">\</span><span class="p">=</span><span class="w"> </span><span class="nx">mem</span><span class="p">.</span><span class="nx">alloc</span><span class="p">(</span><span class="nx">N</span><span class="w"> </span><span class="err">\</span><span class="o">*</span><span class="w"> </span><span class="nx">N</span><span class="p">)</span><span class="w">  </span>
+<span class="nx">C</span><span class="w"> </span><span class="err">\</span><span class="p">=</span><span class="w"> </span><span class="nx">mem</span><span class="p">.</span><span class="nx">alloc</span><span class="p">(</span><span class="nx">N</span><span class="w"> </span><span class="err">\</span><span class="o">*</span><span class="w"> </span><span class="nx">N</span><span class="p">)</span>
+
+<span class="k">for</span><span class="w"> </span><span class="nx">bi</span><span class="w"> </span><span class="k">in</span><span class="w"> </span><span class="nx">range</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span><span class="w"> </span><span class="nx">N</span><span class="p">,</span><span class="w"> </span><span class="nx">T</span><span class="p">):</span><span class="w">  </span>
+<span class="w">    </span><span class="k">for</span><span class="w"> </span><span class="nx">bj</span><span class="w"> </span><span class="k">in</span><span class="w"> </span><span class="nx">range</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span><span class="w"> </span><span class="nx">N</span><span class="p">,</span><span class="w"> </span><span class="nx">T</span><span class="p">):</span><span class="w">  </span>
+<span class="w">        </span><span class="k">for</span><span class="w"> </span><span class="nx">bk</span><span class="w"> </span><span class="k">in</span><span class="w"> </span><span class="nx">range</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span><span class="w"> </span><span class="nx">N</span><span class="p">,</span><span class="w"> </span><span class="nx">T</span><span class="p">):</span>
+
+<span class="w">            </span><span class="err">\#</span><span class="w"> </span><span class="nx">Phase</span><span class="w"> </span><span class="mi">1</span><span class="p">:</span><span class="w"> </span><span class="nx">Block</span><span class="w"> </span><span class="nx">Fetch</span><span class="w"> </span><span class="p">(</span><span class="nx">Move</span><span class="w"> </span><span class="nx">data</span><span class="w"> </span><span class="nx">from</span><span class="w"> </span><span class="nx">expensive</span><span class="w"> </span><span class="nx">memory</span><span class="w"> </span><span class="nx">to</span><span class="w"> </span><span class="nx">cheap</span><span class="w"> </span><span class="nx">scratch</span><span class="p">)</span><span class="w">  </span>
+<span class="w">            </span><span class="k">for</span><span class="w"> </span><span class="nx">i</span><span class="w"> </span><span class="k">in</span><span class="w"> </span><span class="nx">range</span><span class="p">(</span><span class="nx">T</span><span class="p">):</span><span class="w">  </span>
+<span class="w">                </span><span class="k">for</span><span class="w"> </span><span class="nx">k</span><span class="w"> </span><span class="k">in</span><span class="w"> </span><span class="nx">range</span><span class="p">(</span><span class="nx">T</span><span class="p">):</span><span class="w">  </span>
+<span class="w">                    </span><span class="nx">mem</span><span class="p">.</span><span class="nx">read</span><span class="p">(</span><span class="nx">A</span><span class="w"> </span><span class="err">\</span><span class="o">+</span><span class="w"> </span><span class="p">(</span><span class="nx">bi</span><span class="w"> </span><span class="err">\</span><span class="o">+</span><span class="w"> </span><span class="nx">i</span><span class="p">)</span><span class="w"> </span><span class="err">\</span><span class="o">*</span><span class="w"> </span><span class="nx">N</span><span class="w"> </span><span class="err">\</span><span class="o">+</span><span class="w"> </span><span class="p">(</span><span class="nx">bk</span><span class="w"> </span><span class="err">\</span><span class="o">+</span><span class="w"> </span><span class="nx">k</span><span class="p">))</span><span class="w">  </span>
+<span class="w">            </span><span class="k">for</span><span class="w"> </span><span class="nx">k</span><span class="w"> </span><span class="k">in</span><span class="w"> </span><span class="nx">range</span><span class="p">(</span><span class="nx">T</span><span class="p">):</span><span class="w">  </span>
+<span class="w">                </span><span class="k">for</span><span class="w"> </span><span class="nx">j</span><span class="w"> </span><span class="k">in</span><span class="w"> </span><span class="nx">range</span><span class="p">(</span><span class="nx">T</span><span class="p">):</span><span class="w">  </span>
+<span class="w">                    </span><span class="nx">mem</span><span class="p">.</span><span class="nx">read</span><span class="p">(</span><span class="nx">B</span><span class="w"> </span><span class="err">\</span><span class="o">+</span><span class="w"> </span><span class="p">(</span><span class="nx">bk</span><span class="w"> </span><span class="err">\</span><span class="o">+</span><span class="w"> </span><span class="nx">k</span><span class="p">)</span><span class="w"> </span><span class="err">\</span><span class="o">*</span><span class="w"> </span><span class="nx">N</span><span class="w"> </span><span class="err">\</span><span class="o">+</span><span class="w"> </span><span class="p">(</span><span class="nx">bj</span><span class="w"> </span><span class="err">\</span><span class="o">+</span><span class="w"> </span><span class="nx">j</span><span class="p">))</span>
+
+<span class="w">            </span><span class="err">\#</span><span class="w"> </span><span class="nx">Phase</span><span class="w"> </span><span class="mi">2</span><span class="p">:</span><span class="w"> </span><span class="nx">Compute</span><span class="w"> </span><span class="p">(</span><span class="nx">Math</span><span class="w"> </span><span class="nx">using</span><span class="w"> </span><span class="nx">ONLY</span><span class="w"> </span><span class="nx">the</span><span class="w"> </span><span class="nx">cheap</span><span class="p">,</span><span class="w"> </span><span class="nx">locally</span><span class="w"> </span><span class="nx">pinned</span><span class="w"> </span><span class="nx">scratchpad</span><span class="p">)</span><span class="w">  </span>
+<span class="w">            </span><span class="k">for</span><span class="w"> </span><span class="nx">i</span><span class="w"> </span><span class="k">in</span><span class="w"> </span><span class="nx">range</span><span class="p">(</span><span class="nx">T</span><span class="p">):</span><span class="w">  </span>
+<span class="w">                </span><span class="k">for</span><span class="w"> </span><span class="nx">j</span><span class="w"> </span><span class="k">in</span><span class="w"> </span><span class="nx">range</span><span class="p">(</span><span class="nx">T</span><span class="p">):</span><span class="w">  </span>
+<span class="w">                    </span><span class="k">for</span><span class="w"> </span><span class="nx">k</span><span class="w"> </span><span class="k">in</span><span class="w"> </span><span class="nx">range</span><span class="p">(</span><span class="nx">T</span><span class="p">):</span><span class="w">  </span>
+<span class="w">                        </span><span class="nx">mem</span><span class="p">.</span><span class="nx">read</span><span class="p">(</span><span class="nx">fast</span><span class="err">\</span><span class="nx">_A</span><span class="w"> </span><span class="err">\</span><span class="o">+</span><span class="w"> </span><span class="nx">i</span><span class="w"> </span><span class="err">\</span><span class="o">*</span><span class="w"> </span><span class="nx">T</span><span class="w"> </span><span class="err">\</span><span class="o">+</span><span class="w"> </span><span class="nx">k</span><span class="p">)</span><span class="w">  </span>
+<span class="w">                        </span><span class="nx">mem</span><span class="p">.</span><span class="nx">read</span><span class="p">(</span><span class="nx">fast</span><span class="err">\</span><span class="nx">_B</span><span class="w"> </span><span class="err">\</span><span class="o">+</span><span class="w"> </span><span class="nx">k</span><span class="w"> </span><span class="err">\</span><span class="o">*</span><span class="w"> </span><span class="nx">T</span><span class="w"> </span><span class="err">\</span><span class="o">+</span><span class="w"> </span><span class="nx">j</span><span class="p">)</span><span class="w">  </span>
+<span class="w">                        </span><span class="nx">mem</span><span class="p">.</span><span class="nx">read</span><span class="p">(</span><span class="nx">fast</span><span class="err">\</span><span class="nx">_C</span><span class="w"> </span><span class="err">\</span><span class="o">+</span><span class="w"> </span><span class="nx">i</span><span class="w"> </span><span class="err">\</span><span class="o">*</span><span class="w"> </span><span class="nx">T</span><span class="w"> </span><span class="err">\</span><span class="o">+</span><span class="w"> </span><span class="nx">j</span><span class="p">)</span><span class="w"> </span><span class="err">\#</span><span class="w"> </span><span class="nx">Read</span><span class="w"> </span><span class="nx">accumulator</span>
+
+<span class="k">return</span><span class="w"> </span><span class="nx">mem</span><span class="p">.</span><span class="nx">cost</span>
+</code></pre></div>
+
+<p>if __name__ \== "__main__":<br />
+    N, T \= 16, 4  </p>
+<div class="codehilite"><pre><span></span><code>cost\_naive \= naive\_matmul(N)  
+cost\_tiled \= tiled\_matmul(N, T)
+
+print(f&quot;Matrix Size: {N}x{N}, Tile Size: {T}x{T}&quot;)  
+print(&quot;-&quot; \* 40)  
+print(f&quot;Naive Matmul Cost: {cost\_naive:,}&quot;)  
+print(f&quot;Tiled Matmul Cost: {cost\_tiled:,}&quot;)  
+print(f&quot;Advantage: Tiled is {cost\_naive / cost\_tiled:.2f}x cheaper&quot;)
+</code></pre></div>
+
+<h3 id="why-this-beats-lru-caches"><strong>Why this beats LRU caches:</strong></h3>
+<p>If this code was run on an LRU cache (like a CPU), sweeping across the large matrix blocks of $A$ and $B$ during Phase 1 would routinely sink your $C$ accumulator to the bottom of the LRU stack, dynamically inflating its distance penalty.</p>
+<p>By manually reserving addresses $1 \dots 48$, you forcefully declare that fast_A, fast_B, and fast_C can <strong>never be displaced</strong>. The physical wires connecting them to the ALU remain short forever, mathematically enforcing optimal energy efficiency.</p>
+</body>
+</html>

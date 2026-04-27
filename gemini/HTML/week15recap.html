@@ -1,0 +1,396 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Week15Recap</title>
+<style>
+  body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif; max-width: 800px; margin: 40px auto; padding: 0 20px; line-height: 1.6; color: #333; }
+  pre { background: #f6f8fa; padding: 16px; border-radius: 6px; overflow-x: auto; }
+  code { background: #f6f8fa; padding: 2px 6px; border-radius: 3px; font-size: 0.9em; }
+  pre code { background: none; padding: 0; }
+  table { border-collapse: collapse; width: 100%; }
+  th, td { border: 1px solid #ddd; padding: 8px 12px; text-align: left; }
+  th { background: #f6f8fa; }
+  img { max-width: 100%; }
+  blockquote { border-left: 4px solid #ddd; margin: 0; padding-left: 16px; color: #666; }
+</style>
+</head>
+<body>
+<h1 id="research-report-designing-a-data-movement-cost-metric-for-2d-silicon">Research Report: Designing a Data Movement Cost Metric for 2D Silicon</h1>
+<p><strong>Period:</strong> March 28 – April 12, 2026<br />
+<strong>Repository:</strong> cybertronai/ByteDMD</p>
+<h2 id="1-introduction">1. Introduction</h2>
+<p>This report documents a two-week research effort to design a concrete, computable cost metric for data movement on 2D silicon, inspired by Bill Dally's ACM opinion piece arguing that FLOPs are an outdated measure of computational cost. The central idea: reading a byte at depth $d$ in an LRU stack costs $\lceil\sqrt{d}\rceil$, modeling the physical wire length on a 2D chip. The total cost of a computation is $C = \sum_{b \in \text{reads}} \lceil\sqrt{d(b)}\rceil$.</p>
+<p>The work proceeded along three interleaved axes:</p>
+<ol>
+<li><strong>Metric design:</strong> How should the LRU stack behave? What happens to dead variables? How are cold misses priced? Each choice changes the asymptotic formulas.</li>
+<li><strong>Closed-form analysis:</strong> For each metric variant, derive exact or asymptotic ByteDMD formulas for canonical algorithms (matvec, naive matmul, recursive matmul, Strassen, flash attention).</li>
+<li><strong>Implementation and validation:</strong> Build Python tracers and Wolfram Language scripts that agree to the last integer, confirming the formulas.</li>
+</ol>
+<p>The core finding is that <strong>memory management strategy matters as much as algorithm choice</strong> — the same algorithm can range from $\Theta(N^{3.5})$ to $\Theta(N^3 \log N)$ depending on whether dead variables are reclaimed. Furthermore, the choice between LRU compaction vs. stationary slots determines whether naive matmul measures as $O(N^{3.7})$ or a clean $O(N^4)$.</p>
+<p>Below we group findings by the design axes explored, with links to the relevant Gemini research notes in <code>gemini/</code>.</p>
+<hr />
+<h2 id="2-axis-1-memory-management-strategies">2. Axis 1: Memory Management Strategies</h2>
+<p>The single biggest design decision is what happens when a variable dies (is never read again). We explored four strategies, each producing different asymptotic behaviors.</p>
+<h3 id="21-strategy-1-no-gc-infinite-graveyard">2.1 Strategy 1: No GC ("Infinite Graveyard")</h3>
+<p><strong>Description:</strong> Dead temporaries remain on the LRU stack permanently. The stack grows without bound.</p>
+<p><strong>Implementation:</strong> Original <code>bytedmd.py</code> before April 9.</p>
+<p><strong>Effect on formulas:</strong><br />
+- Dead intermediates bury live data progressively deeper<br />
+- Naive matmul: $\Theta(N^4)$ — B elements at depth $\sim 3N^2$; $N^3$ accesses at cost $\sqrt{3N^2} = \sqrt{3}\,N$ each → $\sqrt{3}\,N^4$<br />
+- Recursive matmul: degrades to $\Theta(N^{3.5})$ — at level $S$, $O(S^3)$ dead temporaries bury $S^2$ inputs at depth $S^3$; cost $S^2 \cdot \sqrt{S^3} = S^{3.5}$; geometric sum → $25.1\,N^{3.5}$<br />
+- Strassen: degrades to $\Theta(N^{3.4})$ — $O(N^{2.81})$ leaked intermediates; base matrices at depth $N^{2.81}$ → $74.7\,N^{3.405}$</p>
+<p><strong>Pros:</strong> Simplest to implement. No liveness analysis needed.<br />
+<strong>Cons:</strong> Artificially inflates costs by polynomial factors. Makes recursive algorithms look worse than they are.</p>
+<p><strong>References:</strong> <a href="infinite-graveyard.md">infinite-graveyard.md</a>, <a href="gc-vs-nogc-formulas.md">gc-vs-nogc-formulas.md</a>, <a href="tombstone-analysis.md">tombstone-analysis.md</a></p>
+<h3 id="22-strategy-2-traditional-gc-tombstone-holes">2.2 Strategy 2: Traditional GC (Tombstone Holes)</h3>
+<p><strong>Description:</strong> Dead variables are replaced by tombstone markers that hold their slot. New allocations recycle the lowest tombstone. Stack size equals the high-water mark, not the live count.</p>
+<p><strong>Implementation:</strong> <code>bytedmd.py</code> with refcount GC (April 8–9).</p>
+<p><strong>Effect on formulas:</strong><br />
+- Stack size capped at peak watermark, but holes remain<br />
+- Naive matmul: $\Theta(N^4)$ — unchanged (all of B is live throughout the $k$-loop)<br />
+- Recursive matmul: $\Theta(N^3 \log N)$ — dead branches evaporate; depth bounded by watermark $\sim 4.25\,S^2$; cost per level $12.3\,S^3$; accumulates over $\log N$ levels<br />
+- Strassen: $\Theta(N^3)$ — watermark $4S^2$; cost per level $25\,S^3$; geometric sum factor $= 8$ → $200\,N^3$</p>
+<p><strong>Pros:</strong> Recovers optimal asymptotics. No "free data movement."<br />
+<strong>Cons:</strong> Tombstone recycling introduces a "teleportation" artifact where new values appear at artificially low depths. Leading constants are larger than Strategy 3.</p>
+<p><strong>References:</strong> <a href="tombstone-analysis.md">tombstone-analysis.md</a>, <a href="gc-vs-nogc-formulas.md">gc-vs-nogc-formulas.md</a></p>
+<h3 id="23-strategy-3-aggressive-compaction-lru-stack-shrinking">2.3 Strategy 3: Aggressive Compaction (LRU Stack Shrinking)</h3>
+<p><strong>Description:</strong> Dead variables are immediately removed from the LRU stack. Remaining items slide up to fill the gap. Stack size always equals the live variable count.</p>
+<p><strong>Implementation:</strong> <code>bytedmd.py</code> after April 11 commit <code>ecedf37</code>. Uses two-pass liveness analysis: Pass 1 records last-use index for every variable; Pass 2 replays the trace, evicting variables the moment their last use completes.</p>
+<p><strong>Effect on formulas:</strong><br />
+- Same asymptotics as Strategy 2, but smaller constants due to tighter stack<br />
+- Naive matmul: $\Theta(N^4)$ — same (B is fully live)<br />
+- Recursive matmul: $\Theta(N^3 \log N)$ — depth $\sim 1.5\,S^2$; cost per level $7.3\,S^3$ → $7.3\,N^3 \log_2 N$<br />
+- Strassen: $\Theta(N^3)$ — depth $2S^2$; cost per level $17.6\,S^3$ → $140.8\,N^3$</p>
+<p><strong>Pros:</strong> Tightest constants. Clean semantics (stack = working set).<br />
+<strong>Cons:</strong> The "sliding up" is physically free data movement — in real silicon, removing a cache line doesn't move the others. This makes hot hits artificially cheap (see §2.4).</p>
+<p><strong>References:</strong> <a href="gc-vs-nogc-formulas.md">gc-vs-nogc-formulas.md</a>, <a href="vecmat-11apr26.md">vecmat-11apr26.md</a>, <a href="mathematica-matmul.md">mathematica-matmul.md</a></p>
+<h3 id="24-strategy-4-stationary-slots-min-heap-free-list">2.4 Strategy 4: Stationary Slots + Min-Heap Free-List</h3>
+<p><strong>Description:</strong> SRAM is an array of numbered slots. Each variable gets a fixed slot when allocated (lowest available via min-heap). Dead variables' slots are returned to the heap. Access cost = $\sqrt{\text{slot number}}$. No data movement on death.</p>
+<p><strong>Implementation:</strong> <code>bytedmd_cold.py</code> after the fix from <a href="bytedmd-cold-bug.md">bytedmd-cold-bug.md</a>.</p>
+<p><strong>Effect on formulas:</strong><br />
+- Naive matmul: clean $\Theta(N^4)$ — B occupies slots $1 \ldots N^2$; each access costs $\sqrt{N^2} = N$; total $N^3 \times N = N^4$. Measured <code>cost/N^4</code> converges to $\sim 4.0$.<br />
+- Hot hit depths are realistic: max hot depth = peak working set (512 for N=16), mean = 287, vs. LRU compaction's max 25, mean 8.5<br />
+- Removes the "free sliding" artifact of Strategy 3</p>
+<p><strong>Pros:</strong> Most physically realistic. No free data movement. Clean $O(N^4)$ for naive matmul.<br />
+<strong>Cons:</strong> Greedy (min-heap) allocation is suboptimal — see §2.5. Belady's MIN also fails.</p>
+<p><strong>References:</strong> <a href="bytedmd-cold-bug.md">bytedmd-cold-bug.md</a>, <a href="optimal-register-allocation.md">optimal-register-allocation.md</a></p>
+<h3 id="25-strategy-5-optimal-register-allocation-theoretical">2.5 Strategy 5: Optimal Register Allocation (Theoretical)</h3>
+<p><strong>Description:</strong> A clairvoyant compiler assigns variable lifetimes to slots to minimize total $\sum \sqrt{\text{slot}}$ cost. Maps to the Minimum Sum Interval Coloring problem (NP-hard, Marx 2005).</p>
+<p><strong>Key finding — "No Unsolicited Reads" proof:</strong> Moving a variable proactively always increases cost, so optimal allocation fixes each variable at its initial slot.</p>
+<p><strong>Key finding — Belady fails ("Squatter Anomaly"):</strong> Long-lived variables (matrix corners, outer-loop accumulators) grab cheap slots at $t=0$ and "squat" there. Short-lived inner-loop temporaries are forced into expensive slots. Cost: $O(N \cdot \sqrt{K})$ instead of optimal $O(N + K\sqrt{K})$.</p>
+<p><strong>Tractable approximation:</strong> Iterative Maximum Weighted Independent Set via Earliest-Deadline-First (EDF) interval scheduling, $O(N \log N)$ per slot.</p>
+<p><strong>References:</strong> <a href="optimal-register-allocation.md">optimal-register-allocation.md</a>, <a href="optimal-hierarchical-memory.md">optimal-hierarchical-memory.md</a></p>
+<h3 id="26-strategy-6-inverted-stack-arenas-managed-memory">2.6 Strategy 6: Inverted Stack Arenas (Managed Memory)</h3>
+<p><strong>Description:</strong> Recursion depth dictates physical address placement. The deepest level (base cases) gets the lowest addresses (closest to CPU). Parent levels copy data down into child arenas; children operate in tight local footprints. Dead arenas are recycled by siblings.</p>
+<p><strong>Implementation:</strong> <code>experiments/optimal-memory/optimal_rmm.py</code> and <code>optimal_strassen.py</code>.</p>
+<p><strong>Effect on formulas:</strong><br />
+- Recursive matmul: $\Theta(N^3 \log N)$ — $O(M^2)$ elements copied at distance $O(M)$ per level; recurrence $T(N) = 8T(N/2) + \Theta(N^3)$; <code>cost/(N^3 log N)</code> converges to $\sim 16$<br />
+- Strassen: $\Theta(N^3)$ — same arena structure but 7 branches; recurrence $T(N) = 7T(N/2) + \Theta(N^3)$; root-dominated → <code>cost/N^3</code> stabilizing at $\sim 85$</p>
+<p><strong>Key insight:</strong> Standard RMM's 8-way branching perfectly resonates with $2^3$ (the cube dimension), making every cache level contribute equally ($N^3$ per level × $\log N$ levels). Strassen's 7-way branching breaks this resonance: per-level cost decays geometrically by $7/8$, summing to a bounded constant.</p>
+<p><strong>References:</strong> <a href="optimal-managed-rmm.md">optimal-managed-rmm.md</a>, <a href="optimal-managed-strassen.md">optimal-managed-strassen.md</a></p>
+<hr />
+<h2 id="3-axis-2-cold-miss-pricing">3. Axis 2: Cold Miss Pricing</h2>
+<p>Orthogonal to GC strategy is how to price the first access to an input element.</p>
+<h3 id="31-eager-initialization-stack-based">3.1 Eager Initialization (Stack-based)</h3>
+<p><strong>Description:</strong> Arguments are pushed to the LRU stack on function entry. First reads are "free" (they're already at the top).</p>
+<p><strong>Effect:</strong> Small functions are artificially cheap. A function with 100 arguments paying $\sqrt{100} = 10$ per read even if only 2 are used.</p>
+<h3 id="32-demand-paged-initialization">3.2 Demand-Paged Initialization</h3>
+<p><strong>Description:</strong> Arguments start in "DRAM." First access is a cold miss priced at <code>len(stack) + cold_counter</code>.</p>
+<p><strong>Implementation:</strong> <code>bytedmd.py</code> after April 10 commit <code>176000d</code>.</p>
+<p><strong>Effect:</strong> Unused arguments are free. Cold misses scale with current stack size.</p>
+<h3 id="33-global-peak-working-set-pricing">3.3 Global Peak Working Set Pricing</h3>
+<p><strong>Description:</strong> Cold misses are priced at <code>peak_working_set + global_cold_counter</code> on a monotonically increasing tape. Later cold misses are progressively more expensive.</p>
+<p><strong>Implementation:</strong> <code>bytedmd_cold.py</code> (before the stationary-slot fix).</p>
+<p><strong>Effect:</strong> Algorithms with bloated peak footprints pay more. Matvec N=2: 29 (vs. regular's 21). The cold tape never resets.</p>
+<p><strong>References:</strong> <a href="tombstone-analysis.md">tombstone-analysis.md</a> §"Cold miss motivation"</p>
+<hr />
+<h2 id="4-axis-3-operand-pricing-semantics">4. Axis 3: Operand Pricing Semantics</h2>
+<h3 id="41-sequential-pricing">4.1 Sequential Pricing</h3>
+<p><strong>Description:</strong> Each operand in <code>a + b</code> is priced against the stack state <em>after</em> the previous operand was moved to top.</p>
+<p><strong>Problem:</strong> <code>b + c</code> ≠ <code>c + b</code> — violates commutativity. Column-major traversal (vecmat) is rewarded for cache thrashing.</p>
+<h3 id="42-simultaneous-pricing">4.2 Simultaneous Pricing</h3>
+<p><strong>Description:</strong> All operands in a READ_BATCH are priced against the <em>same</em> pre-instruction snapshot.</p>
+<p><strong>Implementation:</strong> <code>bytedmd.py</code> after April 10 commit <code>176000d</code>.</p>
+<p><strong>Effect:</strong> <code>b + c</code> = <code>c + b</code>. Eliminates the artificial vecmat advantage.</p>
+<p><strong>References:</strong> <a href="tombstone-analysis.md">tombstone-analysis.md</a> §"Sequential pricing breaks commutativity"</p>
+<hr />
+<h2 id="5-master-formula-table">5. Master Formula Table</h2>
+<p>All formulas below assume $w=1$ byte per element and aggressive compaction unless noted.</p>
+<h3 id="51-matrix-vector-multiply-y-ax-n-times-n">5.1 Matrix-Vector Multiply ($y = Ax$, $N \times N$)</h3>
+<table>
+<thead>
+<tr>
+<th>Metric variant</th>
+<th>Formula</th>
+<th>N=4</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>No GC (infinite graveyard)</td>
+<td>$\frac{2\sqrt{3}}{3} N^3 + 2N^{2.5}$</td>
+<td>177</td>
+</tr>
+<tr>
+<td>Aggressive compaction</td>
+<td>$\frac{2}{3} N^3 + N^{2.5}$</td>
+<td>124</td>
+</tr>
+<tr>
+<td>Demand-paged + aggressive</td>
+<td>same</td>
+<td>124</td>
+</tr>
+<tr>
+<td>Cold (peak WS tape)</td>
+<td>inflated cold misses</td>
+<td>164</td>
+</tr>
+<tr>
+<td>Stationary slots</td>
+<td>$O(N^{2.5})$</td>
+<td>178</td>
+</tr>
+</tbody>
+</table>
+<p><strong>References:</strong> <a href="matrix-vector.md">matrix-vector.md</a>, <a href="matvec-exact-formula.md">matvec-exact-formula.md</a>, <a href="vecmat-11apr26.md">vecmat-11apr26.md</a>, <a href="vecmat-11apr26-part2.md">vecmat-11apr26-part2.md</a></p>
+<h3 id="52-naive-matrix-multiply-c-ab-i-j-k-loop">5.2 Naive Matrix Multiply ($C = AB$, i-j-k loop)</h3>
+<table>
+<thead>
+<tr>
+<th>Metric variant</th>
+<th>Asymptotic</th>
+<th>Leading constant</th>
+<th>N=4</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>No GC</td>
+<td>$\sqrt{3}\,N^4$</td>
+<td>1.732</td>
+<td>948</td>
+</tr>
+<tr>
+<td>Aggressive compaction</td>
+<td>$N^4 + \sqrt{2}\,N^{3.5}$</td>
+<td>~1.0</td>
+<td>676</td>
+</tr>
+<tr>
+<td>Snake order (no GC)</td>
+<td>$\frac{2\sqrt{5}}{3}\,N^4$</td>
+<td>1.491</td>
+<td>906</td>
+</tr>
+<tr>
+<td>Stationary slots</td>
+<td>$\sim 4.0\,N^4$</td>
+<td>~4.0</td>
+<td>1035</td>
+</tr>
+</tbody>
+</table>
+<p><strong>References:</strong> <a href="matmul-naive-snake-chatgpt.md">matmul-naive-snake-chatgpt.md</a>, <a href="matmul-naive-vanilla.md">matmul-naive-vanilla.md</a>, <a href="matmul-analytic.md">matmul-analytic.md</a>, <a href="bytedmd-naive-formulas.md">bytedmd-naive-formulas.md</a>, <a href="bytedmd-cold-bug.md">bytedmd-cold-bug.md</a></p>
+<h3 id="53-recursive-matrix-multiply-8-way-dc">5.3 Recursive Matrix Multiply (8-way D&amp;C)</h3>
+<table>
+<thead>
+<tr>
+<th>Metric variant</th>
+<th>Asymptotic</th>
+<th>Constant</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>No GC</td>
+<td>$25.1\,N^{3.5}$</td>
+<td>25.1</td>
+</tr>
+<tr>
+<td>Traditional GC</td>
+<td>$12.3\,N^3 \log_2 N$</td>
+<td>12.3</td>
+</tr>
+<tr>
+<td>Aggressive compaction</td>
+<td>$7.3\,N^3 \log_2 N$</td>
+<td>7.3</td>
+</tr>
+<tr>
+<td>Gray-code swizzled</td>
+<td>$5.20\,N^3 \log_2 N$</td>
+<td>5.20</td>
+</tr>
+<tr>
+<td>Inverted arena</td>
+<td>$\sim 16\,N^3 \log_2 N$</td>
+<td>~16</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Lower bound</strong> (Hong-Kung): $\Omega(N^3 \log N)$ for any $O(N^3)$-FLOP algorithm.</p>
+<p><strong>References:</strong> <a href="matmul-snake.md">matmul-snake.md</a>, <a href="gc-vs-nogc-formulas.md">gc-vs-nogc-formulas.md</a>, <a href="vanilla-recursive-11apr26.md">vanilla-recursive-11apr26.md</a>, <a href="vanilla-recursive2-11apr26.md">vanilla-recursive2-11apr26.md</a>, <a href="optimal-managed-rmm.md">optimal-managed-rmm.md</a></p>
+<h3 id="54-strassen-7-way-dc">5.4 Strassen (7-way D&amp;C)</h3>
+<table>
+<thead>
+<tr>
+<th>Metric variant</th>
+<th>Asymptotic</th>
+<th>Constant</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>No GC</td>
+<td>$74.7\,N^{3.405}$</td>
+<td>74.7</td>
+</tr>
+<tr>
+<td>Traditional GC</td>
+<td>$200\,N^3$</td>
+<td>200</td>
+</tr>
+<tr>
+<td>Aggressive compaction</td>
+<td>$140.8\,N^3$</td>
+<td>140.8</td>
+</tr>
+<tr>
+<td>Strassen-Winograd</td>
+<td>$107.7\,N^3$</td>
+<td>107.7</td>
+</tr>
+<tr>
+<td>Inverted arena</td>
+<td>$\sim 85\,N^3$</td>
+<td>~85</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Lower bound:</strong> $\Omega(N^3)$ from cold-miss initialization: $\sum_{d=1}^{O(N^2)} \sqrt{d} = \Theta(N^3)$.</p>
+<p><strong>Key insight:</strong> Strassen annihilates the $\log N$ penalty. Its arithmetic complexity $O(N^{2.81})$ is masked by the $O(N^3)$ physical routing floor, but it still beats standard matmul asymptotically.</p>
+<p><strong>References:</strong> <a href="bytedmd-strassen.md">bytedmd-strassen.md</a>, <a href="strassen-11apr26.md">strassen-11apr26.md</a>, <a href="strassen-discrepancy.md">strassen-discrepancy.md</a>, <a href="optimal-managed-strassen.md">optimal-managed-strassen.md</a></p>
+<h3 id="55-flash-attention">5.5 Flash Attention</h3>
+<table>
+<thead>
+<tr>
+<th>Variant</th>
+<th>ByteDMD</th>
+<th>Ratio vs. naive</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Naive attention, N=128, d=2</td>
+<td>13,705,802</td>
+<td>1.00x</td>
+</tr>
+<tr>
+<td>Flash attention, N=128, d=2, Bk=8</td>
+<td>4,221,808</td>
+<td><strong>3.25x</strong></td>
+</tr>
+</tbody>
+</table>
+<p>FLOPs are nearly identical (0.96x ratio), but ByteDMD diverges to 3.25x at N=128. Flash attention's advantage comes from keeping the working set small (no $N \times N$ score matrix materialized), which ByteDMD captures but FLOPs cannot.</p>
+<p><strong>Caveat:</strong> When L=D=K=N and block sizes scale with N (Br=Bc=N/2), flash attention shows <strong>no benefit</strong> because the projections dominate and blocks exceed SRAM capacity.</p>
+<p><strong>References:</strong> <a href="flash-attention-gc-vs-nogc.md">flash-attention-gc-vs-nogc.md</a>, <a href="noam-flash-attention.md">noam-flash-attention.md</a>, <a href="flash-attention-no-benefit.md">flash-attention-no-benefit.md</a></p>
+<hr />
+<h2 id="6-chronological-development-log">6. Chronological Development Log</h2>
+<h3 id="phase-1-initial-metric-and-formulas-apr-47">Phase 1: Initial Metric and Formulas (Apr 4–7)</h3>
+<ul>
+<li>Built flash attention benchmark showing 2.38x (N=64) to 3.25x (N=128) advantage under ByteDMD</li>
+<li>Derived first closed-form formulas for naive matmul: $\sqrt{3}\,N^4$ (standard) vs. $\frac{2\sqrt{5}}{3}\,N^4$ (snake)</li>
+<li>Computed exact matvec/vecmat costs (194/191 for N=4)</li>
+<li>Identified that Strassen/Winograd score <em>worse</em> than naive at N=4 due to intermediate matrix thrashing</li>
+</ul>
+<h3 id="phase-2-memory-management-exploration-apr-810">Phase 2: Memory Management Exploration (Apr 8–10)</h3>
+<ul>
+<li>Implemented three memory strategies in <code>experiments/memory_management/</code></li>
+<li>Discovered the "Infinite Graveyard" problem: dead temporaries degrade recursive matmul from $N^3 \log N$ to $N^{3.5}$</li>
+<li>Identified four tracer bugs: sequential pricing (non-commutative), argument order bias, zero-accumulator penalty, dead variable leaking</li>
+<li>Implemented fixes: simultaneous pricing, demand-paged initialization, natural LRU aging</li>
+<li>Derived the tombstone analysis: tombstones correctly preserve the $2N^{2.5}$ L1 thrashing penalty while preventing the "software teleportation" cheat of aggressive compaction</li>
+</ul>
+<h3 id="phase-3-aggressive-compaction-and-liveness-analysis-apr-11">Phase 3: Aggressive Compaction and Liveness Analysis (Apr 11)</h3>
+<ul>
+<li>Switched <code>bytedmd.py</code> to two-pass aggressive liveness compaction</li>
+<li>Derived exact closed-form for matvec under compaction: $\text{Cost}(N) = N \cdot F(2N) + F(2N-1) - (N-2) \cdot F(N+2) + \ldots$; scaling $O(N^{2.5})$</li>
+<li>Derived exact analytical formula for naive matmul: $C(N) = N^4 + \sqrt{2}\,N^{3.5} + \Theta(N^3)$</li>
+<li>Built Wolfram Language scripts matching Python tracer exactly for all algorithms</li>
+<li>Fixed Strassen C22 associativity mismatch (left-associative saves reads by accessing M2 while hot)</li>
+</ul>
+<h3 id="phase-4-cold-miss-pricing-and-stationary-slots-apr-12">Phase 4: Cold Miss Pricing and Stationary Slots (Apr 12)</h3>
+<ul>
+<li>Created <code>bytedmd_cold.py</code> with global peak working set cold-miss pricing</li>
+<li>Discovered the "free sliding" bug: LRU compaction makes hot hits artificially cheap; naive matmul scales as $\sim N^{3.7}$ instead of clean $N^4$</li>
+<li>Fixed by replacing LRU stack with stationary slots + min-heap free-list</li>
+<li>After fix: <code>cost/N^4</code> converges to $\sim 4.0$; effective exponent is 4.0 at N=8→16</li>
+</ul>
+<h3 id="phase-5-optimal-arena-allocation-apr-12">Phase 5: Optimal Arena Allocation (Apr 12)</h3>
+<ul>
+<li>Implemented inverted stack arena for recursive matmul: base cases at lowest addresses</li>
+<li>Verified $O(N^3 \log N)$ scaling: <code>cost/(N^3 \log N)</code> converges to ~16</li>
+<li>Implemented arena-based Strassen: verified $O(N^3)$ scaling; <code>cost/N^3</code> stabilizing</li>
+<li>At N=64, Strassen arena cost (25M) approaches standard RMM arena cost (24M); crossover imminent</li>
+<li>Explored optimal register allocation theory: problem is NP-hard; Belady fails due to "Squatter Anomaly"; EDF approximation is tractable</li>
+</ul>
+<hr />
+<h2 id="7-design-decision-summary">7. Design Decision Summary</h2>
+<table>
+<thead>
+<tr>
+<th>Design Choice</th>
+<th>Options Explored</th>
+<th>Recommendation</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>Dead variable handling</strong></td>
+<td>No GC, tombstones, compaction, stationary slots</td>
+<td>Stationary slots (most physical)</td>
+</tr>
+<tr>
+<td><strong>Cold miss pricing</strong></td>
+<td>Eager init, demand-paged, peak WS tape</td>
+<td>Demand-paged + monotone tape</td>
+</tr>
+<tr>
+<td><strong>Operand pricing</strong></td>
+<td>Sequential, simultaneous</td>
+<td>Simultaneous (preserves commutativity)</td>
+</tr>
+<tr>
+<td><strong>Slot allocation</strong></td>
+<td>Min-heap greedy, Belady, optimal (NP-hard)</td>
+<td>Min-heap greedy (tractable, correct asymptotics)</td>
+</tr>
+<tr>
+<td><strong>Arena layout</strong></td>
+<td>Flat, inverted stack</td>
+<td>Inverted stack (for managed memory experiments)</td>
+</tr>
+</tbody>
+</table>
+<hr />
+<h2 id="8-open-questions">8. Open Questions</h2>
+<ol>
+<li>
+<p><strong>Optimal allocation tractability:</strong> The minimum-sum interval coloring is NP-hard. Is the greedy min-heap approximation tight enough that it preserves asymptotic complexity classes? The EDF approximation from <a href="optimal-register-allocation.md">optimal-register-allocation.md</a> suggests yes.</p>
+</li>
+<li>
+<p><strong>Strassen crossover:</strong> Under the inverted arena model, Strassen (O(N^3)) doesn't beat standard RMM (O(N^3 log N)) until very large N due to the constant factor (~85 vs ~16). Where exactly is the crossover?</p>
+</li>
+<li>
+<p><strong>Competition metric:</strong> For a practical competition metric, which strategy strikes the best balance between physical realism and analytical tractability? Stationary slots are the most honest but require liveness analysis and heap management. Aggressive compaction gives cleaner formulas but includes free data movement.</p>
+</li>
+<li>
+<p><strong>Multi-byte elements:</strong> All formulas above use $w=1$. The <code>bytes_per_element</code> scaling uses the closed-form $U(m) = M(6m - 2M^2 + 3M - 1)/6$ where $M = \lceil\sqrt{m}\rceil$. How do the crossover points shift for realistic 4-byte or 8-byte elements?</p>
+</li>
+</ol>
+</body>
+</html>

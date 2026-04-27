@@ -1,0 +1,82 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Livedmd Not A Bound</title>
+<style>
+  body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif; max-width: 800px; margin: 40px auto; padding: 0 20px; line-height: 1.6; color: #333; }
+  pre { background: #f6f8fa; padding: 16px; border-radius: 6px; overflow-x: auto; }
+  code { background: #f6f8fa; padding: 2px 6px; border-radius: 3px; font-size: 0.9em; }
+  pre code { background: none; padding: 0; }
+  table { border-collapse: collapse; width: 100%; }
+  th, td { border: 1px solid #ddd; padding: 8px 12px; text-align: left; }
+  th { background: #f6f8fa; }
+  img { max-width: 100%; }
+  blockquote { border-left: 4px solid #ddd; margin: 0; padding-left: 16px; color: #666; }
+</style>
+</head>
+<body>
+<p>To answer your question directly: <strong>No, it is mathematically false.</strong></p>
+<p>ByteDMD-live does <strong>not</strong> provide a strict lower bound on the energy cost of an actual physical implementation in a continuous cache.</p>
+<p>In fact, a realistic physical allocator with fixed addresses (which strictly prices every read and has no "free sliding") can achieve a <strong>significantly lower</strong> energy cost than ByteDMD-live. By asking this, you have discovered a theoretical flaw in the "Envelope Claim" (cost(any_allocator) &gt;= bytedmd_live) from the bytedmd_ir framework.</p>
+<p>It is highly intuitive to assume that the "free sliding" of ByteDMD-live gives it an unbeatable advantage. However, ByteDMD-live simulates an <strong>LRU (Least Recently Used) stack</strong>. In a physical 2D cache, LRU's sliding behavior is often a severe mathematical penalty, not an advantage.</p>
+<p>Here is the proof by two counterexamples, followed by the conceptual explanation.</p>
+<h3 id="-">---</h3>
+<p><strong>Proof 1: The "Hot-Cold" Loop Counterexample</strong></p>
+<p>Imagine a trace where one heavily reused "Hot" variable ($H$) is interleaved with temporary "Cold" variables ($C_i$) that are stored, read once, and immediately die.</p>
+<p><strong>The Trace:</strong></p>
+<ol>
+<li>Store H  </li>
+<li>Loop $N$ times:  </li>
+<li>Store C_i  </li>
+<li>Load H  </li>
+<li>Load C_i <em>(C_i dies)</em></li>
+</ol>
+<p>Let's evaluate the exact cost of a single loop iteration under the continuous cache model where reading from depth $d$ costs $\sqrt{d}$.</p>
+<p><strong>1. Evaluation under ByteDMD-live</strong></p>
+<ul>
+<li><strong>Store C_i</strong>: $C_i$ is placed at the top of the stack. The stack becomes [C_i, H]. The Hot variable $H$ is forced down to depth 2!  </li>
+<li><strong>Load H</strong>: $H$ is at depth 2. <strong>Cost \= $\sqrt{2} \approx 1.414$</strong>.  </li>
+<li><em>LRU updates</em>: $H$ slides to the top. Stack becomes [H, C_i]. $C_i$ is pushed to depth 2.  </li>
+<li><strong>Load C_i</strong>: $C_i$ is at depth 2. <strong>Cost \= $\sqrt{2} \approx 1.414$</strong>.  </li>
+<li><em>Compaction</em>: $C_i$ dies and vanishes. Stack returns to [H].  </li>
+<li><strong>Total Loop Cost:</strong> $1.414 + 1.414 = \mathbf{2.828}$</li>
+</ul>
+<p><strong>2. Evaluation under a Physical Allocator (e.g., min_heap / Scratchpad)</strong></p>
+<p>A physical allocator statically pins variables to fixed addresses and immediately reuses holes.</p>
+<ul>
+<li>It statically pins the Hot variable $H$ to <strong>Address 1</strong>.  </li>
+<li>It assigns the temporary $C_i$ to <strong>Address 2</strong>. When $C_i$ dies, Address 2 is instantly freed for the next iteration.  </li>
+<li><strong>Load H</strong>: Read from Address 1. <strong>Cost \= $\sqrt{1} = \mathbf{1.0}$</strong>.  </li>
+<li><strong>Load C_i</strong>: Read from Address 2. <strong>Cost \= $\sqrt{2} \approx \mathbf{1.414}$</strong>.  </li>
+<li><strong>Total Loop Cost:</strong> $1.0 + 1.414 = \mathbf{2.414}$</li>
+</ul>
+<p><strong>Conclusion:</strong> <strong>$2.414 &lt; 2.828$</strong>. The physical implementation natively executes the loop nearly <strong>15% cheaper</strong> than ByteDMD-live.</p>
+<h3 id="-_1">---</h3>
+<p><strong>Proof 2: The Cyclic Loop Counterexample</strong></p>
+<p>Assume we allocate an array of $K$ variables, and we read them in a repeating sequential sweep (A, B, C... K) for several iterations.</p>
+<p><strong>1. The ByteDMD-live Cost</strong></p>
+<p>Because ByteDMD-live enforces LRU, reading a variable pushes everything else down. In a cyclic loop, by the time you cycle back to reading variable A, the other $K-1$ reads have maliciously pushed A to the absolute bottom of the stack (depth $K$).</p>
+<ul>
+<li>Every single read in the loop happens at the maximum depth $K$.  </li>
+<li><strong>Cost per loop:</strong> $K \times \sqrt{K} = \mathbf{K^{1.5}}$</li>
+</ul>
+<p><strong>2. The Actual Physical Implementation Cost</strong></p>
+<p>A physical allocator simply assigns the $K$ variables to stationary physical addresses $1$ through $K$. There is zero sliding; they sit permanently. The processor reads from those fixed addresses.</p>
+<ul>
+<li><strong>Cost per loop:</strong> $\sum_{i=1}^{K} \sqrt{i} \approx \int_0^K \sqrt{x} \, dx = \mathbf{\frac{2}{3}K^{1.5}}$</li>
+</ul>
+<p><strong>Conclusion:</strong> Because $\frac{2}{3} K^{1.5} &lt; K^{1.5}$, the physical implementation natively executes the sweep <strong>33% cheaper</strong> than ByteDMD-live.</p>
+<h3 id="-_2">---</h3>
+<p><strong>Why does "Free Sliding" lose?</strong></p>
+<p>There are two fundamental reasons why explicit physical addressing mathematically defeats ByteDMD-live:</p>
+<ol>
+<li><strong>The LRU Allocation Penalty:</strong> In ByteDMD-live, whenever you allocate a <em>new</em> variable, it claims Depth 1, forcing all existing working data to slide deeper away from the processor. A smart compiler/physical allocator avoids this by pinning the hot working set at Address 1 and routing temporary variables around it.  </li>
+<li><strong>Jensen's Inequality (Concavity):</strong> The continuous cache cost function $f(x) = \sqrt{x}$ is strictly concave. Mathematically, polarizing your costs (keeping your hot items permanently at Address 1 and cold items permanently at Address 100) yields a smaller sum than averaging them out. The continuous LRU "sliding" in ByteDMD-live constantly averages the distances out, inadvertently maximizing the concave penalty.</li>
+</ol>
+<h3 id="summary"><strong>Summary</strong></h3>
+<p>ByteDMD-live is <strong>not</strong> the mathematical lower bound for data movement. It is simply a simulation of a <em>Cache-Oblivious LRU policy with perfect garbage collection</em>.</p>
+<p>The true mathematical lower bound for data movement on a spatial grid is defined by <strong>Bélády’s MIN algorithm</strong> (Optimal Offline Static Routing). Because actual physical allocators explicitly pin data to avoid LRU's pathological cache thrashing, they regularly pierce the ByteDMD-live "floor" on realistic compiler workloads.</p>
+</body>
+</html>

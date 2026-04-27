@@ -1,0 +1,215 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Mwis Bounds</title>
+<style>
+  body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif; max-width: 800px; margin: 40px auto; padding: 0 20px; line-height: 1.6; color: #333; }
+  pre { background: #f6f8fa; padding: 16px; border-radius: 6px; overflow-x: auto; }
+  code { background: #f6f8fa; padding: 2px 6px; border-radius: 3px; font-size: 0.9em; }
+  pre code { background: none; padding: 0; }
+  table { border-collapse: collapse; width: 100%; }
+  th, td { border: 1px solid #ddd; padding: 8px 12px; text-align: left; }
+  th { background: #f6f8fa; }
+  img { max-width: 100%; }
+  blockquote { border-left: 4px solid #ddd; margin: 0; padding-left: 16px; color: #666; }
+</style>
+</head>
+<body>
+<p>To answer your question directly: <strong>No, it is mathematically false.</strong></p>
+<p>ByteDMD-live does <strong>not</strong> provide a lower bound on the energy cost of a realistic physical implementation. In fact, a realistic static physical allocator (which pins variables to fixed addresses and strictly prices every read without "free sliding") can achieve a <strong>significantly lower</strong> energy cost than ByteDMD-live.</p>
+<p>It is highly intuitive to assume that the "free sliding" and perfect liveness compaction of ByteDMD-live gives it an unbeatable advantage. However, ByteDMD-live simulates an <strong>LRU (Least Recently Used) stack</strong>. In a spatial physical cache, the "free sliding" behavior of LRU causes pathological cache thrashing that severely penalizes some access patterns.</p>
+<h3 id="proof-by-counterexample-the-hot-cold-loop"><strong>Proof by Counterexample: The "Hot-Cold" Loop</strong></h3>
+<p>Imagine a program that heavily reuses one "Hot" variable ($H$), interleaved with temporary "Cold" variables ($C_i$) that are stored, read once, and immediately die.</p>
+<p>Consider tracing this loop $N$ times: Store C_i $\rightarrow$ Load H $\rightarrow$ Load C_i. Let's evaluate the exact load costs using the continuous cache penalty $\lceil\sqrt{d}\rceil$:</p>
+<p><strong>1. Evaluation under ByteDMD-live</strong></p>
+<p>Because LRU places newly allocated variables at the top of the stack, allocating the temporary pushes the hot variable down.</p>
+<ul>
+<li>Store C_i: $C_i$ takes Depth 1. The heavily used $H$ is forced to slide down to Depth 2.  </li>
+<li>Load H: $H$ is at Depth 2. <strong>Cost \= $\lceil\sqrt{2}\rceil = 2$</strong>. $H$ slides to Depth 1, pushing $C_i$ to Depth 2.  </li>
+<li>Load C_i: $C_i$ is at Depth 2. <strong>Cost \= $\lceil\sqrt{2}\rceil = 2$</strong>. $C_i$ dies and vanishes.  </li>
+<li><strong>Total Load Cost per iteration:</strong> $2 + 2 = \mathbf{4}$</li>
+</ul>
+<p><strong>2. Evaluation under a Static Physical Allocator (e.g., Compiler Scratchpad)</strong></p>
+<p>A smart physical allocator avoids LRU thrashing by statically pinning variables to fixed addresses and instantly reusing holes.</p>
+<ul>
+<li>It pins the Hot variable $H$ to <strong>Address 1</strong>.  </li>
+<li>It assigns the temporaries $C_i$ to <strong>Address 2</strong> (when $C_i$ dies, Address 2 is instantly freed for $C_{i+1}$).  </li>
+<li>Load H: Read from Address 1. <strong>Cost \= $\lceil\sqrt{1}\rceil = \mathbf{1}$</strong>.  </li>
+<li>Load C_i: Read from Address 2. <strong>Cost \= $\lceil\sqrt{2}\rceil = \mathbf{2}$</strong>.  </li>
+<li><strong>Total Load Cost per iteration:</strong> $1 + 2 = \mathbf{3}$</li>
+</ul>
+<p><strong>Conclusion:</strong> <strong>$3 &lt; 4$</strong>. The strict physical static implementation executes the loop <strong>25% cheaper</strong> than ByteDMD-live. The "free sliding" in ByteDMD-live actively sabotages the algorithm by continually unpinning the hot variable.</p>
+<h3 id="-">---</h3>
+<p><strong>Tractable Bounds for the Continuous Cache</strong></p>
+<p>Since we must avoid the "magic" of unpriced sliding to evaluate real physical bounds, we are dealing with the mathematics of <strong>Static Memory Allocation</strong>. We can map the program's memory footprint to an <strong>Interval Graph</strong> (a variable is an interval spanning from its first Store to its last Load, and its weight is its total read frequency).</p>
+<ol>
+<li><strong>The Strict Lower Bound ($O(N \log N)$ via MWIS):</strong><br />
+   Because variables with overlapping lifetimes cannot share the same physical address, we can enforce a mathematical capacity constraint: <strong>No single physical address in the universe can serve more total reads than the Maximum Weight Independent Set (MWIS)</strong> of the interval graph.<br />
+   By finding the MWIS, we can bound the physical floor via "Water-Pouring": we pack exactly MWIS loads into Address 1, MWIS loads into Address 2, etc. This yields a mathematically unbreakable lower bound for any static allocator.  </li>
+<li><strong>The Achievable Upper Bound:</strong><br />
+   To bound the optimal cost from above, we simply run the trace through a greedy static allocator (min_heap). Because this is a valid and physically executable assignment, the optimal true physical cost is guaranteed to be $\le$ this value.</li>
+</ol>
+<p>Here is the implementation of bytedmd_bounds.py that computes these exact boundaries on Recursive Matrix Multiplication.</p>
+<h3 id="bytedmd_boundspy"><strong>bytedmd_bounds.py</strong></h3>
+<p>Python</p>
+<p>import bisect<br />
+import math<br />
+import heapq<br />
+import operator<br />
+from dataclasses import dataclass<br />
+from typing import Callable, List, Optional, Sequence, Tuple, Union</p>
+<p># \============================================================================<br />
+# 1. Abstract IR (L1 -&gt; L2 Tracer)<br />
+# \============================================================================</p>
+<p>@dataclass(frozen=True) class L2Store: var: int<br />
+@dataclass(frozen=True) class L2Load: var: int<br />
+@dataclass(frozen=True) class L2Op: name: str; in_vars: Tuple[int, ...]; out_var: Optional[int]</p>
+<p>L2Event \= Union[L2Store, L2Load, L2Op]</p>
+<p>class _Tracer:<br />
+    def __init__(self):<br />
+        self.events: List[L2Event] \= []<br />
+        self.next_var \= 0<br />
+    def fresh(self) -&gt; int:<br />
+        self.next_var += 1<br />
+        return self.next_var</p>
+<p>class _Tracked:<br />
+    def __init__(self, t: _Tracer, v: int, val):<br />
+        self._t, self._v, self.val \= t, v, val<br />
+    def _binop(self, other, name: str, fn: Callable):<br />
+        in_vars \= (self._v, other._v) if isinstance(other, _Tracked) else (self._v,)<br />
+        other_val \= other.val if isinstance(other, _Tracked) else other<br />
+        for v in in_vars: self._t.events.append(L2Load(v))<br />
+        out_var \= self._t.fresh()<br />
+        self._t.events.append(L2Op(name, in_vars, out_var))<br />
+        self._t.events.append(L2Store(out_var))<br />
+        return _Tracked(self._t, out_var, fn(self.val, other_val))<br />
+    def __add__(self, o): return self._binop(o, "add", operator.add)<br />
+    def __mul__(self, o): return self._binop(o, "mul", operator.mul)</p>
+<p>def trace(func: Callable, args: Tuple) -&gt; List[L2Event]:<br />
+    t \= _Tracer()<br />
+    def wrap(v):<br />
+        if isinstance(v, list): return [wrap(x) for x in v]<br />
+        var \= t.fresh()<br />
+        t.events.append(L2Store(var))<br />
+        return _Tracked(t, var, v)<br />
+    func(*tuple(wrap(a) for a in args))<br />
+    return t.events</p>
+<p># \============================================================================<br />
+# 2. Continuous Cache Bounds Engine<br />
+# \============================================================================</p>
+<p>@dataclass<br />
+class Interval:<br />
+    var_id: int<br />
+    start: int<br />
+    end: int<br />
+    reads: int</p>
+<p>def extract_intervals(events: Sequence[L2Event]) -&gt; List[Interval]:<br />
+    starts, ends, reads \= {}, {}, {}<br />
+    for i, ev in enumerate(events):<br />
+        if isinstance(ev, L2Store):<br />
+            starts[ev.var] \= i<br />
+            if ev.var not in ends: ends[ev.var] \= i # Catch stored-but-never-loaded vars<br />
+        elif isinstance(ev, L2Load):<br />
+            ends[ev.var] \= i<br />
+            reads[ev.var] \= reads.get(ev.var, 0) + 1</p>
+<div class="codehilite"><pre><span></span><code><span class="n">intervals</span><span class="w"> </span>\<span class="o">=</span><span class="w"> </span>\<span class="p">[</span>\<span class="p">]</span><span class="w">  </span>
+<span class="k">for</span><span class="w"> </span><span class="k">var</span><span class="p">,</span><span class="w"> </span><span class="n">start</span><span class="w"> </span><span class="ow">in</span><span class="w"> </span><span class="n">starts</span><span class="o">.</span><span class="n">items</span><span class="p">():</span><span class="w">  </span>
+<span class="w">    </span><span class="k">if</span><span class="w"> </span><span class="n">reads</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="k">var</span><span class="p">,</span><span class="w"> </span><span class="mi">0</span><span class="p">)</span><span class="w"> </span>\<span class="o">&gt;</span><span class="w"> </span><span class="mi">0</span><span class="p">:</span><span class="w">  </span>
+<span class="w">        </span><span class="n">intervals</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">Interval</span><span class="p">(</span><span class="k">var</span><span class="p">,</span><span class="w"> </span><span class="n">start</span><span class="p">,</span><span class="w"> </span><span class="n">ends</span>\<span class="p">[</span><span class="k">var</span>\<span class="p">],</span><span class="w"> </span><span class="n">reads</span>\<span class="p">[</span><span class="k">var</span>\<span class="p">]))</span><span class="w">  </span>
+<span class="k">return</span><span class="w"> </span><span class="n">intervals</span>
+</code></pre></div>
+
+<p>def get_mwis_weight(intervals: List[Interval]) -&gt; int:<br />
+    """Finds the Maximum Weight Independent Set in O(N log N) via DP."""<br />
+    if not intervals: return 0<br />
+    sorted_ivs \= sorted(intervals, key=lambda x: x.end)<br />
+    n \= len(sorted_ivs)<br />
+    ends \= [iv.end for iv in sorted_ivs]  </p>
+<div class="codehilite"><pre><span></span><code>dp \= \[0\] \* (n \+ 1)  
+for i in range(1, n \+ 1):  
+    iv \= sorted\_ivs\[i-1\]  
+    \# Binary search for latest interval that ends strictly before this one starts  
+    idx \= bisect.bisect\_left(ends, iv.start)   
+    take \= iv.reads \+ dp\[idx\]  
+    leave \= dp\[i-1\]  
+    dp\[i\] \= max(take, leave)
+
+return dp\[n\]
+</code></pre></div>
+
+<p>def strict_static_lower_bound(events: Sequence[L2Event]) -&gt; int:<br />
+    """<br />
+    Mathematical Floor: Enforces the MWIS capacity constraint via Water-Pouring.<br />
+    No physical address can serve more reads than the MWIS.<br />
+    """<br />
+    intervals \= extract_intervals(events)<br />
+    if not intervals: return 0  </p>
+<div class="codehilite"><pre><span></span><code><span class="nx">max</span><span class="err">\</span><span class="nx">_reads</span><span class="err">\</span><span class="nx">_per</span><span class="err">\</span><span class="nx">_addr</span><span class="w"> </span><span class="err">\</span><span class="p">=</span><span class="w"> </span><span class="nx">get</span><span class="err">\</span><span class="nx">_mwis</span><span class="err">\</span><span class="nx">_weight</span><span class="p">(</span><span class="nx">intervals</span><span class="p">)</span><span class="w">  </span>
+<span class="nx">total</span><span class="err">\</span><span class="nx">_reads</span><span class="w"> </span><span class="err">\</span><span class="p">=</span><span class="w"> </span><span class="nx">sum</span><span class="p">(</span><span class="nx">iv</span><span class="p">.</span><span class="nx">reads</span><span class="w"> </span><span class="k">for</span><span class="w"> </span><span class="nx">iv</span><span class="w"> </span><span class="k">in</span><span class="w"> </span><span class="nx">intervals</span><span class="p">)</span>
+
+<span class="nx">cost</span><span class="w"> </span><span class="err">\</span><span class="p">=</span><span class="w"> </span><span class="mi">0</span><span class="w">  </span>
+<span class="nx">rem</span><span class="w"> </span><span class="err">\</span><span class="p">=</span><span class="w"> </span><span class="nx">total</span><span class="err">\</span><span class="nx">_reads</span><span class="w">  </span>
+<span class="kd">addr</span><span class="w"> </span><span class="err">\</span><span class="p">=</span><span class="w"> </span><span class="mi">1</span><span class="w">  </span>
+<span class="k">while</span><span class="w"> </span><span class="nx">rem</span><span class="w"> </span><span class="err">\</span><span class="p">&gt;</span><span class="w"> </span><span class="mi">0</span><span class="p">:</span><span class="w">  </span>
+<span class="w">    </span><span class="nx">take</span><span class="w"> </span><span class="err">\</span><span class="p">=</span><span class="w"> </span><span class="nx">min</span><span class="p">(</span><span class="nx">rem</span><span class="p">,</span><span class="w"> </span><span class="nx">max</span><span class="err">\</span><span class="nx">_reads</span><span class="err">\</span><span class="nx">_per</span><span class="err">\</span><span class="nx">_addr</span><span class="p">)</span><span class="w">  </span>
+<span class="w">    </span><span class="nx">cost</span><span class="w"> </span><span class="err">\</span><span class="o">+=</span><span class="w"> </span><span class="nx">take</span><span class="w"> </span><span class="err">\</span><span class="o">*</span><span class="w"> </span><span class="p">(</span><span class="nx">math</span><span class="p">.</span><span class="nx">isqrt</span><span class="p">(</span><span class="kd">addr</span><span class="w"> </span><span class="err">\</span><span class="o">-</span><span class="w"> </span><span class="mi">1</span><span class="p">)</span><span class="w"> </span><span class="err">\</span><span class="o">+</span><span class="w"> </span><span class="mi">1</span><span class="p">)</span><span class="w">  </span>
+<span class="w">    </span><span class="nx">rem</span><span class="w"> </span><span class="err">\</span><span class="o">-=</span><span class="w"> </span><span class="nx">take</span><span class="w">  </span>
+<span class="w">    </span><span class="kd">addr</span><span class="w"> </span><span class="err">\</span><span class="o">+=</span><span class="w"> </span><span class="mi">1</span><span class="w">  </span>
+<span class="k">return</span><span class="w"> </span><span class="nx">cost</span>
+</code></pre></div>
+
+<p>def achievable_upper_bound(events: Sequence[L2Event]) -&gt; int:<br />
+    """Achievable Ceiling: Cost of tracing with a greedy 'min_heap' allocator."""<br />
+    last_load \= {ev.var: i for i, ev in enumerate(events) if isinstance(ev, L2Load)}<br />
+    var_addr, free_slots, next_addr, cost \= {}, [], 1, 0  </p>
+<div class="codehilite"><pre><span></span><code><span class="k">for</span><span class="w"> </span><span class="n">i</span><span class="p">,</span><span class="w"> </span><span class="n">ev</span><span class="w"> </span><span class="ow">in</span><span class="w"> </span><span class="n">enumerate</span><span class="p">(</span><span class="n">events</span><span class="p">):</span><span class="w">  </span>
+<span class="w">    </span><span class="k">if</span><span class="w"> </span><span class="n">isinstance</span><span class="p">(</span><span class="n">ev</span><span class="p">,</span><span class="w"> </span><span class="n">L2Store</span><span class="p">):</span><span class="w">  </span>
+<span class="w">        </span><span class="n">addr</span><span class="w"> </span>\<span class="o">=</span><span class="w"> </span><span class="n">heapq</span><span class="o">.</span><span class="n">heappop</span><span class="p">(</span><span class="n">free</span>\<span class="n">_slots</span><span class="p">)</span><span class="w"> </span><span class="k">if</span><span class="w"> </span><span class="n">free</span>\<span class="n">_slots</span><span class="w"> </span><span class="k">else</span><span class="w"> </span><span class="n">next</span>\<span class="n">_addr</span><span class="w">  </span>
+<span class="w">        </span><span class="k">if</span><span class="w"> </span><span class="ow">not</span><span class="w"> </span><span class="n">free</span>\<span class="n">_slots</span><span class="p">:</span><span class="w"> </span><span class="n">next</span>\<span class="n">_addr</span><span class="w"> </span>\<span class="o">+=</span><span class="w"> </span><span class="mi">1</span><span class="w">  </span>
+<span class="w">        </span><span class="k">var</span>\<span class="n">_addr</span>\<span class="p">[</span><span class="n">ev</span><span class="o">.</span><span class="k">var</span>\<span class="p">]</span><span class="w"> </span>\<span class="o">=</span><span class="w"> </span><span class="n">addr</span><span class="w">  </span>
+<span class="w">    </span><span class="k">elif</span><span class="w"> </span><span class="n">isinstance</span><span class="p">(</span><span class="n">ev</span><span class="p">,</span><span class="w"> </span><span class="n">L2Load</span><span class="p">):</span><span class="w">  </span>
+<span class="w">        </span><span class="n">addr</span><span class="w"> </span>\<span class="o">=</span><span class="w"> </span><span class="k">var</span>\<span class="n">_addr</span>\<span class="p">[</span><span class="n">ev</span><span class="o">.</span><span class="k">var</span>\<span class="p">]</span><span class="w">  </span>
+<span class="w">        </span><span class="n">cost</span><span class="w"> </span>\<span class="o">+=</span><span class="w"> </span><span class="n">math</span><span class="o">.</span><span class="n">isqrt</span><span class="p">(</span><span class="n">addr</span><span class="w"> </span>\<span class="o">-</span><span class="w"> </span><span class="mi">1</span><span class="p">)</span><span class="w"> </span>\<span class="o">+</span><span class="w"> </span><span class="mi">1</span><span class="w">  </span>
+<span class="w">        </span><span class="k">if</span><span class="w"> </span><span class="n">last</span>\<span class="n">_load</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">ev</span><span class="o">.</span><span class="k">var</span><span class="p">)</span><span class="w"> </span>\<span class="o">==</span><span class="w"> </span><span class="n">i</span><span class="p">:</span><span class="w">  </span>
+<span class="w">            </span><span class="n">heapq</span><span class="o">.</span><span class="n">heappush</span><span class="p">(</span><span class="n">free</span>\<span class="n">_slots</span><span class="p">,</span><span class="w"> </span><span class="n">addr</span><span class="p">)</span><span class="w">  </span>
+<span class="k">return</span><span class="w"> </span><span class="n">cost</span>
+</code></pre></div>
+
+<p># \============================================================================<br />
+# Benchmarks<br />
+# \============================================================================</p>
+<p>def matmul_rmm(A, B):<br />
+    n \= len(A)<br />
+    if n \== 1: return [[A[0][0] * B[0][0]]]<br />
+    h \= n // 2<br />
+    def split(M): return ([[M[i][j] for j in range(h)] for i in range(h)], [[M[i][j] for j in range(h, n)] for i in range(h)],<br />
+                          [[M[i][j] for j in range(h)] for i in range(h, n)], [[M[i][j] for j in range(h, n)] for i in range(h, n)])<br />
+    A11, A12, A21, A22 \= split(A); B11, B12, B21, B22 \= split(B)<br />
+    def add(X, Y): return [[X[i][j] + Y[i][j] for j in range(len(X))] for i in range(len(X))]  </p>
+<div class="codehilite"><pre><span></span><code>C11 \= add(matmul\_rmm(A11, B11), matmul\_rmm(A12, B21))  
+C12 \= add(matmul\_rmm(A11, B12), matmul\_rmm(A12, B22))  
+C21 \= add(matmul\_rmm(A21, B11), matmul\_rmm(A22, B21))  
+C22 \= add(matmul\_rmm(A21, B12), matmul\_rmm(A22, B22))
+
+return \[\[C11\[i\]\[j\] if j\&lt;h else C12\[i\]\[j-h\] for j in range(n)\] for i in range(h)\] \+ \\  
+       \[\[C21\[i\]\[j\] if j\&lt;h else C22\[i\]\[j-h\] for j in range(n)\] for i in range(h)\]
+</code></pre></div>
+
+<p>if __name__ \== "__main__":<br />
+    for N in [8, 16]:<br />
+        print(f"--- Bounding Recursive Matmul Energy Cost (N={N}) ---")<br />
+        A \= [[1 for _ in range(N)] for _ in range(N)]<br />
+        B \= [[1 for _ in range(N)] for _ in range(N)]  </p>
+<div class="codehilite"><pre><span></span><code><span class="w">    </span><span class="n">trace</span><span class="err">\</span><span class="n">_events</span><span class="w"> </span><span class="err">\=</span><span class="w"> </span><span class="n">trace</span><span class="p">(</span><span class="n">matmul</span><span class="err">\_rmm</span><span class="p">,</span><span class="w"> </span><span class="p">(</span><span class="n">A</span><span class="err">,</span><span class="w"> </span><span class="err">B</span><span class="p">))</span>
+
+<span class="w">    </span><span class="n">lb</span><span class="w"> </span><span class="err">\=</span><span class="w"> </span><span class="n">strict</span><span class="err">\</span><span class="n">_static</span><span class="err">\</span><span class="n">_lower</span><span class="err">\</span><span class="n">_bound</span><span class="p">(</span><span class="n">trace</span><span class="err">\_events</span><span class="p">)</span><span class="w">  </span>
+<span class="w">    </span><span class="n">ub</span><span class="w"> </span><span class="err">\=</span><span class="w"> </span><span class="n">achievable</span><span class="err">\</span><span class="n">_upper</span><span class="err">\</span><span class="n">_bound</span><span class="p">(</span><span class="n">trace</span><span class="err">\_events</span><span class="p">)</span>
+
+<span class="w">    </span><span class="n">print</span><span class="p">(</span><span class="n">f</span><span class="err">&quot;Strict</span><span class="w"> </span><span class="err">Mathematical</span><span class="w"> </span><span class="err">Lower</span><span class="w"> </span><span class="err">Bound</span><span class="w"> </span><span class="err">:</span><span class="w"> </span><span class="err">{lb:</span><span class="p">,</span><span class="mf">.0</span><span class="err">f}</span><span class="w"> </span><span class="err">energy</span><span class="w"> </span><span class="err">units&quot;</span><span class="p">)</span><span class="w">  </span>
+<span class="w">    </span><span class="n">print</span><span class="p">(</span><span class="n">f</span><span class="err">&quot;Achievable</span><span class="w"> </span><span class="err">Static</span><span class="w"> </span><span class="err">Upper</span><span class="w"> </span><span class="err">Bound</span><span class="w">   </span><span class="err">:</span><span class="w"> </span><span class="err">{ub:</span><span class="p">,</span><span class="mf">.0</span><span class="err">f}</span><span class="w"> </span><span class="err">energy</span><span class="w"> </span><span class="err">units&quot;</span><span class="p">)</span><span class="w">  </span>
+<span class="w">    </span><span class="n">print</span><span class="p">(</span><span class="n">f</span><span class="err">&quot;-\&gt;</span><span class="w"> </span><span class="err">Physical</span><span class="w"> </span><span class="err">Envelope</span><span class="w"> </span><span class="err">Width</span><span class="w">      </span><span class="err">:</span><span class="w"> </span><span class="err">{ub/lb:.2f}x</span><span class="w"> </span><span class="err">(Optimal</span><span class="w"> </span><span class="err">lies</span><span class="w"> </span><span class="err">in</span><span class="w"> </span><span class="err">between</span><span class="p">)</span><span class="err">\\</span><span class="n">n</span><span class="s2">&quot;)</span>
+</code></pre></div>
+</body>
+</html>

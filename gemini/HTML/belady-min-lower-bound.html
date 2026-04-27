@@ -1,0 +1,79 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Belady Min Lower Bound</title>
+<style>
+  body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif; max-width: 800px; margin: 40px auto; padding: 0 20px; line-height: 1.6; color: #333; }
+  pre { background: #f6f8fa; padding: 16px; border-radius: 6px; overflow-x: auto; }
+  code { background: #f6f8fa; padding: 2px 6px; border-radius: 3px; font-size: 0.9em; }
+  pre code { background: none; padding: 0; }
+  table { border-collapse: collapse; width: 100%; }
+  th, td { border: 1px solid #ddd; padding: 8px 12px; text-align: left; }
+  th { background: #f6f8fa; }
+  img { max-width: 100%; }
+  blockquote { border-left: 4px solid #ddd; margin: 0; padding-left: 16px; color: #666; }
+</style>
+</head>
+<body>
+<p>To prove mathematically that no memory allocation strategy—even an omniscient compiler with perfect future knowledge and the ability to instantly reorganize data for free between reads—can achieve a total read energy lower than the one calculated by $d_{OPT} = \text{max-rank}[V]$, we must fuse <strong>continuous 2D geometry</strong> with <strong>discrete optimal caching theory</strong>.</p>
+<p>Because your model assumes that moving data (writes) is free, an optimal compiler can shuffle data arbitrarily between reads. To prove that max_rank is the absolute mathematical floor, we must prove two things:</p>
+<ol>
+<li>Minimizing 2D geometric routing cost is mathematically identical to minimizing cache misses across all possible cache capacities simultaneously.  </li>
+<li>The value $\text{max-rank}[V]$ flawlessly calculates the absolute theoretical minimum of those misses using the <strong>Pigeonhole Principle</strong>.</li>
+</ol>
+<p>Here is the rigorous, step-by-step proof.</p>
+<h3 id="-">---</h3>
+<p><strong>Part 1: Decomposing Geometry into "Nested Caches"</strong></p>
+<p>Let $S$ be <em>any</em> arbitrary spatial allocation strategy. When the algorithm requests a variable at time $t$, $S$ fetches it from some physical distance (rank) $d_t^S$.</p>
+<p>Your model penalizes distance with a non-decreasing fetch cost function $C(d)$ (e.g., $C(d) = \lceil\sqrt{d}\rceil$). A fundamental mathematical property of any non-decreasing step function is that it can be rewritten as a base cost plus a sum of marginal penalties.</p>
+<p>Let $\Delta_c = C(c+1) - C(c)$ be the extra penalty of fetching from distance $c+1$ instead of $c$. Because cost never decreases with distance, $\Delta_c \ge 0$ for all capacities $c$.</p>
+<p>We can rewrite the exact cost of a single read as:</p>
+<p>$$C(d_t^S) = C(1) + \sum_{c=1}^\infty \Delta_c \cdot \mathbb{I}(d_t^S &gt; c)$$</p>
+<p><em>(Where $\mathbb{I}$ is an indicator function: 1 if the distance is strictly greater than $c$, and 0 otherwise).</em></p>
+<p>Now, let's write the total energy equation for Strategy $S$ over all $N$ reads in the algorithm, and swap the order of the summations (pulling the capacity $c$ to the outside):</p>
+<p>$$E(S) = \sum_{t=1}^N \left( C(1) + \sum_{c=1}^\infty \Delta_c \cdot \mathbb{I}(d_t^S &gt; c) \right)$$</p>
+<p>$$E(S) = N \cdot C(1) + \sum_{c=1}^\infty \Delta_c \left[ \sum_{t=1}^N \mathbb{I}(d_t^S &gt; c) \right]$$</p>
+<p><strong>The Cache Equivalency Insight:</strong> Look closely at the inner bracket: $\sum \mathbb{I}(d_t^S &gt; c)$.</p>
+<p>What does this mathematically represent? It counts the exact number of times Strategy $S$ fetched a variable from a distance strictly greater than $c$. If we draw a physical boundary around the ALU that holds exactly $c$ variables, this sum is <strong>the exact number of Cache Misses</strong> Strategy $S$ would suffer if it were restricted to a hardware cache of size $c$.</p>
+<p>Let’s define this as $M_S(c)$. The master geometric energy equation collapses into:</p>
+<p>$$E(S) = N \cdot C(1) + \sum_{c=1}^\infty \Delta_c \cdot M_S(c)$$</p>
+<p><em>Conclusion of Part 1:</em> Total spatial routing energy is perfectly isomorphic to a weighted sum of cache misses across every integer capacity from $1$ to $\infty$.</p>
+<h3 id="-_1">---</h3>
+<p><strong>Part 2: Bélády's Absolute Lower Bound</strong></p>
+<p>Now we invoke the most famous theorem in caching: <strong>Bélády’s MIN algorithm (1966)</strong>.</p>
+<p>Bélády proved that for any <em>single, isolated</em> cache capacity $c$, the absolute optimal way to minimize misses is to always evict the variable whose next use is furthest in the future. Therefore, no strategy $S$ can possibly generate fewer misses than Bélády's MIN for any capacity $c$:</p>
+<p>$$M_S(c) \ge M_{MIN}(c)$$</p>
+<p>Furthermore, in 1970, Mattson et al. proved the <strong>Inclusion Property</strong>. Because MIN's eviction rule (furthest next-use time) does not depend on the physical size of the cache, it generates a single schedule that achieves the minimum possible misses for <em>every single capacity $c$ simultaneously</em>.</p>
+<p>Because $\Delta_c \ge 0$ and $M_S(c) \ge M_{MIN}(c)$ for every term in our energy equation, we reach an unassailable mathematical floor:</p>
+<p>$$E(S) \ge N \cdot C(1) + \sum_{c=1}^\infty \Delta_c \cdot M_{MIN}(c)$$</p>
+<h3 id="-_2">---</h3>
+<p><strong>Part 3: The Pigeonhole Eviction Theorem</strong></p>
+<p>We must now prove why tracking $d_{OPT} = \text{max-rank}[V]$ exactly equates to MIN's optimal performance.</p>
+<p>Consider a variable $V$ that is accessed at $t_{prev}$, goes dormant, and is accessed again at $t_{next}$.</p>
+<p>During its dormancy, your algorithm tracks $V$'s "rank" in a list of live variables sorted by next-use time. At any moment $\tau$ during this interval:</p>
+<p>$$\text{Rank}(V, \tau) = 1 + (\text{Number of live variables needed BEFORE } t_{next})$$</p>
+<p>Let $R = \text{max-rank}[V]$ be the absolute highest rank $V$ reached during its dormancy. This means at some "peak" moment $\tau_{peak}$, there were exactly $R-1$ <em>other</em> active variables that the algorithm needed before it needed $V$.</p>
+<p><strong>Theorem:</strong> <em>In Bélády's MIN, $V$ suffers a cache miss at $t_{next}$ if and only if $\text{max-rank}[V] &gt; c$.</em></p>
+<p><strong>Proof of Miss (If $\text{max-rank}[V] &gt; c$):</strong></p>
+<p>If $R &gt; c$, then at time $\tau_{peak}$, there are $\ge c$ live variables needed strictly before $V$.</p>
+<p>A cache of size $c$ only has $c$ physical slots. By the <strong>Pigeonhole Principle</strong>, the cache is physically incapable of holding all of those earlier-needed variables AND variable $V$.</p>
+<p>Because MIN perfectly prioritizes variables needed sooner, it will fill the cache with the $c$ variables needed before $V$. $V$ is mathematically forced to be evicted. Because $V$ is not demanded again until $t_{next}$, it will be missing from the cache when $t_{next}$ arrives.</p>
+<p><strong>Proof of Hit (If $\text{max-rank}[V] \le c$):</strong></p>
+<p>If $R \le c$, then at <em>every</em> moment during $V$'s dormancy, there are strictly fewer than $c$ variables needed before $V$.</p>
+<p>Even if the cache is completely full, $V$ will always be needed sooner than at least one other variable in the cache. Therefore, $V$ is <em>never</em> the variable with the furthest next-use. MIN will never select $V$ for eviction, guaranteeing a hit.</p>
+<h3 id="-_3">---</h3>
+<p><strong>Part 4: The Grand Synthesis</strong></p>
+<p>We just proved that $\text{max-rank}[V] &gt; c$ is the exact binary condition for whether the optimal MIN algorithm suffers a cache miss on capacity $c$. Therefore, the total optimal misses $M_{MIN}(c)$ is simply the sum of that condition over all $N$ reads:</p>
+<p>$$M_{MIN}(c) = \sum_{t=1}^N \mathbb{I}(\text{max-rank}[V_t] &gt; c)$$</p>
+<p>Substitute this back into the absolute lower-bound energy equation from Part 2:</p>
+<p>$$E(S) \ge N \cdot C(1) + \sum_{c=1}^\infty \Delta_c \left[ \sum_{t=1}^N \mathbb{I}(\text{max-rank}[V_t] &gt; c) \right]$$</p>
+<p>Now, swap the summations back to their original orientation (pulling the reads $t$ to the outside):</p>
+<p>$$E(S) \ge \sum_{t=1}^N \left( C(1) + \sum_{c=1}^\infty \Delta_c \cdot \mathbb{I}(\text{max-rank}[V_t] &gt; c) \right)$$</p>
+<p>Look at the term inside the parentheses. We have perfectly reconstructed the indicator-step-function from Part 1, but this time it is evaluated exactly at $\text{max-rank}[V_t]$!</p>
+<p>$$E(S) \ge \sum_{t=1}^N C(\text{max-rank}[V_t])$$</p>
+<h3 id="qed"><strong>Q.E.D.</strong></h3>
+<p>Because the cost of 2D data movement mathematically decomposes into a sum of misses across infinite concentric boundaries, and because the Pigeonhole Principle proves that max_rank exactly defines the minimum possible boundary size required to shield a variable from optimal eviction, <strong>it is a physical impossibility for any dynamic spatial allocation strategy to run your algorithm for less energy.</strong></p>
+</body>
+</html>

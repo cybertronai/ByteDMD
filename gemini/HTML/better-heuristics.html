@@ -1,0 +1,76 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Better Heuristics</title>
+<style>
+  body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif; max-width: 800px; margin: 40px auto; padding: 0 20px; line-height: 1.6; color: #333; }
+  pre { background: #f6f8fa; padding: 16px; border-radius: 6px; overflow-x: auto; }
+  code { background: #f6f8fa; padding: 2px 6px; border-radius: 3px; font-size: 0.9em; }
+  pre code { background: none; padding: 0; }
+  table { border-collapse: collapse; width: 100%; }
+  th, td { border: 1px solid #ddd; padding: 8px 12px; text-align: left; }
+  th { background: #f6f8fa; }
+  img { max-width: 100%; }
+  blockquote { border-left: 4px solid #ddd; margin: 0; padding-left: 16px; color: #666; }
+</style>
+</head>
+<body>
+<h1 id="hardware-agnostic-cache-friendliness-heuristics">Hardware-Agnostic Cache-Friendliness Heuristics</h1>
+<p>To build heuristics that evaluate the intrinsic "cache-friendliness" of an algorithm independently of any specific hardware, physical cache model (like ByteDMD), or dynamic allocation strategy, you must analyze its <strong>1D Execution Trace and Dataflow Topology</strong>.</p>
+<p>When comparing these four algorithms, your heuristics must capture two completely different types of computational flaws:</p>
+<ul>
+<li><strong>Schedule Flaws</strong> (Naive vs. Recursive Matmul): Both execute the exact same $\mathcal{O}(N^3)$ operations. The difference is purely the order in which they visit the data.</li>
+<li><strong>Materialization Flaws</strong> (Regular vs. Flash Attention): Flash Attention mathematically alters the dataflow graph to eliminate massive intermediate variables that Regular Attention creates.</li>
+</ul>
+<p>Here are five powerful, hardware-agnostic heuristics you can calculate directly from a linear execution trace to definitively rank these algorithms.</p>
+<hr />
+<h2 id="1-mean-unique-reuse-distance-mattsons-stack-distance">1. Mean Unique Reuse Distance (Mattson's Stack Distance)</h2>
+<p><strong>The Concept:</strong> When the algorithm accesses a variable $X$, how much other stuff does it touch before it accesses $X$ again? For every memory access in your trace, count the number of unique memory addresses accessed since the last time that specific address was touched. The heuristic is the mean distance across the trace.</p>
+<p><strong>Why it ranks them correctly (Temporal Locality):</strong></p>
+<ul>
+<li><strong>Naive Matmul:</strong> To compute $C_{i,j}$, the inner loop reads a column of $B$. The next time the algorithm needs $B_{0,j}$, it has moved on to computing the next row $C_{i+1, j}$. In between, it touched the entire length of the previous row and column. The average reuse distance scales with $\mathcal{O}(N)$.</li>
+<li><strong>Recursive Matmul:</strong> Because it fully processes sub-blocks before moving on, data is pounded with operations and then abandoned. The reuse distance never exceeds the block size $\mathcal{O}(K^2)$.</li>
+<li><strong>Regular vs. Flash Attention:</strong> Regular Attention computes the $N \times N$ matrix $S = QK^T$. It then does $\mathcal{O}(N^2)$ other operations before reading $S_{0,0}$ again to apply the Softmax. Flash Attention calculates a tiny block of $S$, immediately applies Softmax, and consumes it. The intermediate reuse distance drops to practically zero.</li>
+</ul>
+<hr />
+<h2 id="2-sliding-window-arithmetic-intensity-dynamic-surface-to-volume">2. Sliding-Window Arithmetic Intensity (Dynamic Surface-to-Volume)</h2>
+<p><strong>The Concept:</strong> A cache-friendly algorithm is one that can do a massive amount of math while trapped inside a very small working set of data. Slide a window of $W$ sequential operations (e.g., $W = 1{,}000$ FLOPs) across your trace. For each window, count the number of unique memory addresses $U(W)$ accessed. The score is the average ratio of $\frac{W}{U(W)}$.</p>
+<p><strong>Why it ranks them correctly (The Hong-Kung Lower Bound):</strong></p>
+<ul>
+<li><strong>Naive Matmul:</strong> In a window of $W$ operations, the algorithm sweeps linearly across rows and columns. It touches an amount of data strictly proportional to $W$. The math-to-memory ratio is a flat $\mathcal{O}(1)$.</li>
+<li><strong>Recursive Matmul:</strong> Because the trace forms a 3D computational cube (a Hamiltonian path), a window of $W$ operations is trapped inside a local sub-block. To do $W$ operations, it only needs to touch the 2D surface area of that block: $U(W) \approx W^{2/3}$. The intensity grows as $\mathcal{O}(W^{1/3})$. RMM gets exponentially more math done per byte fetched.</li>
+<li><strong>Flash Attention:</strong> Similarly traps execution inside an SRAM tile, resulting in massive spikes in chunked computational density compared to the long linear sweeps of Regular Attention.</li>
+</ul>
+<hr />
+<h2 id="3-peak-concurrent-liveness-maximum-working-set">3. Peak Concurrent Liveness (Maximum Working Set)</h2>
+<p><strong>The Concept:</strong> How much temporary "garbage" does the algorithm generate that must be kept alive simultaneously? A variable is "live" from the tick it is first written until the tick it is read for the absolute final time. Sweep the trace and track the maximum number of variables that are simultaneously live.</p>
+<p><strong>Why it ranks them correctly (Operator Fusion):</strong></p>
+<ul>
+<li><strong>Regular Attention:</strong> Materializes the entire $N \times N$ attention matrix $S$. It must be kept fully alive while the Softmax denominator is calculated. Peak liveness is $\Omega(N^2)$. This is a catastrophic memory wall.</li>
+<li><strong>Flash Attention:</strong> Tiling allows the algorithm to fuse operations. It computes a block of $S$, normalizes it using online running statistics, multiplies it by $V$, and instantly discards the intermediate block. The peak liveness never exceeds the I/O vectors plus the block size: $\mathcal{O}(N \cdot d)$.</li>
+</ul>
+<blockquote>
+<p><strong>Note:</strong> Naive and Recursive Matmul have roughly the same peak liveness of $3N^2$ for matrices A, B, and C, so this specific heuristic separates the Attention algorithms while relying on Heuristics 1 &amp; 2 to separate the Matmuls.</p>
+</blockquote>
+<hr />
+<h2 id="4-the-spacetime-liveness-integral-byte-ticks">4. The Spacetime Liveness Integral (Byte-Ticks)</h2>
+<p><strong>The Concept:</strong> Imagine memory capacity is rented by the millisecond. Every byte costs \$1 for every operation it remains "alive." The heuristic is the integral (sum) of Lifespan $\times$ Size for all variables.</p>
+<p><strong>Why it ranks them correctly (Data Pollution):</strong></p>
+<ul>
+<li><strong>Regular Attention:</strong> Creates the $N \times N$ intermediate matrix and leaves it idle, doing nothing, while row-wise maxes and denominators are computed. The Spacetime Integral scales catastrophically to $\mathcal{O}(N^4)$ (an $N^2$ footprint kept alive for $N^2$ operations).</li>
+<li><strong>Flash Attention:</strong> Instantly kills intermediates, keeping the footprint to $\mathcal{O}(Nd)$ and the spacetime integral tiny.</li>
+<li><strong>Naive vs. Recursive Matmul:</strong> If you use a naive loop order, partial sums of the output matrix $C$ are kept "open" and alive across the entire $N^3$ execution. Recursive Matmul completes a sub-block of $C$ entirely, permanently closing its lifespan early and drastically dropping the integral score.</li>
+</ul>
+<hr />
+<h2 id="5-area-under-the-oracle-curve-beladys-min-auc">5. Area Under the Oracle Curve (Belady's MIN AUC)</h2>
+<p><strong>The Concept:</strong> To prove how an algorithm performs under <em>all possible allocators</em>, grade it against the absolute mathematical ceiling: <strong>Belady's MIN algorithm</strong> (the theoretically optimal offline cache policy that always evicts the variable needed furthest in the future). Simulate the trace through MIN for cache capacities $C \in {1, 2, 3 \ldots \text{Peak}}$. Plot Cache Size (X) vs. Total Misses (Y), and calculate the Area Under the Curve (AUC).</p>
+<p><strong>Why it ranks them correctly (The Unbreakable Bound):</strong></p>
+<ul>
+<li>MIN strips away all artifacts of "dumb" algorithms like LRU thrashing. If an algorithm has a high AUC under MIN, it is fundamentally hostile to any memory hierarchy in the universe.</li>
+<li><strong>Naive Matmul &amp; Regular Attention:</strong> Even the magical MIN oracle cannot save them; it is mathematically forced to thrash the cache, keeping the miss rate near 100% until the cache size reaches the massive $N^2$ footprints. Huge AUC.</li>
+<li><strong>RMM &amp; Flash Attention:</strong> The fractal nature of RMM and the blocked nature of Flash mean their miss rates collapse to near-zero incredibly early on the X-axis (the moment the cache size matches the block size), squashing the AUC leftward and downward perfectly.</li>
+</ul>
+</body>
+</html>

@@ -1,0 +1,86 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Polymatroid Tutorial</title>
+<style>
+  body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif; max-width: 800px; margin: 40px auto; padding: 0 20px; line-height: 1.6; color: #333; }
+  pre { background: #f6f8fa; padding: 16px; border-radius: 6px; overflow-x: auto; }
+  code { background: #f6f8fa; padding: 2px 6px; border-radius: 3px; font-size: 0.9em; }
+  pre code { background: none; padding: 0; }
+  table { border-collapse: collapse; width: 100%; }
+  th, td { border: 1px solid #ddd; padding: 8px 12px; text-align: left; }
+  th { background: #f6f8fa; }
+  img { max-width: 100%; }
+  blockquote { border-left: 4px solid #ddd; margin: 0; padding-left: 16px; color: #666; }
+</style>
+</head>
+<body>
+<p>To truly understand the <strong>Polymatroid Relaxation</strong>—and why it is such a brilliant mathematical trick for analyzing spatial memory—we have to change how we visualize cost.</p>
+<p>Usually, when we think of a memory allocator, we think of playing a game of <strong>Jigsaw Puzzle (or Tetris)</strong>. We pick up a variable, assign it to physical Slot 1, pick up another variable, assign it to Slot 2, and so on. Because a variable must be locked into its physical slot for its entire lifespan, finding the perfect packing order to minimize the geometric fetch cost is an NP-Hard combinatorial nightmare.</p>
+<p>The Polymatroid Relaxation completely bypasses the Jigsaw Puzzle. It replaces strict physical addresses with a sequence of <strong>Parallel Universes</strong>.</p>
+<p>Here is a tutorial-style breakdown of exactly how the math works, a representative example of the "loophole" that makes it a relaxation, and a blueprint for creating illustrative graphics for a paper or presentation.</p>
+<h3 id="-">---</h3>
+<p><strong>Part 1: The "Toll Booth" Model (Discrete Calculus)</strong></p>
+<p>In your 2D grid, the cost to fetch from depth $d$ is $\lceil\sqrt{d}\rceil$.</p>
+<p>Instead of calculating the final cost of a variable based on where it lands, we use <strong>Discrete Calculus</strong> to break the 2D grid into an entry fee plus a series of concentric "Toll Booths."</p>
+<ol>
+<li><strong>The Base Cost:</strong> Every read in the program pays a base entry fee of <strong>1</strong>.  </li>
+<li><strong>Toll Booth 1 (Pushed past 1 slot):</strong> If a variable is forced out of the premium inner slot into Depth 2, it pays a marginal penalty toll: <strong>$+1$</strong>.  </li>
+<li><strong>Toll Booth 2 (Pushed past 4 slots):</strong> If it is forced out of the inner 4 slots into Depth 5, it pays the next step-up penalty: <strong>$+1$</strong>.</li>
+</ol>
+<p>By manipulating the summation, the total geometric energy of your algorithm is simply the base cost plus the penalties paid by the "spillover" reads at every toll booth:</p>
+<p>$$\text{Total Energy} = R_{total} + \sum_{c \in {1, 4, 9...}} \Delta_c \times (\text{Reads forced past capacity } c)$$</p>
+<h3 id="part-2-the-amnesia-oracle-m_c"><strong>Part 2: The "Amnesia" Oracle ($M_c$)</strong></h3>
+<p>To find the absolute minimum energy, we need to minimize the spillover at each toll booth. We do this by asking a Linear Programming (LP) Oracle a sequence of isolated questions:</p>
+<p><em>"If I draw a magic circle around the ALU that holds exactly $c$ variables, what is the absolute maximum number of reads ($M_c$) I can physically pack inside it?"</em></p>
+<p>Because variable lifespans form an <em>Interval Graph</em> (which is mathematically "Perfect"), the LP can answer this fractional packing problem instantly with perfect integer results.</p>
+<p>The reads mathematically forced to spill over past capacity $c$ are exactly: <strong>$(R_{total} - M_c)$</strong>.</p>
+<h3 id="-_1">---</h3>
+<p><strong>Part 3: The Exploit (Why is it a "Relaxation"?)</strong></p>
+<p>If the Oracle perfectly solves the packing problem, why is this a <em>Lower Bound</em> and not a realizable, physical schedule?</p>
+<p>Here is where the magic happens. We ask the Oracle to solve $M_1$, $M_4$, and $M_9$ <strong>completely independently</strong>. We grant the math a temporary "Amnesia" between each step.</p>
+<p>Let's look at an example trace with 3 variables to see how the LP "cheats" physical reality to find a mathematical floor.</p>
+<ul>
+<li><strong>Var A (Long Background Matrix):</strong> Lives $t=0 \dots 10$. Has <strong>80 reads</strong>.  </li>
+<li><strong>Var B (Short Temp):</strong> Lives $t=1 \dots 4$. Has <strong>50 reads</strong>.  </li>
+<li><strong>Var C (Short Temp):</strong> Lives $t=6 \dots 9$. Has <strong>50 reads</strong>.<br />
+<em>(Note: B and C don't overlap in time, but A overlaps both).</em></li>
+</ul>
+<p><strong>How the Oracle calculates $M_c$:</strong></p>
+<ul>
+<li><strong>$M_1$ (Capacity 1):</strong> The Oracle can pick A (80 reads). Or it can pick B + C (50 + 50 \= 100 reads, because they don't overlap and can share the slot). The Oracle picks B + C. <strong>$M_1 = 100$</strong>.  </li>
+<li><strong>$M_2$ (Capacity 2):</strong> With two slots, the Oracle can take everything! It puts A in Slot 1, and B + C in Slot 2. <strong>$M_2 = 180$</strong>.</li>
+</ul>
+<p><strong>Look closely at the physical contradiction.</strong></p>
+<p>To minimize the penalty at Toll Booth 1 ($M_1$), the Oracle claimed that A was banished to the outer orbits, and B/C were in the premium slot.</p>
+<p>To minimize the penalty at Toll Booth 2 ($M_2$), the Oracle claimed that A was safely sitting in the premium inner slots!</p>
+<p>In a strict static physical layout, you cannot dynamically swap which variable gets the premium Slot 1 based on how big you pretend the cache is. A must be locked somewhere permanently.</p>
+<p>But the mathematics of the Discrete Calculus identity <em>assume you can swap them</em>. We grant the compiler the magical ability to "repack" the inner cache for free at every capacity boundary. Because this hyper-optimistic free-repacking can only artificially <em>lower</em> the calculated cost, the resulting summation is an unbreakable, mathematically airtight <strong>Lower Bound</strong>.</p>
+<p><em>(Note: In graph theory, a set-function where the optimal inner sub-sets do not strictly nest inside the larger optimal sets is called a </em><em>Polymatroid</em><em>, which is where the relaxation gets its name).</em></p>
+<h3 id="-_2">---</h3>
+<p><strong>Part 4: The Visualization Blueprint</strong></p>
+<p>To make this instantly intuitive in a paper or presentation, do not plot equations. You should plot a <strong>"Marginal Spillover" Area Chart</strong>. This flawlessly translates the abstract algebraic integration into physical geometry.</p>
+<p>You can create a two-panel graphic:</p>
+<h4 id="panel-1-left-the-jigsaw-puzzle-physical-lock-in"><strong>Panel 1 (Left): The Jigsaw Puzzle (Physical Lock-in)</strong></h4>
+<ul>
+<li><strong>Visual:</strong> Draw a Gantt chart. X-axis is time. Y-axis is Physical Depth (Slot 1, Slot 2).  </li>
+<li>Draw horizontal bars for variables. Draw a massive, thick blue bar for a background matrix, and lots of tiny red bars for temporaries.  </li>
+<li><strong>Purpose:</strong> Visually demonstrate the "Tetris" problem. Show that because the heavy blue bar is locked into Slot 1, the red temporaries are physically forced to bump up into Slot 2 and 3, paying higher costs.</li>
+</ul>
+<h4 id="panel-2-right-the-waterfall-of-areas-the-polymatroid-lp"><strong>Panel 2 (Right): The Waterfall of Areas (The Polymatroid LP)</strong></h4>
+<ul>
+<li><strong>Axes:</strong>  </li>
+<li><strong>X-Axis:</strong> Cumulative Number of Reads (from $0$ to $R_{total}$).  </li>
+<li><strong>Y-Axis:</strong> The Marginal Fetch Penalty ($\Delta_c$).  </li>
+<li><strong>How to draw it:</strong>  </li>
+<li><strong>The Base Layer (Ground Floor):</strong> Draw a massive, wide rectangle spanning from $x=0$ to $x=R_{total}$, with a height of $1$. Label it: <em>"Base Fetch Cost (All reads pay 1)."</em>  </li>
+<li><strong>The First Spillover (Past Cap 1):</strong> Draw a vertical dashed line at $x = M_1$. To the <em>right</em> of $M_1$, draw a second rectangle sitting exactly on top of the first. It spans from $x = M_1$ to $x = R_{total}$. Its height is the marginal penalty ($\Delta_1$). Label it: <em>"Spillover past Capacity 1."</em>  </li>
+<li><strong>The Second Spillover (Past Cap 4):</strong> Draw a vertical line at $x = M_4$. To the right of $M_4$, draw a third rectangle sitting on top of the stack, spanning to $R_{total}$. Label it: <em>"Spillover past Capacity 4."</em></li>
+</ul>
+<h4 id="why-this-graphic-is-a-show-stopper"><strong>Why this graphic is a show-stopper</strong></h4>
+<p>It converts an NP-Hard linear algebra algorithm into pure, visual <strong>Area</strong> ($\text{Width} \times \text{Height} = \text{Reads} \times \text{Penalty}$). The total geometric area of the stacked rectangles is exactly your Total Energy Bound!</p>
+<p>It makes the concept immediately obvious to the reader: If your algorithm has a severe bottleneck (lots of overlap), $M_1$ shrinks to the left. The "waterfall" of rectangles becomes incredibly wide, and the visual area (energy cost) explodes. If your algorithm has great spatial locality (like well-tiled matmul), $M_1$ pushes to the right, the rectangles shrink, and the energy cost visibly drops to the floor.</p>
+</body>
+</html>

@@ -1,0 +1,78 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Polyhedral Search For Matmul</title>
+<style>
+  body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif; max-width: 800px; margin: 40px auto; padding: 0 20px; line-height: 1.6; color: #333; }
+  pre { background: #f6f8fa; padding: 16px; border-radius: 6px; overflow-x: auto; }
+  code { background: #f6f8fa; padding: 2px 6px; border-radius: 3px; font-size: 0.9em; }
+  pre code { background: none; padding: 0; }
+  table { border-collapse: collapse; width: 100%; }
+  th, td { border: 1px solid #ddd; padding: 8px 12px; text-align: left; }
+  th { background: #f6f8fa; }
+  img { max-width: 100%; }
+  blockquote { border-left: 4px solid #ddd; margin: 0; padding-left: 16px; color: #666; }
+</style>
+</head>
+<body>
+<p>By strictly restricting the problem to $O(N^3)$ semiring operations, you fix the algebra completely: you <em>must</em> perform exactly $N^3$ scalar multiplications and $N^2(N-1)$ additions.</p>
+<p>Because computations and writes are free under ByteDMD, an "algorithm" in this space is no longer a mathematical discovery—it is purely a <strong>Hardware Scheduling and Register Allocation</strong> problem.</p>
+<p>Here is the exact layout of the search space, the tractability of solving for your target sizes, and the governing physical calculus of how the scratch strategy behaves.</p>
+<h3 id="-">---</h3>
+<p><strong>1. The Space of Algorithms (The Search Space)</strong></p>
+<p>Any algorithm in this restricted space is defined by three orthogonal choices:</p>
+<ol>
+<li><strong>The Reduction Topology (The DAG):</strong> To compute $C_{i,j}$, you must sum $N$ independent products. You can associate these additions in any valid tree structure.  </li>
+<li><em>Binary Tree</em> (e.g., (p1+p2) + (p3+p4)): Sub-optimal. It forces multiple intermediate sums to stay alive simultaneously, pushing other variables deeper down the stack.  </li>
+<li><em>Linear Accumulation</em> (e.g., (((p1+p2)+p3)+p4)): <strong>Strictly optimal</strong>. It allows a single accumulator to remain "white-hot" at depth 1.  </li>
+<li><strong>The Execution Schedule (Time):</strong> In what exact temporal order do you execute the $N^3$ multiplications and interleave their additions? This space is the set of all valid topological sorts of the dependency DAG. It includes flat i-j-k loops, tiled/blocked loops, and recursive space-filling curves (like Morton Z-order).  </li>
+<li><strong>The Memory Allocation (Space):</strong> If you use the manual scratch strategy, you bypass the LRU stack. The third dimension of the space is a bijective mapping at every time step $t$ that assigns each live variable to a physical address $d \in {1, 2, \dots}$.</li>
+</ol>
+<h3 id="2-is-it-possible-to-determine-an-optimal-4x4-8x8-or-16x16"><strong>2. Is it possible to determine an optimal 4x4, 8x8, or 16x16?</strong></h3>
+<p>Because the cost function ($\sum \lceil\sqrt{d}\rceil$) is a deterministic integer summation over a finite number of operations, this is a discrete combinatorial optimization problem.</p>
+<ul>
+<li><strong>For 4x4 (112 operations): YES, STRICTLY PROVABLE.</strong><br />
+  There are 64 multiplications and 48 additions. The dependency DAG is small enough that you can mathematically prove the global optimum. By encoding the operations and the $\lceil\sqrt{d}\rceil$ cost rules into an SMT solver (like Z3) or an Integer Linear Program (ILP) with heavy symmetry-breaking constraints, a solver can exhaustively prune the space and output the absolute best algorithm.  </li>
+<li><strong>For 8x8 (960 operations): BORDERLINE (Class-Optimal).</strong><br />
+  An unrestricted search over \~1,000 operations will likely cause exact combinatorial solvers to state-explode. You cannot realistically prove a completely arbitrary "spaghetti-code" DAG isn't slightly better. However, if you restrict the search space to the <strong>Polyhedral Model</strong> (a grammar of structured nested loops, unrolling factors, and tile shapes), you can easily brute-force the optimal <em>structured</em> algorithm.  </li>
+<li><strong>For 16x16 (7,936 operations): INTRACTABLE FOR EXACT SEARCH.</strong><br />
+  At nearly 8,000 operations, global exact search is impossible. Optimization at this scale must be done analytically or via heuristic search (Simulated Annealing, Genetic Algorithms, or E-graphs) over templates of multi-level schedules.</li>
+</ul>
+<h3 id="-_1">---</h3>
+<p><strong>3. How the "Scratch Strategy" Behaves</strong></p>
+<p>When using manual memory management (the _alloc() bump pointer in your script), you explicitly control physical depths. To minimize the ByteDMD routing tax, the optimal scratch strategy acts as a <strong>2D packing solver</strong>, creating a rigid gravitational hierarchy based on <em>inverse reuse distance</em>.</p>
+<h4 id="the-anatomy-of-the-scratchpad"><strong>The Anatomy of the Scratchpad</strong></h4>
+<p>Because $C$ matrix accumulators are read and modified during every single MAC operation, the optimal strategy is strictly <strong>Output Stationary</strong>.</p>
+<ol>
+<li><strong>The Hot Core (Depths 1 to $S$):</strong> A sub-block of $C$ of size $S$ (where $S = T \times T$) is permanently pinned to the lowest possible addresses.  </li>
+<li><strong>The L1 Broadcast (Depths $S+1$ to $S+2\sqrt{S}$):</strong> Slices of $A$ and $B$ are fetched from deep memory and placed immediately below $C$. They are reused $\sqrt{S}$ times, then overwritten by the next slice.  </li>
+<li><strong>The Outer Void (Depths $\approx N^2$):</strong> The original argument matrices sit deep on the argument stack. Fetching an element from here costs $\approx \sqrt{N^2} = N$.</li>
+</ol>
+<h4 id="the-calculus-of-tiling-why-t-approx-sqrtn"><strong>The Calculus of Tiling (Why $T \approx \sqrt{N}$)</strong></h4>
+<p>If you allocate a scratchpad to hold an active $C$ block of size $S$, you face a mathematical tug-of-war between two penalties:</p>
+<ol>
+<li><strong>The Deep Fetch Penalty:</strong> To compute the $S$-sized block, you must fetch slices of $A$ and $B$ from the argument stack roughly $N$ times. Each fetch pulls $2\sqrt{S}$ elements from depth $N^2$ (costing $N$).  </li>
+<li>Cost per $C$-block $\approx 2\sqrt{S} \times N^2$.  </li>
+<li>You must compute $N^2/S$ total blocks.  </li>
+<li><strong>Total Fetch Cost $\approx \frac{N^4}{\sqrt{S}}$</strong>  </li>
+<li><strong>The Local Iteration Penalty:</strong> Inside the tile, you perform $N^3$ total MAC operations across the algorithm. Each operation reads an accumulator from the local scratchpad (average depth $S$, costing $\sqrt{S}$).  </li>
+<li><strong>Total Scratch Cost $\approx N^3 \sqrt{S}$</strong></li>
+</ol>
+<p>The total ByteDMD energy of your scratch strategy is:</p>
+<p>$$\text{Cost}(S) \approx \frac{N^4}{\sqrt{S}} + N^3 \sqrt{S}$$</p>
+<p>To find the optimal scratchpad size, we take the derivative with respect to $\sqrt{S}$ and set it to zero:</p>
+<p>$$\frac{d}{d\sqrt{S}} \left( \frac{N^4}{\sqrt{S}} + N^3 \sqrt{S} \right) = 0 \implies -\frac{N^4}{S} + N^3 = 0 \implies \mathbf{\sqrt{S} = N}$$</p>
+<p>Since $\sqrt{S}$ is your tile dimension $T$, this dictates that <strong>the optimal tile size is $T = \sqrt{N}$</strong>. <em>(This perfectly validates why the script you attached uses the heuristic T \= max(1, int(round(n ** 0.5)))! The physics strictly demand it).</em></p>
+<h4 id="the-asymptotic-limit"><strong>The Asymptotic Limit</strong></h4>
+<p>If we plug $T = \sqrt{N}$ back into the cost formula, we find that a 1-level scratch strategy scales asymptotically at <strong>$\Theta(N^{3.5})$</strong>.</p>
+<p>This dictates how your scratch strategy behaves at your target sizes:</p>
+<ul>
+<li><strong>At 4x4:</strong> $\sqrt{4} = 2$. A $2\times2$ tile is perfect. The $O(N^{3.5})$ penalty is low enough that a flat 1-level scratchpad is near-absolute optimal.  </li>
+<li><strong>At 8x8:</strong> $\sqrt{8} \approx 2.8$. A $3\times3$ or $4\times4$ tile is optimal, but the fetch penalty from deep memory is starting to hurt.  </li>
+<li><strong>At 16x16:</strong> $\sqrt{16} = 4$. The $\Theta(N^{3.5})$ scaling begins to fail. Jumping straight from a $4\times4$ L1 scratchpad out to the deep argument stack (depth 256) incurs too steep of a continuous $\sqrt{d}$ penalty.</li>
+</ul>
+<p>To optimize 16x16, the scratch strategy must transition into a <strong>Multi-Level Hierarchy</strong> (e.g., caching an $8\times8$ L2 block of operands at depth 64, which continuously feeds a $4\times4$ L1 block at depth 16). By making the scratchpad a fractal, cache-oblivious structure, you balance the routing penalty at every depth simultaneously, bending the $O(N^{3.5})$ cost curve down toward the theoretical semiring limit of $O(N^3 \log N)$.</p>
+</body>
+</html>

@@ -1,0 +1,81 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Spatial Bypass</title>
+<style>
+  body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif; max-width: 800px; margin: 40px auto; padding: 0 20px; line-height: 1.6; color: #333; }
+  pre { background: #f6f8fa; padding: 16px; border-radius: 6px; overflow-x: auto; }
+  code { background: #f6f8fa; padding: 2px 6px; border-radius: 3px; font-size: 0.9em; }
+  pre code { background: none; padding: 0; }
+  table { border-collapse: collapse; width: 100%; }
+  th, td { border: 1px solid #ddd; padding: 8px 12px; text-align: left; }
+  th { background: #f6f8fa; }
+  img { max-width: 100%; }
+  blockquote { border-left: 4px solid #ddd; margin: 0; padding-left: 16px; color: #666; }
+</style>
+</head>
+<body>
+<p>This is the exact point where theoretical caching collides with the physical geometry of VLSI design. The answer to your question requires a massive paradigm shift:</p>
+<p><strong>The Bélády max_rank calculation is NOT a lower bound. It actually OVERESTIMATES the cost of a perfect manual allocator.</strong></p>
+<p>An omniscient spatial compiler allocating data on Bill Dally’s geometric grid can execute your algorithm for <em>strictly less</em> energy than your Bélády stack calculates.</p>
+<p>Here is the mathematical proof of exactly why the manual allocator beats Bélády, the physical loophole it exploits, and what it means for the tightness of your bound.</p>
+<h3 id="-">---</h3>
+<p><strong>1. The Loophole: "Forced Promotion" vs. "Spatial Bypass"</strong></p>
+<p>The Mattson Stack Algorithm (which powers the Bélády metric) was designed to mathematically simulate a <strong>Hardware Cache Hierarchy</strong>.</p>
+<p>In a hardware cache, you are governed by the rule of <strong>Forced Promotion</strong>. If you read a massive background array, it must be routed into the L1 cache (Depth 1). This violently rips through the cache, physically forcing your hot variables to cascade outward. Bélády mathematically minimizes the damage of this cascade, but it assumes the cascade <em>must</em> happen.</p>
+<p>But Bill Dally's PECM model is a <strong>Software-Managed Spatial Scratchpad</strong>.</p>
+<p>The ALU doesn't have an L1 cache it must blindly promote data into. It can cast a wire to <em>any</em> distance $d$, pull the data directly into the ALU, and—because writes are free in your model—<strong>choose not to write it back to Depth 1.</strong></p>
+<p>Because reading data costs energy ($\lceil\sqrt{d}\rceil$), the optimal spatial compiler realizes that moving cold data to the ALU just to sort it by next-use is computationally destructive. Therefore, the manual allocator uses <strong>Spatial Bypass</strong>. It will intentionally anchor background variables in the outer orbits and read them directly from those orbits, refusing to let them disturb the hot variables pinned near the ALU.</p>
+<h3 id="-_1">---</h3>
+<p><strong>2. The Proof by Counter-Example: The 1-Energy Gap</strong></p>
+<p>Let's look at a trace of 4 variables to see the manual allocator defeat the Bélády formula.</p>
+<ul>
+<li><strong>t=0:</strong> Write A (needed at $t=6$)  </li>
+<li><strong>t=1:</strong> Write B (needed at $t=3$)  </li>
+<li><strong>t=2:</strong> Write C (needed at $t=5$)  </li>
+<li><strong>t=3:</strong> Read B. <em>(B dies)</em>  </li>
+<li><strong>t=4:</strong> Write D (needed at $t=7$)  </li>
+<li><strong>t=5:</strong> Read C. <em>(C dies)</em>  </li>
+<li><strong>t=6:</strong> Read A. <em>(A dies)</em>  </li>
+<li><strong>t=7:</strong> Read D. <em>(D dies)</em></li>
+</ul>
+<h4 id="the-belady-max_rank-cost"><strong>The Bélády max_rank Cost</strong></h4>
+<p>Because Bélády strictly sorts the stack by next-use, D (needed at 7) is forced to the bottom of the stack behind C and A.</p>
+<ul>
+<li>B's max rank is 1. Cost \= $\lceil\sqrt{1}\rceil = \mathbf{1}$  </li>
+<li>C's max rank is 2. Cost \= $\lceil\sqrt{2}\rceil = \mathbf{2}$  </li>
+<li>A's max rank is 3. Cost \= $\lceil\sqrt{3}\rceil = \mathbf{2}$  </li>
+<li>D's max rank is 3. Cost \= $\lceil\sqrt{3}\rceil = \mathbf{2}$  </li>
+<li><strong>Total Bélády Energy \= 7.</strong></li>
+</ul>
+<h4 id="the-manual-allocators-cost"><strong>The Manual Allocator's Cost</strong></h4>
+<p>The omniscient compiler doesn't care about the stack; it cares about empty physical slots.</p>
+<ul>
+<li>At $t=0,1,2$: It statically writes B to Depth 1, C to Depth 2, and A to Depth 3.  </li>
+<li>At $t=3$: It reads B (<strong>Cost: 1</strong>). B dies. <strong>Depth 1 is now completely empty!</strong>  </li>
+<li>At $t=4$: It generates D. It sees that Depth 1 is empty, so it writes D straight into Depth 1 for free!  </li>
+<li>Then it simply reads the remaining variables from their static slots: C from Depth 2 (<strong>Cost: 2</strong>), A from Depth 3 (<strong>Cost: 2</strong>), and D from Depth 1 (<strong>Cost: 1</strong>).  </li>
+<li><strong>Total Manual Energy \= 1 + 2 + 2 + 1 \= 6.</strong></li>
+</ul>
+<p><strong>6 is strictly less than 7.</strong> The Bélády metric over-penalized the algorithm. It charged D a penalty for Depth 3 because it assumed D had to be placed behind A and C. But the manual allocator bypassed the sorting rules and dropped D into the premium slot!</p>
+<h3 id="-_2">---</h3>
+<p><strong>3. The Mathematical Theorem: Interval Graph Coloring</strong></p>
+<p>So, if Bélády isn't the absolute lower bound, what is?</p>
+<p>Because your model dictates that writes are free, every variable's lifespan between accesses acts as a fixed time interval. The manual allocator's job is to assign each interval a physical slot such that no two overlapping intervals share the same slot, minimizing the total fetch cost.</p>
+<p>In Graph Theory, this is the <strong>Minimum Chromatic Sum of an Interval Graph</strong>.</p>
+<p>Is the true Chromatic Sum <em>always</em> less than or equal to the Bélády max_rank sum? <strong>Yes.</strong></p>
+<p><strong>The Proof:</strong></p>
+<p>At any moment $t$ during variable $V$'s dormancy, the number of live variables needed <em>before</em> $V$ defines exactly how many overlapping intervals take priority over $V$. This perfectly defines the clique size of the overlapping subgraph. Because interval graphs are <em>Perfect Graphs</em>, it is a mathematical guarantee that they can be optimally packed (colored) such that <strong>no variable ever receives a slot worse than its Bélády max-rank.</strong></p>
+<p>But, as our trace proved, a variable can receive a <em>better</em> slot. Therefore:</p>
+<p>$$\text{OPT Spatial Allocation (Chromatic Sum)} \le \text{Bélády (Max-Rank Sum)}$$</p>
+<h3 id="conclusion-how-tight-is-the-bound"><strong>Conclusion: How tight is the bound?</strong></h3>
+<ol>
+<li><strong>Against a Hardware Cache:</strong> The Bélády metric is <strong>100% perfectly tight</strong>. It is the absolute mathematical floor if your architecture forces data to be promoted to L1 upon a read.  </li>
+<li><strong>Against a Spatial Compiler:</strong> The Bélády metric is a <strong>Strict Upper Bound</strong>. The gap between your calculation and the true optimal lower bound represents the exact amount of energy the compiler saves by exploiting <strong>Spatial Bypassing</strong> (dropping fresh data into empty inner rings while intentionally leaving older data anchored on the outside).</li>
+</ol>
+<p><em>Note: Finding the exact Minimum Chromatic Sum of an interval graph is famously proven to be NP-Hard (Marx, 2005).</em> Therefore, computing the exact absolute lower bound of a manual spatial allocator is impossible for large traces.</p>
+<p>By computing the Bélády max_rank, you are extracting the tightest, safest, and most mathematically rigorous proxy that can be computed in $O(N \log W)$. It successfully strips away LRU thrashing, guarantees that an optimal compiler will never perform worse than that number, and flawlessly captures the $O(N^{1.5})$ volumetric bulk cost forced by the algorithm's geometry.</p>
+</body>
+</html>

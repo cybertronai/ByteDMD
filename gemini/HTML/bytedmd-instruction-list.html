@@ -1,0 +1,277 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Bytedmd Instruction List</title>
+<style>
+  body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif; max-width: 800px; margin: 40px auto; padding: 0 20px; line-height: 1.6; color: #333; }
+  pre { background: #f6f8fa; padding: 16px; border-radius: 6px; overflow-x: auto; }
+  code { background: #f6f8fa; padding: 2px 6px; border-radius: 3px; font-size: 0.9em; }
+  pre code { background: none; padding: 0; }
+  table { border-collapse: collapse; width: 100%; }
+  th, td { border: 1px solid #ddd; padding: 8px 12px; text-align: left; }
+  th { background: #f6f8fa; }
+  img { max-width: 100%; }
+  blockquote { border-left: 4px solid #ddd; margin: 0; padding-left: 16px; color: #666; }
+</style>
+</head>
+<body>
+<h1 id="bytedmd-instruction-list">ByteDMD Instruction List</h1>
+<p><strong>Source:</strong> https://chatgpt.com/share/69d1b354-6454-83e8-90f3-cbb5e8cf5a5a<br />
+<strong>Created with:</strong> ChatGPT (Sutro group)</p>
+<hr />
+<h2 id="prompt-1">Prompt 1</h2>
+<blockquote>
+<p>For the ByteDMD model here, give me the list of "instructions" implemented by this model. For instance, "add" is an instruction as well as divmod. Give me a list of instructions, and for each give the number of inputs and the number of outputs.</p>
+</blockquote>
+<p>I'm taking the instruction list from <code>bytedmd.py</code> itself rather than the README, and I'll treat reverse dunder forms like <code>radd</code> as the same instruction with reversed operand order.</p>
+<p>I've pinned down the actual op families now: binary ops, unary ops, and comparisons. Comparisons produce 0 tracked outputs here, while <code>divmod</code> is the one instruction with 2 outputs.</p>
+<p>From <code>bytedmd.py</code>, there are <strong>24 canonical instruction families</strong>. If you count reverse binary dispatch separately (<code>radd</code>, <code>rsub</code>, …), there are <strong>38 implemented methods total</strong>. Comparisons return a plain Python <code>bool</code>, so they produce 0 tracked outputs in this model.</p>
+<h3 id="binary-operations-2-inputs-1-output">Binary Operations (2 inputs → 1 output)</h3>
+<table>
+<thead>
+<tr>
+<th>instruction</th>
+<th>inputs</th>
+<th>outputs</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>add</td>
+<td>2</td>
+<td>1</td>
+</tr>
+<tr>
+<td>sub</td>
+<td>2</td>
+<td>1</td>
+</tr>
+<tr>
+<td>mul</td>
+<td>2</td>
+<td>1</td>
+</tr>
+<tr>
+<td>truediv</td>
+<td>2</td>
+<td>1</td>
+</tr>
+<tr>
+<td>floordiv</td>
+<td>2</td>
+<td>1</td>
+</tr>
+<tr>
+<td>mod</td>
+<td>2</td>
+<td>1</td>
+</tr>
+<tr>
+<td>pow</td>
+<td>2</td>
+<td>1</td>
+</tr>
+<tr>
+<td>lshift</td>
+<td>2</td>
+<td>1</td>
+</tr>
+<tr>
+<td>rshift</td>
+<td>2</td>
+<td>1</td>
+</tr>
+<tr>
+<td>and</td>
+<td>2</td>
+<td>1</td>
+</tr>
+<tr>
+<td>xor</td>
+<td>2</td>
+<td>1</td>
+</tr>
+<tr>
+<td>or</td>
+<td>2</td>
+<td>1</td>
+</tr>
+<tr>
+<td>matmul</td>
+<td>2</td>
+<td>1</td>
+</tr>
+</tbody>
+</table>
+<h3 id="special-binary-2-inputs-2-outputs">Special Binary (2 inputs → 2 outputs)</h3>
+<table>
+<thead>
+<tr>
+<th>instruction</th>
+<th>inputs</th>
+<th>outputs</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>divmod</td>
+<td>2</td>
+<td>2</td>
+</tr>
+</tbody>
+</table>
+<h3 id="unary-operations-1-input-1-output">Unary Operations (1 input → 1 output)</h3>
+<table>
+<thead>
+<tr>
+<th>instruction</th>
+<th>inputs</th>
+<th>outputs</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>neg</td>
+<td>1</td>
+<td>1</td>
+</tr>
+<tr>
+<td>pos</td>
+<td>1</td>
+<td>1</td>
+</tr>
+<tr>
+<td>abs</td>
+<td>1</td>
+<td>1</td>
+</tr>
+<tr>
+<td>invert</td>
+<td>1</td>
+<td>1</td>
+</tr>
+</tbody>
+</table>
+<h3 id="comparisons-2-inputs-0-tracked-outputs">Comparisons (2 inputs → 0 tracked outputs*)</h3>
+<table>
+<thead>
+<tr>
+<th>instruction</th>
+<th>inputs</th>
+<th>outputs</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>eq</td>
+<td>2</td>
+<td>0*</td>
+</tr>
+<tr>
+<td>ne</td>
+<td>2</td>
+<td>0*</td>
+</tr>
+<tr>
+<td>lt</td>
+<td>2</td>
+<td>0*</td>
+</tr>
+<tr>
+<td>le</td>
+<td>2</td>
+<td>0*</td>
+</tr>
+<tr>
+<td>gt</td>
+<td>2</td>
+<td>0*</td>
+</tr>
+<tr>
+<td>ge</td>
+<td>2</td>
+<td>0*</td>
+</tr>
+</tbody>
+</table>
+<p>* Logical result is 1 bool, but it is not wrapped/pushed as a tracked output.</p>
+<p>Reverse binary forms also exist with the same arity/output counts: <code>radd</code>, <code>rsub</code>, <code>rmul</code>, <code>rtruediv</code>, <code>rfloordiv</code>, <code>rmod</code>, <code>rdivmod</code>, <code>rpow</code>, <code>rlshift</code>, <code>rrshift</code>, <code>rand</code>, <code>rxor</code>, <code>ror</code>, <code>rmatmul</code>.</p>
+<hr />
+<h2 id="prompt-2">Prompt 2</h2>
+<blockquote>
+<p>Augment this table with 1. Built-in Iterable Reductions — These functions consume an iterable and collapse it down to a single value. When tracking data movement, these require reading up to N elements from memory. IE, sum, any. And built-in mathematical functions like abs, round, for a more complete instruction set.</p>
+</blockquote>
+<p>Appending two sections: $N$ = iterable length. I'm counting logical outputs here; bools still escape the current Python wrapper. <code>bytedmd.py</code> only wires binary ops, reverse binary ops, unary neg/pos/abs/invert, and comparisons; the README already uses <code>sum(...)</code> in the dot-product example; and the tests note that implicit truthiness bypasses tracing.</p>
+<h3 id="1-built-in-iterable-reductions">1. Built-in Iterable Reductions</h3>
+<table>
+<thead>
+<tr>
+<th>instruction</th>
+<th>inputs</th>
+<th>outputs</th>
+<th>current status</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>sum</td>
+<td>$N$ or $N+1$ with <code>start</code></td>
+<td>1</td>
+<td>composite over <code>add</code> / <code>radd</code></td>
+</tr>
+<tr>
+<td>any</td>
+<td>up to $N$</td>
+<td>1 bool</td>
+<td>needs <code>__bool__</code></td>
+</tr>
+<tr>
+<td>all</td>
+<td>up to $N$</td>
+<td>1 bool</td>
+<td>needs <code>__bool__</code></td>
+</tr>
+<tr>
+<td>min</td>
+<td>$N$</td>
+<td>1</td>
+<td>composite over comparisons</td>
+</tr>
+<tr>
+<td>max</td>
+<td>$N$</td>
+<td>1</td>
+<td>composite over comparisons</td>
+</tr>
+</tbody>
+</table>
+<h3 id="2-built-in-math-functions">2. Built-in Math Functions</h3>
+<table>
+<thead>
+<tr>
+<th>instruction</th>
+<th>inputs</th>
+<th>outputs</th>
+<th>current status</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>abs</td>
+<td>1</td>
+<td>1</td>
+<td>already native</td>
+</tr>
+<tr>
+<td>round</td>
+<td>1 or 2 (<code>x[, ndigits]</code>)</td>
+<td>1</td>
+<td>needs <code>__round__</code></td>
+</tr>
+</tbody>
+</table>
+<p>One small correction to the old table: Python builtin <code>pow</code> is really 2 or 3 → 1 (<code>pow(x, y[, mod])</code>), although the current wrapper only implements the 2-input <code>__pow__</code> form.</p>
+</body>
+</html>

@@ -1,0 +1,652 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Readme</title>
+<style>
+  body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif; max-width: 800px; margin: 40px auto; padding: 0 20px; line-height: 1.6; color: #333; }
+  pre { background: #f6f8fa; padding: 16px; border-radius: 6px; overflow-x: auto; }
+  code { background: #f6f8fa; padding: 2px 6px; border-radius: 3px; font-size: 0.9em; }
+  pre code { background: none; padding: 0; }
+  table { border-collapse: collapse; width: 100%; }
+  th, td { border: 1px solid #ddd; padding: 8px 12px; text-align: left; }
+  th { background: #f6f8fa; }
+  img { max-width: 100%; }
+  blockquote { border-left: 4px solid #ddd; margin: 0; padding-left: 16px; color: #666; }
+</style>
+</head>
+<body>
+<h1 id="gemini-research-reports-chronological-index">Gemini Research Reports — Chronological Index</h1>
+<p>Research notes on <strong>ByteDMD</strong> (Byte-level Data Movement Distance): a concrete metric for data movement cost where reading address $d$ costs $\lceil\sqrt{d}\rceil$, modeling 2D VLSI wire-length routing on a spatial chip.</p>
+<hr />
+<h2 id="april-7-2026">April 7, 2026</h2>
+<table>
+<thead>
+<tr>
+<th>Report</th>
+<th>Summary</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><a href="matmul-snake.md">matmul-snake.md</a></td>
+<td>Closed-form ByteDMD solutions for naive matmul with normal and snake loop ordering</td>
+</tr>
+</tbody>
+</table>
+<h2 id="april-8-2026">April 8, 2026</h2>
+<table>
+<thead>
+<tr>
+<th>Report</th>
+<th>Summary</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><a href="rmm.md">rmm.md</a></td>
+<td>Evaluation of recursive vs stressed matmul methods and suggestions for ByteDMD improvements</td>
+</tr>
+<tr>
+<td><a href="bytedmd-instruction-list.md">bytedmd-instruction-list.md</a></td>
+<td>24 canonical instruction families and 38 methods with I/O counts for ByteDMD tracer</td>
+</tr>
+<tr>
+<td><a href="bytedmd-strassen.md">bytedmd-strassen.md</a></td>
+<td>Asymptotic analysis comparing ByteDMD costs: Naive, Tiled, Recursive, Strassen vs FLOP costs</td>
+</tr>
+<tr>
+<td><a href="cache-eviction-visualization.md">cache-eviction-visualization.md</a></td>
+<td>Brainstorming cache eviction visualizations with concentric circles and Manhattan geometry</td>
+</tr>
+<tr>
+<td><a href="matmul-just-snake.md">matmul-just-snake.md</a></td>
+<td>Exact ByteDMD cost for naive matmul using snake order: 906 for 4x4, asymptotic O(N^4)</td>
+</tr>
+<tr>
+<td><a href="matmul-naive-snake-chatgpt.md">matmul-naive-snake-chatgpt.md</a></td>
+<td>Closed-form formulas for ByteDMD naive matmul: discrete and continuous bounds</td>
+</tr>
+<tr>
+<td><a href="matmul-naive-vanilla.md">matmul-naive-vanilla.md</a></td>
+<td>ByteDMD exact formulas and tight bounds for naive matrix multiplication algorithms</td>
+</tr>
+<tr>
+<td><a href="matmul-regular-snake.md">matmul-regular-snake.md</a></td>
+<td>Closed-form ByteDMD solutions for matrix multiplication under normal and snake order</td>
+</tr>
+<tr>
+<td><a href="matrix-vector.md">matrix-vector.md</a></td>
+<td>Exact ByteDMD formulas for NxN matrix-vector multiplication with tight asymptotic bounds</td>
+</tr>
+<tr>
+<td><a href="matvec+vecmat.md">matvec+vecmat.md</a></td>
+<td>Matvec and vecmat ByteDMD formulas: vecmat 8% cheaper via pseudo-eviction buffering</td>
+</tr>
+</tbody>
+</table>
+<h2 id="april-10-2026">April 10, 2026</h2>
+<table>
+<thead>
+<tr>
+<th>Report</th>
+<th>Summary</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><a href="bytedmd-naive-formulas.md">bytedmd-naive-formulas.md</a></td>
+<td>Exact ByteDMD formulas separating theoretical model from Python proxy implementation discrepancies</td>
+</tr>
+<tr>
+<td><a href="matmul-optimal.md">matmul-optimal.md</a></td>
+<td>Energy lower bounds and optimal spatial computer designs for NxN matrix-vector multiplication</td>
+</tr>
+<tr>
+<td><a href="matvec-exact-formula.md">matvec-exact-formula.md</a></td>
+<td>Exact matvec/vecmat ByteDMD cost identity under demand-paged liveness analysis</td>
+</tr>
+<tr>
+<td><a href="matvec-vecmat.md">matvec-vecmat.md</a></td>
+<td>Perfect symmetry: matvec and vecmat have identical ByteDMD costs with liveness analysis</td>
+</tr>
+<tr>
+<td><a href="renaming-brainstorming.md">renaming-brainstorming.md</a></td>
+<td>Alternative names for ByteDMD metric emphasizing concrete execution vs asymptotic bounds</td>
+</tr>
+<tr>
+<td><a href="tombstone-analysis.md">tombstone-analysis.md</a></td>
+<td>Exact ByteDMD formulas with liveness analysis for matvec/vecmat from trace simulation</td>
+</tr>
+</tbody>
+</table>
+<h2 id="april-11-2026">April 11, 2026</h2>
+<table>
+<thead>
+<tr>
+<th>Report</th>
+<th>Summary</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><a href="at2-lower-bounds.md">at2-lower-bounds.md</a></td>
+<td>VLSI Area-Time complexity analysis of matmul algorithms under spatial computer model</td>
+</tr>
+<tr>
+<td><a href="flash-attention-gc-vs-nogc.md">flash-attention-gc-vs-nogc.md</a></td>
+<td>Liveness analysis impact on Flash Attention: GC vs no-GC asymptotic complexity bounds</td>
+</tr>
+<tr>
+<td><a href="gc-vs-nogc-formulas.md">gc-vs-nogc-formulas.md</a></td>
+<td>LRU stack physics: how garbage collection changes matmul ByteDMD from O(N^4) to O(N^4)</td>
+</tr>
+<tr>
+<td><a href="infinite-graveyard.md">infinite-graveyard.md</a></td>
+<td>ByteDMD "Infinite Graveyard" model where dead temporaries sink permanently down stack</td>
+</tr>
+<tr>
+<td><a href="mathematica-matmul.md">mathematica-matmul.md</a></td>
+<td>Wolfram Mathematica code for precise ByteDMD trace of Strassen algorithm with liveness</td>
+</tr>
+<tr>
+<td><a href="matmul-complexity.md">matmul-complexity.md</a></td>
+<td>Comprehensive ByteDMD complexity analysis: naive O(N^4), tiled O(N^3.5), recursive O(N^3 log N)</td>
+</tr>
+<tr>
+<td><a href="matmul-lower-bound.md">matmul-lower-bound.md</a></td>
+<td>Absolute lower bound for ByteDMD matmul: O(N^3) only achievable by Strassen with liveness</td>
+</tr>
+<tr>
+<td><a href="noam-flash-attention.md">noam-flash-attention.md</a></td>
+<td>Flash Attention 2 implementation using Noam Shazeer's shape-suffix dimension conventions</td>
+</tr>
+<tr>
+<td><a href="strassen-11apr26.md">strassen-11apr26.md</a></td>
+<td>Precise ByteDMD trace cost of Strassen via Wolfram Mathematica with liveness analysis</td>
+</tr>
+<tr>
+<td><a href="vanilla-recursive-11apr26.md">vanilla-recursive-11apr26.md</a></td>
+<td>ByteDMD of vanilla recursive divide-and-conquer matmul via Wolfram Mathematica</td>
+</tr>
+<tr>
+<td><a href="vanilla-recursive2-11apr26.md">vanilla-recursive2-11apr26.md</a></td>
+<td>Cache-oblivious recursive matmul restricts working sets to O(N^3 log N) ByteDMD cost</td>
+</tr>
+<tr>
+<td><a href="vecmat-11apr26.md">vecmat-11apr26.md</a></td>
+<td>Matvec/vecmat identical ByteDMD costs under liveness: active variable cycling proves symmetry</td>
+</tr>
+</tbody>
+</table>
+<h2 id="april-12-2026">April 12, 2026</h2>
+<table>
+<thead>
+<tr>
+<th>Report</th>
+<th>Summary</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><a href="week15recap.md">week15recap.md</a></td>
+<td>Two-week research recap on ByteDMD metric for 2D silicon: design, formulas, and implementation</td>
+</tr>
+</tbody>
+</table>
+<h2 id="april-13-2026">April 13, 2026</h2>
+<table>
+<thead>
+<tr>
+<th>Report</th>
+<th>Summary</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><a href="bytedmd-cold-bug.md">bytedmd-cold-bug.md</a></td>
+<td>O(N^3) cold-miss formula vs O(N^4) total -- static slots avoid free compaction cost</td>
+</tr>
+<tr>
+<td><a href="flash-attention-no-benefit.md">flash-attention-no-benefit.md</a></td>
+<td>Flash Attention shows no benefit when sequence length and head dimension scale equally</td>
+</tr>
+<tr>
+<td><a href="gemini-merged.md">gemini-merged.md</a></td>
+<td>Chronologically merged Gemini notes on ByteDMD formulas and algorithm analysis</td>
+</tr>
+<tr>
+<td><a href="matmul-analytic.md">matmul-analytic.md</a></td>
+<td>Iterative matmul LRU thrashing comparison: recursive O(N^3 log N) vs standard O(N^4)</td>
+</tr>
+<tr>
+<td><a href="matmul-edf.md">matmul-edf.md</a></td>
+<td>EDF register allocation mirrors Belady's optimal via MWIS, traps O(N^4) squatter anomaly</td>
+</tr>
+<tr>
+<td><a href="optimal-hierarchical-memory.md">optimal-hierarchical-memory.md</a></td>
+<td>Hierarchical scratchpad with arena allocators achieves O(N^3 log N) for recursive matmul</td>
+</tr>
+<tr>
+<td><a href="optimal-managed-rmm.md">optimal-managed-rmm.md</a></td>
+<td>Software DMA with arena allocation strategy for O(N^3 log N) recursive matmul</td>
+</tr>
+<tr>
+<td><a href="optimal-managed-strassen.md">optimal-managed-strassen.md</a></td>
+<td>Strassen O(N^3) vs recursive matmul O(N^3 log N): Strassen absorbs data movement overhead</td>
+</tr>
+<tr>
+<td><a href="optimal-register-allocation.md">optimal-register-allocation.md</a></td>
+<td>Belady's algorithm fails in continuous spatial model; NP-hard Minimum Interval Coloring</td>
+</tr>
+<tr>
+<td><a href="strassen-discrepancy.md">strassen-discrepancy.md</a></td>
+<td>Associativity ordering differences between Mathematica and Python affect ByteDMD cost</td>
+</tr>
+<tr>
+<td><a href="vecmat-11apr26-part2.md">vecmat-11apr26-part2.md</a></td>
+<td>Matvec/vecmat identity: simultaneous pricing makes stack behavior commutative</td>
+</tr>
+</tbody>
+</table>
+<h2 id="april-15-2026">April 15, 2026</h2>
+<table>
+<thead>
+<tr>
+<th>Report</th>
+<th>Summary</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><a href="15apr26-dmdlive-analysis.md">15apr26-dmdlive-analysis.md</a></td>
+<td>DMD vs DMDlive are extremes; Tombstone/Ripple-Shift achieves physically realistic bounds</td>
+</tr>
+</tbody>
+</table>
+<h2 id="april-16-2026">April 16, 2026</h2>
+<table>
+<thead>
+<tr>
+<th>Report</th>
+<th>Summary</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><a href="ripple-shift.md">ripple-shift.md</a></td>
+<td>Ripple Shift cascaded eviction avoids tombstone inflation bug, maintains live footprint</td>
+</tr>
+<tr>
+<td><a href="bytedmd_explicit_rmm.md">bytedmd_explicit_rmm.md</a></td>
+<td>Hierarchical scratchpad allocator proves O(N^3 log N) achievable with deterministic address packing</td>
+</tr>
+<tr>
+<td><a href="mwis-bounds.md">mwis-bounds.md</a></td>
+<td>Linear programming relaxation for optimal register allocation in continuous cache model</td>
+</tr>
+<tr>
+<td><a href="unimodular-lp.md">unimodular-lp.md</a></td>
+<td>Discrete calculus converts nonlinear sqrt cost function to linear program for optimal allocation</td>
+</tr>
+<tr>
+<td><a href="unimodular-optimized-impl.md">unimodular-optimized-impl.md</a></td>
+<td>Profile-guided oracle allocation approaches totally unimodular LP continuous cache bound</td>
+</tr>
+</tbody>
+</table>
+<h2 id="april-17-2026">April 17, 2026</h2>
+<table>
+<thead>
+<tr>
+<th>Report</th>
+<th>Summary</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><a href="livedmd-not-a-bound.md">livedmd-not-a-bound.md</a></td>
+<td>ByteDMDlive is not a lower bound; fixed-address allocators can beat LRU sliding behavior</td>
+</tr>
+<tr>
+<td><a href="matmul-explicit-formula.md">matmul-explicit-formula.md</a></td>
+<td>Exact energy formula E = (20/3+sqrt3) N^3 log2 N for hierarchical RMM, validated empirically</td>
+</tr>
+<tr>
+<td><a href="strassen-manual.md">strassen-manual.md</a></td>
+<td>Strassen with manual memory placement and stack arena semantics, 3N^2 peak memory</td>
+</tr>
+<tr>
+<td><a href="strassen-vs-systolic.md">strassen-vs-systolic.md</a></td>
+<td>Single-processor Strassen and systolic arrays both hit O(N^3) energy floor on 2D silicon</td>
+</tr>
+<tr>
+<td><a href="efficient-strassen.md">efficient-strassen.md</a></td>
+<td>Zero-Allocation Fused Strassen eliminates temporaries via virtual matrices in L1 scratchpad</td>
+</tr>
+<tr>
+<td><a href="better-heuristics.md">better-heuristics.md</a></td>
+<td>Five hardware-agnostic cache-friendliness heuristics: stack distance, arithmetic intensity, liveness, byte-ticks, Belady AUC</td>
+</tr>
+<tr>
+<td><a href="simplified-manual-rmm.md">simplified-manual-rmm.md</a></td>
+<td>Pyramid-and-Forklift RMM walkthrough; connection to HMM (1987) and Hong-Kung; 3 ways to beat the 2D bound</td>
+</tr>
+<tr>
+<td><a href="rmm-logn-simplified.md">rmm-logn-simplified.md</a></td>
+<td>Cleaned-up Pyramid/Forklift RMM code; Master-Theorem proof of Θ(N³ log N) from T(K) = 8T(K/2) + Θ(K³) recurrence</td>
+</tr>
+<tr>
+<td><a href="bytedmd-logn-proof.md">bytedmd-logn-proof.md</a></td>
+<td>Two proofs that RMM under bytedmd_live is Θ(N³ log N): Master Theorem and a Hong–Kung cache-miss integral identity</td>
+</tr>
+<tr>
+<td><a href="flops-are-a-lie.md">flops-are-a-lie.md</a></td>
+<td>Six cross-CS examples where FLOP counts mislead: Fibonacci heaps, sparse matmul, Winograd vs Im2Col, gradient checkpointing, LUTs, quicksort vs heapsort, Flash vs Sparse attention</td>
+</tr>
+<tr>
+<td><a href="space-dmd.md">space-dmd.md</a></td>
+<td>SpaceDMD: density-ranked spatial liveness heuristic modeling optimal static allocators (TPU scratchpads)</td>
+</tr>
+<tr>
+<td><a href="mattson-trap.md">mattson-trap.md</a></td>
+<td>Three algorithms (Karatsuba, BPTT, out-of-place FFT) where Mattson's LRU stack hallucinates bottlenecks that Live-Bytes correctly resolves</td>
+</tr>
+<tr>
+<td><a href="debug-spacedmd-scratchpad.md">debug-spacedmd-scratchpad.md</a></td>
+<td>Why SpaceDMD diverges from manual: implicit vs explicit scratchpad in traced code, fix via materialized DMA copies</td>
+</tr>
+<tr>
+<td><a href="beyond-mattson-prior-work.md">beyond-mattson-prior-work.md</a></td>
+<td>Prior work on liveness-aware cache models: Belady OPT, Ideal Cache, Dead-Block Pollution, Live Distance, HMM connection</td>
+</tr>
+<tr>
+<td><a href="optspacedmd.md">optspacedmd.md</a></td>
+<td>MWIS auto-scratchpad heuristic that overcomes SpaceDMD's monolithic-lifespan limitation via segmented interval scheduling</td>
+</tr>
+</tbody>
+</table>
+<h2 id="april-18-2026">April 18, 2026</h2>
+<table>
+<thead>
+<tr>
+<th>Report</th>
+<th>Summary</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><a href="strassen-loophole.md">strassen-loophole.md</a></td>
+<td>Why Fused Strassen and FFT beat bytedmd_live: static spatial pinning vs temporal LRU stack</td>
+</tr>
+<tr>
+<td><a href="optimized-tiled-matmul.md">optimized-tiled-matmul.md</a></td>
+<td>Eliminating 2D scratchpad buffers and hoisting loop orders to minimize geometric stack cost</td>
+</tr>
+<tr>
+<td><a href="strassen-cheating-macc.md">strassen-cheating-macc.md</a></td>
+<td>Audit of manual_fused_strassen: three discrepancies in MAC accumulator and intermediate pricing</td>
+</tr>
+<tr>
+<td><a href="naive-attention-surprise.md">naive-attention-surprise.md</a></td>
+<td>Why Flash Attention manual cost exceeds naive at small N: algorithmic mismatch + arithmetic overhead</td>
+</tr>
+<tr>
+<td><a href="efficient-matvec.md">efficient-matvec.md</a></td>
+<td>Why SpaceDMD beats manual matvec: streaming registers vs static bulk array placement</td>
+</tr>
+<tr>
+<td><a href="manual-vs-traced-mismatch.md">manual-vs-traced-mismatch.md</a></td>
+<td>Manual schedule beats automated bounds by executing an optimized algorithm, not just better layout</td>
+</tr>
+<tr>
+<td><a href="left-looking-lu.md">left-looking-lu.md</a></td>
+<td>Left-looking blocked LU/Cholesky scheduling with L1 vector scratchpads to minimize geometric stack cost</td>
+</tr>
+<tr>
+<td><a href="bill-dally-commute-math.md">bill-dally-commute-math.md</a></td>
+<td>Re-deriving Dally's "an add is worth 10 µm of movement" heuristic and its assumptions on 45 nm silicon</td>
+</tr>
+<tr>
+<td><a href="tiled-matmul-optimization.md">tiled-matmul-optimization.md</a></td>
+<td>Line-by-line audit confirming manual_tiled_matmul's sub-space_dmd score is legitimate, not an accounting cheat</td>
+</tr>
+<tr>
+<td><a href="tarjan-bytedmd-lower-bound.md">tarjan-bytedmd-lower-bound.md</a></td>
+<td>Sleator–Tarjan-style proof: manual ≥ 2/(3√3) ≈ 0.3849 × bytedmd_live for any placement under sqrt(addr)</td>
+</tr>
+<tr>
+<td><a href="polyhedral-search-for-matmul.md">polyhedral-search-for-matmul.md</a></td>
+<td>Semiring matmul under ByteDMD reframed as pure hardware scheduling + register allocation over the polyhedral iteration space</td>
+</tr>
+<tr>
+<td><a href="suggested-algorithms-bitonic-sort.md">suggested-algorithms-bitonic-sort.md</a></td>
+<td>15 new benchmark algorithm families to stress CA, locality, and liveness mechanisms across the heuristic grid</td>
+</tr>
+<tr>
+<td><a href="optimize-tiling-to-death.md">optimize-tiling-to-death.md</a></td>
+<td>Two micro-optimizations hitting the AM-GM floor for tiled_matmul: frequency-first allocation + first-MAC bypass (68,270 → 67,758)</td>
+</tr>
+<tr>
+<td><a href="optimize-tsqr.md">optimize-tsqr.md</a></td>
+<td>L1 tile funnel + asymmetric Phase-2 caching + frequency-remapped A layout for tall-skinny QR</td>
+</tr>
+<tr>
+<td><a href="optimize-blocked-lu.md">optimize-blocked-lu.md</a></td>
+<td>Lazy arg evaluation + three tight scratchpads (c_A/c_C/c_B) multiplexed across four blocked-LU stages</td>
+</tr>
+<tr>
+<td><a href="optimize-fft-conv.md">optimize-fft-conv.md</a></td>
+<td>16×16 2D L1 blocking + shared X/Y workspace + fused bit-reversal + fused pointwise Z for FFT convolution</td>
+</tr>
+<tr>
+<td><a href="optimize-floyd-warshall-recursive.md">optimize-floyd-warshall-recursive.md</a></td>
+<td>L1 cache_T/cache_D scratchpads + dirty-tracked writeback + frequency-based block layout for Kleene APSP</td>
+</tr>
+<tr>
+<td><a href="optimize-mergesort.md">optimize-mergesort.md</a></td>
+<td>In-place oblivious merge + L1 scratchpad + scalar-register hoisting for recursive mergesort</td>
+</tr>
+<tr>
+<td><a href="optimize-stencil-time-diamond.md">optimize-stencil-time-diamond.md</a></td>
+<td>Lazy global mapping + in-place rolling buffer + L1 scalar pipelining for diamond-tiled time stencils</td>
+</tr>
+</tbody>
+</table>
+<h2 id="april-19-2026">April 19, 2026</h2>
+<table>
+<thead>
+<tr>
+<th>Report</th>
+<th>Summary</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><a href="bytedmd-upper-bound.md">bytedmd-upper-bound.md</a></td>
+<td>Companion upper bound to the Tarjan lower bound: OPT manual ≤ 4.0 × bytedmd_live via competitive DMA-managed scratchpad analysis</td>
+</tr>
+<tr>
+<td><a href="illustrative-matmul-tiled.md">illustrative-matmul-tiled.md</a></td>
+<td>Self-contained walkthrough + Python demo showing why manual scratchpad placement is mathematically optimal on a 2D spatial grid</td>
+</tr>
+<tr>
+<td><a href="optimal-matmul-2x2.md">optimal-matmul-2x2.md</a></td>
+<td>Algorithmic space of O(N^3) matmul under sqrt(d): optimal schedules for small sizes + asymptotic lower bound via the gravity-well view of continuous cache</td>
+</tr>
+<tr>
+<td><a href="optimal-matvec.md">optimal-matvec.md</a></td>
+<td>Strict theoretical floor for n=64 matvec under the semi-ring + polyhedron restrictions: 180,960 compulsory I/O barrier, 208,832 achievable minimum</td>
+</tr>
+<tr>
+<td><a href="demmel-householder-demo.md">demmel-householder-demo.md</a></td>
+<td>Classical Householder QR vs CAQR/TSQR with Oracle allocator: 1.93x energy reduction via communication avoidance</td>
+</tr>
+<tr>
+<td><a href="visualizing-matmul-algs.md">visualizing-matmul-algs.md</a></td>
+<td>Five visual representations of the semi-ring matmul algorithm space: schedules, memory layouts, reduction trees, hardware mappings</td>
+</tr>
+<tr>
+<td><a href="visualizing-all-matmuls.md">visualizing-all-matmuls.md</a></td>
+<td>Five visual mappings for small (2x2, 3x3, 4x4) semi-ring matmul algorithms — schedules, memory layouts, hardware topologies, reduction associativity</td>
+</tr>
+<tr>
+<td><a href="chatgpt-lower-bound.md">chatgpt-lower-bound.md</a></td>
+<td>Shared ChatGPT audit of the Tarjan lower bound: the 0.3849 constant is correct under the idealized unrounded LRU model, but ByteDMD's ceil rounding, free writes, arg first-touch, and liveness compaction require qualifications</td>
+</tr>
+<tr>
+<td><a href="copy-spacedmd.md">copy-spacedmd.md</a></td>
+<td>CopySpaceDMD: auto-DMA upgrade of space_dmd. Partitions each variable's reads into bursts separated by gap thresholds, inserts explicit DMA copies per burst, ranks the resulting local scratch copies by density. Predicts tiled_matmul achievable cost 61,918 (below current manual 67,758)</td>
+</tr>
+<tr>
+<td><a href="copy_space_dmd_bound.md">copy_space_dmd_bound.md</a></td>
+<td>Proof that copy_space_dmd is also bounded below by 2/(3*sqrt(3)) * bytedmd_live — the same Sleator–Tarjan geometric competitive envelope governs any explicit-copy scratchpad heuristic</td>
+</tr>
+</tbody>
+</table>
+<h2 id="april-20-2026">April 20, 2026</h2>
+<table>
+<thead>
+<tr>
+<th>Report</th>
+<th>Summary</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><a href="tarjan-detailed-part1.md">tarjan-detailed-part1.md</a></td>
+<td>Rigorous step-by-step Sleator–Tarjan lower bound proof: 2D spatial axioms, calculus transform to infinite cache hierarchy, capacity-scaling theorem</td>
+</tr>
+<tr>
+<td><a href="tarjan-detailed-part2.md">tarjan-detailed-part2.md</a></td>
+<td>ByteDMD-live as LRU+GC: why perfect garbage collection is only half of optimal, and the gap to Belady OPT</td>
+</tr>
+</tbody>
+</table>
+<h2 id="april-23-2026">April 23, 2026</h2>
+<table>
+<thead>
+<tr>
+<th>Report</th>
+<th>Summary</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><a href="capacity-envelope.md">capacity-envelope.md</a></td>
+<td>Sleator–Tarjan Capacity Envelope: trace-specific O(N) lower bound from the live reuse distance histogram (MRC → MaxForward → 2D radial integral), recovering 70–90% of Live-DMD vs the loose 0.3849 constant</td>
+</tr>
+<tr>
+<td><a href="locality-measures.md">locality-measures.md</a></td>
+<td>Yuan et al. Relational Theory of Locality applied to matmul: RI/RD/footprint/MRC/eviction-time pipeline, convertibility via Xiang + Denning–HOTL, with naive-vs-tiled predictions</td>
+</tr>
+<tr>
+<td><a href="belady-optimal-cost.md">belady-optimal-cost.md</a></td>
+<td>Two-pass Belady gives the <em>exact</em> OPT spatial cost (not a loose bound) under sqrt-cost geometry: stack-distance + 2D radial decomposition, computable in O(N log W)</td>
+</tr>
+</tbody>
+</table>
+<h2 id="april-24-2026">April 24, 2026</h2>
+<table>
+<thead>
+<tr>
+<th>Report</th>
+<th>Summary</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><a href="belady-min-lower-bound.md">belady-min-lower-bound.md</a></td>
+<td>Proof that <code>d_OPT = max_rank[V]</code> is the absolute mathematical floor under sqrt(d): continuous 2D geometry decomposes into nested-cache misses, pigeonhole + Belady MIN gives the optimum even with free writes</td>
+</tr>
+<tr>
+<td><a href="spacedmd-pigeonhole.md">spacedmd-pigeonhole.md</a></td>
+<td>Active-footprint pigeonhole fails as a lower bound for dynamic allocators (Dormant Storage Loophole — OPT parks inactive live vars deep); Live Reuse Distance fixes it, and the footprint bound is tight for static scratchpads</td>
+</tr>
+<tr>
+<td><a href="optimal-static-floor.md">optimal-static-floor.md</a></td>
+<td>Dynamic optDMD is a loose bound for static allocators (gap diverges as √K on overlapping-lifetime phase traces); Static-optDMD via max-active-footprint pigeonhole gives a tight lower bound for static scratchpads</td>
+</tr>
+</tbody>
+</table>
+<h2 id="april-25-2026">April 25, 2026</h2>
+<table>
+<thead>
+<tr>
+<th>Report</th>
+<th>Summary</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><a href="spatial-bypass.md">spatial-bypass.md</a></td>
+<td>Belady max-rank <em>overestimates</em> cost on Dally's spatial grid: an omniscient manual allocator can read cold data from deep orbits without forced promotion (Spatial Bypass), beating the LRU+GC stack model that ByteDMD-live simulates</td>
+</tr>
+<tr>
+<td><a href="arithmetic-intensity-visualizers.md">arithmetic-intensity-visualizers.md</a></td>
+<td>Four spatial-AI plots: rolling intensity heartbeat, cumulative compute-vs-energy roofline staircase, gravity-well fetch-cost scatter, and energy-per-FLOP histogram — diagnostics for showing tiled vs naive matmul dominance</td>
+</tr>
+<tr>
+<td><a href="fix-spacedmd-bug.md">fix-spacedmd-bug.md</a></td>
+<td>Why global_density (109,023) exceeded space_dmd (79,044): space_dmd dynamically reranks each tick (mid-life teleportation), and global_density's Fenwick prefix double-counted under a Two-Stack memory model — drop-in fix lands the bound at ~75,671, restoring global_density &lt; space_dmd</td>
+</tr>
+<tr>
+<td><a href="fix-tiebreaker-spacedmd-bug.md">fix-tiebreaker-spacedmd-bug.md</a></td>
+<td>matvec_col(n=64) violates the lower bound (space_dmd=197,719 &lt; global_density=212,183): space_dmd's density tie-breaking lets accumulator-vs-input reorder mid-execution ("Tie-Breaker Teleportation"); 2-line fix freezes ranks at first-use and restores the inequality</td>
+</tr>
+<tr>
+<td><a href="static-vs-dynamic.md">static-vs-dynamic.md</a></td>
+<td>Why global_density gives identical bounds for naive vs tiled matmul (it scores monolithic global density, blind to loop reordering); inserting copy variables slices lifespans into dense bursts, transforming static into dynamic — bytedmd_opt (Belady MIN) is the lower bound that already accounts for optimal copying</td>
+</tr>
+<tr>
+<td><a href="intersection-of-lifetimes.md">intersection-of-lifetimes.md</a></td>
+<td>Geometric intuition for Belady OPT on a time-vs-deadline plane: variables travel horizontally above the y=x ALU line, vertical sweeps count contention rank, max_rank = the largest sweep-intersection over a variable's dormancy — the absolute physical floor for data movement</td>
+</tr>
+<tr>
+<td><a href="move-to-front-tax.md">move-to-front-tax.md</a></td>
+<td>Even liveness-adjusted Belady is not a static lower bound: any demand-fetched dynamic cache pays a "Move-to-Front Tax" promoting cold reads into Address 1, which a static allocator with cache bypassing can avoid — counter-example trace where static beats adjusted Belady</td>
+</tr>
+<tr>
+<td><a href="fractional-lp-splitting.md">fractional-lp-splitting.md</a></td>
+<td>Local Interval Density LP: severs each variable's lifespan into per-burst intervals, scoring density locally — a strict lower bound for any allocator that splits variables / inserts L1 copies / acts as a dynamic cache, <em>more fundamental</em> than bytedmd_opt because it skips the Move-to-Front tax</td>
+</tr>
+</tbody>
+</table>
+<h2 id="april-26-2026">April 26, 2026</h2>
+<table>
+<thead>
+<tr>
+<th>Report</th>
+<th>Summary</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><a href="interval-graph-construction.md">interval-graph-construction.md</a></td>
+<td>Reduce optimal static spatial allocation to Weighted Minimum Chromatic Sum on an interval graph: vertices = read-to-read dormancy intervals, edges = time overlaps, weights = √color cost — graph coloring exposes spatial loopholes that Belady's sort cannot find</td>
+</tr>
+<tr>
+<td><a href="polymatroid-relaxation.md">polymatroid-relaxation.md</a></td>
+<td>Why the Max Weight c-Colorable LP is exact (not a relaxation): consecutive-ones constraints → totally unimodular → integer vertices; interval graphs are perfect (chromatic = clique number) so c-clique feasibility implies c-coloring; polymatroid relaxation gives a tight ByteDMD floor without dropping the ceiling</td>
+</tr>
+<tr>
+<td><a href="polymatroid-bounds-fractional-density.md">polymatroid-bounds-fractional-density.md</a></td>
+<td>Why True LP polymatroid (30,052) reported below <code>global_density</code>/<code>local_density</code> (75k+) was a parsing-bug artifact, not a real loosening: the interval extractor dropped half the trace; once fixed, the polymatroid LP always dominates the fractional-splitting density floors. (Uses pre-rename names <code>static_opt_lb</code>, <code>split_lb</code>.)</td>
+</tr>
+<tr>
+<td><a href="polymatroid-tightness.md">polymatroid-tightness.md</a></td>
+<td>Three implementation bugs explaining the polymatroid_lb (30,052) &lt; global_density (75,671) anomaly: hardcoded RMM trace, MAX_LAYERS=300 truncation in MWIS peeling, and arg-stack fallback in static_opt — geometric analysis confirms polymatroid is always ≥ local-density once bugs fixed</td>
+</tr>
+<tr>
+<td><a href="polymatroid-bug.md">polymatroid-bug.md</a></td>
+<td>polymatroid_lb=11,266 anomaly: input variables were absent from the LP capacity constraints, letting the solver pack the entire input matrix at rank 1 for free; with the constraint-matrix fix, polymatroid ≥ local_density always holds; includes Polymatroid-vs-Local-Density theoretical analysis</td>
+</tr>
+<tr>
+<td><a href="polymatroid-tutorial.md">polymatroid-tutorial.md</a></td>
+<td>Tutorial walkthrough of the Polymatroid Relaxation: replaces the NP-hard Jigsaw/Tetris allocator with a sequence of "parallel-universe" capacity LPs (one per cache size), gives the geometric loophole that turns it into a relaxation, plus a blueprint for paper-ready illustrative figures</td>
+</tr>
+</tbody>
+</table>
+</body>
+</html>

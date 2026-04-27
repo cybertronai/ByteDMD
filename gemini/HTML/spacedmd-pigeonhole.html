@@ -1,0 +1,71 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Spacedmd Pigeonhole</title>
+<style>
+  body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif; max-width: 800px; margin: 40px auto; padding: 0 20px; line-height: 1.6; color: #333; }
+  pre { background: #f6f8fa; padding: 16px; border-radius: 6px; overflow-x: auto; }
+  code { background: #f6f8fa; padding: 2px 6px; border-radius: 3px; font-size: 0.9em; }
+  pre code { background: none; padding: 0; }
+  table { border-collapse: collapse; width: 100%; }
+  th, td { border: 1px solid #ddd; padding: 8px 12px; text-align: left; }
+  th { background: #f6f8fa; }
+  img { max-width: 100%; }
+  blockquote { border-left: 4px solid #ddd; margin: 0; padding-left: 16px; color: #666; }
+</style>
+</head>
+<body>
+<p>To answer your question directly: <strong>No, you cannot use the active footprint (the total number of currently live variables) at each operation to establish a lower bound for an optimal dynamic cache.</strong></p>
+<p>If you attempt to apply the pigeonhole principle to the active footprint for a dynamic allocator, the math completely collapses due to a spatial caching paradox known as the <strong>Dormant Storage Loophole</strong>.</p>
+<p>However, your intuition is actually mathematically brilliant if applied to a <strong>static manual scratchpad</strong>.</p>
+<p>Here is exactly why the active footprint fails for dynamic memory, why <em>Live Reuse Distance</em> mathematically fixes it, and how you can use the active footprint to build a devastatingly tight bound for static allocators.</p>
+<h3 id="-">---</h3>
+<p><strong>1. The Dynamic Flaw: The Dormant Storage Loophole</strong></p>
+<p>The pigeonhole principle dictates a hard rule of physics: if you have an active footprint of $A$ live variables at time $t$, they must physically occupy at least $A$ distinct memory addresses. The closest available slots are $1, 2, \dots, A$.</p>
+<p>The trap is assuming this forces the processor to pay a high cost. Under the Manhattan Diamond model (and in real physical hardware), <strong>merely storing data costs $0$ energy. Only <em>reading</em> data incurs the $\sqrt{d}$ distance penalty.</strong></p>
+<p><strong>The Loophole:</strong></p>
+<p>Imagine an algorithm that allocates 10,000 live variables. However, for the next 1 million cycles, the algorithm enters a tight inner loop that repeatedly multiplies just two variables: X and Y.</p>
+<ul>
+<li><strong>The Footprint Metric:</strong> At every single step of that loop, the active footprint is exactly 10,000. The pigeonhole principle guarantees <em>some</em> variable is at depth 10,000. If you assumed this bounds the read cost, you would artificially charge the operation $\approx \sqrt{10,000} = 100$ per read.  </li>
+<li><strong>The Optimal Dynamic Allocator ($OPT$):</strong> $OPT$ looks at this phase and says, <em>"I will park the 9,998 dormant variables in the deep addresses (3 to 10,000). I will leave X and Y pinned at Address 1 and Address 2."</em>  </li>
+<li><strong>The True Cost:</strong> When the loop executes, the processor reads from Address 1 and 2. The physical cost is exactly $\lceil\sqrt{1}\rceil + \lceil\sqrt{2}\rceil = 3$.</li>
+</ul>
+<p>Because an optimal dynamic allocator can perfectly segregate "dormant" live variables from "active" live variables, the sheer size of the global footprint tells you absolutely nothing about the actual read cost of the current operation.</p>
+<h3 id="-_1">---</h3>
+<p><strong>2. Why "Live Reuse Distance" is the Mathematical Fix</strong></p>
+<p>This loophole is the exact reason why <strong>ByteDMD-live</strong> tracks <em>Reuse Distance</em> instead of <em>Active Footprint</em>.</p>
+<p>Instead of asking <em>"How many variables are sitting passively in memory?"</em>, Reuse Distance asks: <strong>"How many <em>unique</em> variables were actively fetched between the last time I touched X and right now?"</strong></p>
+<p>Here is where the pigeonhole principle is legally triggered:</p>
+<p>If the live reuse distance of X is $D$, it means the algorithm <strong>actively requested</strong> $D$ <em>unique</em> items before returning to X.</p>
+<p>Because the processor actively fetched $D$ unique variables in that specific time window, $OPT$ is trapped. The pigeonhole principle dictates those $D$ variables could not all fit in Address 1. They must have occupied at least addresses $1, 2, \dots, D$ during that window.</p>
+<p>This forces actual capacity conflicts, meaning X must have been evicted to at least depth $D$ (or another variable paid the explicit DMA penalty to swap it). Bounding by the volume of <strong>active interference</strong> (Reuse Distance) works; bounding by the volume of <strong>passive storage</strong> (Footprint) fails.</p>
+<h3 id="-_2">---</h3>
+<p><strong>3. How to use Active Footprint (The Static Scratchpad Bound)</strong></p>
+<p>While active footprint cannot bound a <em>dynamic</em> cache (which can magically teleport dormant variables away), it <strong>can</strong> be used to create a beautiful, airtight mathematical floor for a <strong>Static Allocator</strong> (where variables are pinned to a physical address for their entire lifetime, like a compiler mapping to a TPU scratchpad).</p>
+<p>You can weaponize the pigeonhole principle here via a mathematical trick called <strong>Fractional Density Amortization</strong>.</p>
+<p><strong>The Math:</strong></p>
+<ol>
+<li>Let variable $v$ have a total lifetime of $L_v$ operations.  </li>
+<li>Let it be read $r_v$ total times.  </li>
+<li>We define its <strong>Access Density</strong> as $\rho_v = \frac{r_v}{L_v}$ (the average number of reads per clock tick).</li>
+</ol>
+<p>If a static allocator places variable $v$ permanently at physical address $k_v$, its total data-movement cost for the whole program is exactly $r_v \sqrt{k_v}$.</p>
+<p>We can mathematically "smear" this discrete cost fractionally across every single tick of its lifetime:</p>
+<p>$$\text{Total Program Cost} = \sum_{t} \left( \sum_{v \in \text{Live}(t)} \rho_v \sqrt{k_v} \right)$$</p>
+<p><strong>Applying the Pigeonhole Principle:</strong></p>
+<p>Look at the inner sum for a specific clock tick $t$. At time $t$, there are exactly $A_t$ variables alive in the active footprint.</p>
+<p>Because two variables cannot physically share the same memory cell, <strong>their assigned physical addresses $k_v$ must be distinct positive integers</strong> ($\ge 1$).</p>
+<p>By the Pigeonhole Principle (formally, the <em>Rearrangement Inequality</em>), the absolute mathematical minimum value of this sum occurs when the variables with the <strong>highest density ($\rho_v$)</strong> are assigned to the <strong>lowest physical addresses ($1, 2, 3 \dots$)</strong>.</p>
+<p>Let $\rho_{(1)} \ge \rho_{(2)} \ge \dots \ge \rho_{(A_t)}$ be the densities of the currently live variables at time $t$, sorted from highest to lowest. The absolute minimum physical data-movement cost at time $t$ is forced to be:</p>
+<p>$$\text{Cost Floor}(t) = \sum_{i=1}^{A_t} \rho_{(i)} \sqrt{i}$$</p>
+<p>By summing this Pigeonhole floor across every clock tick in the program, we establish an unbreakable mathematical lower bound for <em>any</em> statically pinned scratchpad allocation:</p>
+<p>$$\mathbf{C_{\text{Static-OPT}} \ge \sum_{t} \left( \sum_{i=1}^{A_t} \rho_{(i)}(t) \sqrt{i} \right)}$$</p>
+<h3 id="summary"><strong>Summary</strong></h3>
+<ul>
+<li><strong>Dynamic Caches</strong> must be bounded by <strong>Live Reuse Distance</strong> (unique accesses), because dynamic allocators can hide dormant footprint variables to cheat the cost.  </li>
+<li><strong>Static Scratchpads</strong> can be brilliantly bounded by <strong>Active Footprint Overlap</strong> (using fractional read density), because variables are locked in place and must physically displace each other based on their overlapping lifespans.</li>
+</ul>
+</body>
+</html>

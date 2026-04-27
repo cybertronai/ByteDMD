@@ -1,0 +1,71 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>15Apr26 Dmdlive Analysis</title>
+<style>
+  body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif; max-width: 800px; margin: 40px auto; padding: 0 20px; line-height: 1.6; color: #333; }
+  pre { background: #f6f8fa; padding: 16px; border-radius: 6px; overflow-x: auto; }
+  code { background: #f6f8fa; padding: 2px 6px; border-radius: 3px; font-size: 0.9em; }
+  pre code { background: none; padding: 0; }
+  table { border-collapse: collapse; width: 100%; }
+  th, td { border: 1px solid #ddd; padding: 8px 12px; text-align: left; }
+  th { background: #f6f8fa; }
+  img { max-width: 100%; }
+  blockquote { border-left: 4px solid #ddd; margin: 0; padding-left: 16px; color: #666; }
+</style>
+</head>
+<body>
+<p>Based on the extensive analysis in your merged documents and the continuous cache model from your blogpost outline, your intuition is spot on.</p>
+<p>The two metrics—<strong>Original DMD</strong> and <strong>DMDlive</strong>—represent two extremes of memory management. The "actual cost" sits mathematically between them, utilizing what the theoretical documents call the <strong>"Tombstone / High-Water Mark"</strong> model.</p>
+<p>Here is the complete analysis of how the continuous 2D Manhattan cache behaves, what the two DMD metrics actually simulate, why standard eviction (like Belady's) fails here, and the exact complexity of Recursive Matrix Multiplication (RMM) under all three regimes.</p>
+<h3 id="1-the-blogposts-continuous-cache-is-exactly-bytedmd"><strong>1. The Blogpost's "Continuous Cache" is Exactly ByteDMD</strong></h3>
+<p>Your blogpost describes a continuous cache where the concentric levels have capacities of <strong>1, 3, 5, 7, 9...</strong> and access costs of <strong>1, 2, 3, 4, 5...</strong>.</p>
+<p>If you sum the capacities of the levels up to an access cost $c$, the total cache capacity is exactly the sum of odd numbers: $\sum_{i=1}^c (2i-1) = c^2$.</p>
+<p>Because a cache of radius $c$ holds $c^2$ elements, finding the access cost to the $d$-th most recently used element requires solving $d \le c^2$, which yields $c = \lceil\sqrt{d}\rceil$.</p>
+<p>Therefore, your physical continuous cache description is the exact geometric proof for the $\lceil\sqrt{d}\rceil$ pricing function used in both DMD metrics.</p>
+<h3 id="-">---</h3>
+<p><strong>2. Original DMD: "The Infinite Graveyard"</strong></p>
+<ul>
+<li><strong>What it models:</strong> A system with zero memory reclamation (a pure memory leak). Every newly computed temporary variable is placed in the center of the cache (distance 1), permanently pushing all older variables one slot further outward.  </li>
+<li><strong>Complexity for Recursive MatMul:</strong> $\mathbf{\Theta(N^{3.5})}$  </li>
+<li><strong>The Physical Reality:</strong> In RMM, computing an $S \times S$ sub-block generates $\mathcal{O}(S^3)$ dead temporary variables. To fetch the input parent matrices for the <em>next</em> sibling sub-block, the processor must route wires through this ocean of $S^3$ dead variables. The access distance becomes $\sqrt{S^3} = S^{1.5}$. Multiplying this by the $S^2$ reads gives a step cost of $S^{3.5}$. Integrated across the recursion tree, this catastrophic memory leak breaks the algorithm, degrading its data movement complexity to $\Theta(N^{3.5})$.</li>
+</ul>
+<h3 id="-_1">---</h3>
+<p><strong>3. DMDlive: "The Teleporting Cache"</strong></p>
+<ul>
+<li><strong>What it models:</strong> This is the "unknown eviction method" you identified. When a variable's last use completes, it vaporizes. But more importantly, <strong>all elements sitting in slower caches instantly and magically slide inward</strong> to fill the newly created holes at zero cost.  </li>
+<li><strong>Complexity for Recursive MatMul:</strong> $\mathbf{\Theta(N^3 \log N)}$  </li>
+<li><strong>The Physical Reality:</strong> As you noted, <em>"this is equivalent to everything moving up the stack to fill the holes, which is not quite true."</em> In real silicon, moving data inward requires unsolicited reads and writes, consuming energy. By allowing variables to teleport inward for free, DMDlive mathematically "cheats" and undercounts the true physical constant factor of the algorithm. However, because the stack instantly shrinks, the cache radius is strictly clamped to the <em>instantaneous</em> live working set ($\mathcal{O}(S^2)$). Fetching matrices costs $\sqrt{\mathcal{O}(S^2)} \propto S$. The recurrence $T(N) = 8T(N/2) + \Theta(S^3)$ cleanly resolves to the optimal $\Theta(N^3 \log N)$.</li>
+</ul>
+<h3 id="-_2">---</h3>
+<p><strong>4. The Actual Cost: "Tombstones &amp; High-Water Marks"</strong></p>
+<p>How does a real physical continuous cache resolve this without free "sliding" and without leaking memory?</p>
+<ul>
+<li><strong>The Mechanic:</strong> When a variable dies (goes out of scope), it leaves a "hole" (a tombstone) at its exact physical coordinate. Older variables <strong>do not slide inward</strong>; they remain stationary in the slower outer caches. However, when the processor creates a <em>new</em> temporary variable, the memory manager intelligently recycles the closest available hole rather than expanding the outer frontier of the cache.  </li>
+<li><strong>Complexity for Recursive MatMul:</strong> $\mathbf{\Theta(N^3 \log N)}$  </li>
+<li><strong>Why it works:</strong> Because RMM is a depth-first recursive algorithm, its memory usage behaves exactly like a LIFO call stack. RMM uses $\mathcal{O}(S^2)$ memory for its inputs/outputs, and its sub-calls reach a peak active allocation of $\approx 1.25S^2$ before freeing memory. Therefore, the High-Water Mark (Peak Footprint) of the grid is permanently clamped to roughly $4.25 S^2$ slots.</li>
+</ul>
+<p>Even though variables don't slide inward, the parent matrices are never pushed deeper than this $\mathcal{O}(S^2)$ high-water mark. The access cost remains bounded at $\sqrt{\mathcal{O}(S^2)} \propto S$. This means the realistic hardware cost <strong>preserves the exact optimal $\Theta(N^3 \log N)$ asymptotic complexity of DMDlive</strong>, just with a slightly higher leading constant multiplier (e.g., $12.3$ instead of $7.3$) due to the fragmentation.</p>
+<h3 id="-_3">---</h3>
+<p><strong>5. Why Belady's Algorithm is the Wrong Mental Model</strong></p>
+<p>You mentioned that "Belady normally evicts from cache", which makes DMDlive's behavior confusing.</p>
+<p>Belady’s MIN algorithm (evicting the item accessed furthest in the future) is perfectly optimal for <em>flat</em>, two-level caches (e.g., L1 vs DRAM) with uniform miss penalties.</p>
+<p>However, in a continuous spatial cache (where cost is $\lceil\sqrt{k}\rceil$), Belady suffers from the <strong>"Squatter Anomaly"</strong>.</p>
+<p>If you use Belady, it will prioritize the long-lived parent matrices $A$ and $B$ for the cheap $k=1, 2$ center slots (because they will eventually be used again, beating out temporaries that die). The parent matrices will "squat" there dormantly for thousands of cycles, forcing millions of high-frequency, short-lived inner-loop temporaries to thrash in the expensive $k=100$ outer rings!</p>
+<p>An optimal continuous cache uses a strategy like <strong>Interval Coloring / Fractional Space-Time Knapsack</strong>. It intentionally banishes the dormant parent matrices to the outer rings, paying the high fetch cost only occasionally. This leaves the premium center slots entirely open for the massive volume of inner-loop temporaries to rapidly allocate, die, and recycle.</p>
+<p>The "Tombstone" model naturally mimics this physical reality:</p>
+<ol>
+<li>Temporaries are born, heavily utilized in the center, and then die, leaving holes.  </li>
+<li>The next batch of temporaries reuses those exact same center holes.  </li>
+<li>The long-lived parent matrices wait patiently, stationary in the outer rings.</li>
+</ol>
+<h3 id="summary"><strong>Summary</strong></h3>
+<ol>
+<li><strong>Original DMD (Upper Bound / No GC):</strong> $\Theta(N^{3.5})$. Fails because $\mathcal{O}(N^3)$ dead variables physically push the matrix away.  </li>
+<li><strong>DMDlive (Lower Bound / Magic Sliding):</strong> $\Theta(N^3 \log N)$. Identical scaling to reality, but artificially trims the constant factor by ignoring the stationary nature of outer-cache data.  </li>
+<li><strong>The Actual Continuous Cache (Tombstones):</strong> $\Theta(N^3 \log N)$. Succeeds because recycled holes clamp the cache radius to the peak $\mathcal{O}(N^2)$ working set, preserving the asymptotic limit without violating the laws of physics.</li>
+</ol>
+</body>
+</html>

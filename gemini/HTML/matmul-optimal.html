@@ -1,0 +1,141 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Matmul Optimal</title>
+<style>
+  body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif; max-width: 800px; margin: 40px auto; padding: 0 20px; line-height: 1.6; color: #333; }
+  pre { background: #f6f8fa; padding: 16px; border-radius: 6px; overflow-x: auto; }
+  code { background: #f6f8fa; padding: 2px 6px; border-radius: 3px; font-size: 0.9em; }
+  pre code { background: none; padding: 0; }
+  table { border-collapse: collapse; width: 100%; }
+  th, td { border: 1px solid #ddd; padding: 8px 12px; text-align: left; }
+  th { background: #f6f8fa; }
+  img { max-width: 100%; }
+  blockquote { border-left: 4px solid #ddd; margin: 0; padding-left: 16px; color: #666; }
+</style>
+</head>
+<body>
+<h1 id="matmul-optimal">matmul-optimal</h1>
+<p>Created with Gemini 3 Deep Think April 9, 2026 at 09:20 PM<br />
+Published April 10, 2026 at 05:31 PM</p>
+<p>Source: https://gemini.google.com/share/b56b8bd21a1c</p>
+<hr />
+<h2 id="user">User</h2>
+<p>I'm interseted in using THompson 2D vlsi model or more precisely the spatial computer attached to analyze the complexity N*N matrix vector multiplication. Tell me what is the energy lower bound, is it possible to achieve it, what is a low energy way to implement matrix vector multiplication, give me detailed specification of a spatial computer that implements such thing</p>
+<h2 id="gemini">Gemini</h2>
+<p>Based on the Spatial Computer model introduced by Gianinazzi et al.—which abstracts modern 2D spatial architectures by strictly pricing communication energy based on the physical Manhattan distance messages travel—here is the formal complexity analysis and detailed architectural specification for an N×N matrix-vector multiplication (y=Ax).</p>
+<ol>
+<li>What is the Energy Lower Bound?</li>
+</ol>
+<p>For an N×N matrix-vector multiplication, the absolute energy lower bound on the spatial computer is Ω(N2).</p>
+<p>Proof of the bound:<br />
+In the Spatial Computer model, processors are restricted to a constant O(1) memory. To simply store the N2 elements of the dense matrix A, you are mathematically forced to distribute them across a 2D physical subgrid of at least N×N processors. This creates a grid with a physical diameter of Θ(N).</p>
+<p>To compute the output vector y, every element xj​ of the N-dimensional input vector must be multiplied by every element in the corresponding j-th column of matrix A. Because the N matrix elements of that column are spatially spread across the grid, routing a single scalar xj​ to all of them requires messages to traverse a minimum physical distance (Steiner tree weight) of Ω(N). Doing this for all N elements of vector x takes N×Ω(N)=Ω(N2) energy. A symmetric Ω(N2) energy cost applies to physically gathering and summing the partial products across the rows to form the output vector y.</p>
+<ol>
+<li>Is it Possible to Achieve This Bound?</li>
+</ol>
+<p>Yes. It is perfectly possible to achieve the exact Θ(N2) energy bound.</p>
+<p>The paper points out a heavy Ω(n1.5) energy "permutation bottleneck" for sorting and square matrix-matrix multiplication (which corresponds to Ω(N3) for an N×N matrix). Matrix-vector multiplication entirely avoids this bottleneck. Because the matrix data requires O(N2) area but the vectors only represent O(N) data, we can keep the massive matrix completely stationary and only route the vectors, keeping communication strictly localized to hit the Θ(N2) bound.</p>
+<p>(Note: There is an energy-depth tradeoff here. If you use the paper's 1D Broadcast tree to speed up the operation to O(logN) depth, the long wires would increase the energy to a sub-optimal O(N2logN). To get optimal energy, we must accept an O(N) depth).</p>
+<ol>
+<li>A Low-Energy Way to Implement It</li>
+</ol>
+<p>To hit the absolute minimum Θ(N2) energy, we completely avoid long-distance tree routing. Instead, we implement a 2D Systolic Wave-front Pipeline (conceptually similar to Cannon's algorithm).</p>
+<p>The Strategy:<br />
+The matrix A remains entirely stationary. The vector x is streamed vertically downward column-by-column. As elements of x pass over elements of A, they are locally multiplied. The accumulating sums for the output vector y are then streamed horizontally to the left row-by-row. Because messages only ever travel to immediate physical neighbors, the energy cost per message is precisely 1 unit, strictly minimizing the total energy and wire-depth.</p>
+<ol>
+<li>Detailed Specification of the Spatial Computer</li>
+</ol>
+<p>Below is the strict node-level and lifecycle specification mapping this optimal algorithm to the Spatial Computer rules defined in the paper.</p>
+<p>A. Hardware Architecture per Node</p>
+<p>Grid Allocation: An unbounded 2D Cartesian grid is used, bounding active execution to an N×N subgrid where processor pi,j​ sits at coordinates (i,j) for 0≤i,j&lt;N.</p>
+<p>Local Memory (O(1) constraint): Each processor utilizes exactly four constant-sized registers:</p>
+<p>A_val: Permanently stores the matrix element Ai,j​.</p>
+<p>x_val: Temporarily stores the streaming vector element xj​.</p>
+<p>prod: Stores the locally computed scalar product.</p>
+<p>sum_val: Stores the accumulating horizontal sum.</p>
+<p>Queues: A constant-sized receive queue. To prevent undefined behavior, the execution protocol below guarantees a processor will never receive more than 2 messages in a single time-step.</p>
+<p>ALU: Capable of O(1) arithmetic operations per cycle (a fused multiply-add).</p>
+<p>B. Initial State</p>
+<p>Processor pi,j​ holds its respective Ai,j​ in A_val.</p>
+<p>The top row of processors (p0,j​) holds the input vector xj​ in their x_val registers.</p>
+<p>Output will naturally materialize at the left-most column (pi,0​).</p>
+<p>C. Execution Protocol (Synchronous Time-Steps)</p>
+<p>All processors share a global clock t (starting at t=0). To respect data dependencies, execution flows as a diagonal wavefront. Every clock cycle, all active processors simultaneously run the following logic based on their local physical (i,j) coordinates:</p>
+<p>Python</p>
+<h1 id="phase-1-vector-shift-local-multiply">Phase 1: Vector Shift &amp; Local Multiply</h1>
+<p>if t == i:<br />
+    if i &gt; 0:<br />
+        x_val = dequeue_from(North)     # Receive x_j from above</p>
+<div class="codehilite"><pre><span></span><code>prod = A_val * x_val                # O(1) Local ALU computation
+
+if i &lt; N - 1:
+    send_to(South, x_val)           # Route x_j downwards (Cost: 1 Energy)
+</code></pre></div>
+
+<h1 id="phase-2-row-reduction-accumulating-y_i">Phase 2: Row Reduction (Accumulating y_i)</h1>
+<p>if t == i + (N - 1 - j):<br />
+    if j &lt; N - 1:<br />
+        sum_val = dequeue_from(East)    # Receive partial sum from the right<br />
+    else:<br />
+        sum_val = 0                     # Right-most column starts at 0</p>
+<div class="codehilite"><pre><span></span><code>sum_val = sum_val + prod            # O(1) Local ALU computation
+
+if j &gt; 0:
+    send_to(West, sum_val)          # Route partial sum leftwards (Cost: 1 Energy)
+else:
+    # Final output y_i is complete and stored in sum_val at j=0
+    terminate()
+</code></pre></div>
+
+<p>D. Final Complexity Output</p>
+<p>Total Energy (E):</p>
+<p>The vector x takes N−1 distance-1 hops down each of the N columns = N(N−1) energy.</p>
+<p>The sums take N−1 distance-1 hops left across each of the N rows = N(N−1) energy.</p>
+<p>Total Energy = 2N2−2N=Θ(N2). This perfectly matches the lower bound.</p>
+<p>Depth (D): The longest critical dependency chain is the time it takes xN−1​ to reach the bottom right (N−1 steps), plus the time for yN−1​'s sum to reach the bottom left (N−1 steps). Depth = 2N−2=Θ(N).</p>
+<p>Wire-Depth (Dw​): Because no individual message traverses a physical distance greater than 1, the maximum energy expended over any dependent chain is completely proportional to the depth. Wire-depth = Θ(N).</p>
+<h2 id="user_1">User</h2>
+<p>now give me the corresponding low-energy way to do matrix-vector multiplication.</p>
+<h2 id="gemini_1">Gemini</h2>
+<p>In my previous response, I outlined the Systolic Wavefront approach. That method is the absolute lowest-energy way to perform Matrix-Vector multiplication, achieving the mathematical minimum Θ(N2) energy by restricting all communication to immediate physical neighbors. However, it requires a linear Θ(N) depth (latency) to execute.</p>
+<p>Depending on what you meant by "corresponding," here are the two alternative implementations based strictly on the rules and abstractions of the Gianinazzi et al. Spatial Computer paper.</p>
+<ol>
+<li>The "Spatial Primitives" Method (Low-Depth Matrix-Vector)</li>
+</ol>
+<p>If by "corresponding" you are looking for the counterpart algorithm that optimizes for highly parallel, sub-linear speed using the specific geometric primitives defined in Section 2 of the paper, this is how you do it. It drops the latency to logarithmic time, but incurs a slight O(logN) energy penalty because messages must traverse longer physical wires.</p>
+<p>Initial Layout: The matrix A is mapped in row-major order so processor pi,j​ holds Ai,j​. The input vector x is loaded into the top row so p0,j​ holds xj​.</p>
+<p>Phase 1: Column-wise 1D Broadcast (O(logN) depth)<br />
+Instead of passing xj​ down the column one neighbor at a time, every processor in the top row acts as the root of a spatial binary tree, initiating a 1D Broadcast (as defined in Lemma 2.2) down its column.<br />
+Cost: The paper proves a 1D broadcast of length N takes O(NlogN) energy. Doing this across all N columns in parallel takes O(N2logN) energy.</p>
+<p>Phase 2: Local Compute (O(1) depth)<br />
+Every processor pi,j​ now holds both Ai,j​ and xj​. In a single synchronous clock cycle, all N2 processors execute the local multiplication: prod = A_val * x_val.<br />
+Cost: 0 communication energy.</p>
+<p>Phase 3: Row-wise 1D Reduce (O(logN) depth)<br />
+To sum the products horizontally and form the output vector y, every row executes a 1D Reduce (Corollary 2.3). The spatial binary tree is used in reverse: pairs of processors sum their values and pass them leftward, halving the active nodes at each step until the final sum yi​ lands at pi,0​.<br />
+Cost: A 1D reduce of length N takes O(NlogN) energy. Doing this for all N rows simultaneously takes O(N2logN) energy.</p>
+<p>Final Complexity:</p>
+<p>Energy: O(N2logN)</p>
+<p>Depth: O(logN) (Exponentially faster than the systolic approach)</p>
+<p>Wire-Depth: O(N)</p>
+<ol>
+<li>Cannon's Algorithm (Low-Energy Matrix-Matrix)</li>
+</ol>
+<p>If by "corresponding" you had a typo and meant the algorithm for N×N Matrix-Matrix Multiplication (C=A×B)—which is heavily analyzed in Section 4 of the provided paper—the rules and complexities change entirely.</p>
+<p>Because you have to move an O(N2) volume of data across an O(N2) physical grid, Matrix-Matrix multiplication suffers from the permutation bottleneck (Lemma 4.1).</p>
+<p>Lower Bound: The absolute energy lower bound mathematically jumps to Ω(N3).</p>
+<p>The Low-Energy Implementation: To achieve this lower bound without wasting energy on long-distance communication, the paper (Section 4.1) recommends Cannon’s Algorithm.</p>
+<p>Execution Protocol:</p>
+<p>Initial Skew: Circularly shift the i-th row of matrix A to the left by i positions. Circularly shift the j-th column of matrix B upward by j positions.</p>
+<p>Multiply &amp; Shift: For N synchronous iterations, every processor does the following:</p>
+<p>Multiplies its currently co-located elements of A and B, adding the result to a stationary local Ci,j​ register.</p>
+<p>Circularly shifts its element of A to the left neighbor (distance 1).</p>
+<p>Circularly shifts its element of B to the top neighbor (distance 1).</p>
+<p>Final Complexity:</p>
+<p>Energy: Θ(N3) (Mathematically optimal for Matrix-Matrix)</p>
+<p>Depth: Θ(N)</p>
+<p>Wire-Depth: Θ(N)</p>
+</body>
+</html>

@@ -1,0 +1,65 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Arithmetic Intensity Visualizers</title>
+<style>
+  body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif; max-width: 800px; margin: 40px auto; padding: 0 20px; line-height: 1.6; color: #333; }
+  pre { background: #f6f8fa; padding: 16px; border-radius: 6px; overflow-x: auto; }
+  code { background: #f6f8fa; padding: 2px 6px; border-radius: 3px; font-size: 0.9em; }
+  pre code { background: none; padding: 0; }
+  table { border-collapse: collapse; width: 100%; }
+  th, td { border: 1px solid #ddd; padding: 8px 12px; text-align: left; }
+  th { background: #f6f8fa; }
+  img { max-width: 100%; }
+  blockquote { border-left: 4px solid #ddd; margin: 0; padding-left: 16px; color: #666; }
+</style>
+</head>
+<body>
+<p>In traditional computer architecture, <strong>Arithmetic Intensity</strong> is a single, static number: $\frac{\text{Total FLOPs}}{\text{Bytes fetched from DRAM}}$.</p>
+<p>In your 2D continuous spatial model (and the ByteDMD framework), there is no hard "Main Memory" boundary. Instead, every read pays a continuous fetch cost of $\lceil\sqrt{d}\rceil$. To capture the true behavior of an algorithm, you must measure <strong>Spatial Arithmetic Intensity</strong>: the ratio of useful arithmetic work to the geometric routing energy required to fetch the operands.</p>
+<p>Because you are already generating a trace of operations and their read costs, here are four powerful metrics and visualization ideas you can plot to instantly prove why algorithms like Tiled Matrix Multiplication physically dominate naive ones.</p>
+<h3 id="-">---</h3>
+<p><strong>1. Rolling Spatial Intensity (The "Heartbeat" Plot)</strong></p>
+<p>Instead of plotting a single global number, plot the local arithmetic intensity dynamically over a sliding window of time. This shows you exactly <em>when</em> the algorithm is being efficient.</p>
+<ul>
+<li>
+<p><strong>The Math:</strong> For a sliding time-window of $W$ operations (e.g., $W=1000$), calculate:<br />
+  $$\text{Intensity}(t) = \frac{W}{\sum_{reads \in W} \lceil\sqrt{d_{read}}\rceil}$$</p>
+</li>
+<li>
+<p><strong>The Axes:</strong> <strong>X-axis</strong> \= Execution Time (Op Index). <strong>Y-axis</strong> \= Intensity(t).  </p>
+</li>
+<li><strong>What you will see:</strong>  </li>
+<li><strong>Naive MatMul:</strong> Will look like a flat, depressing line hovering near the floor. Because every dot-product fetches an entire row/column from the edge of the active footprint, the fetch cost is perpetually huge, crushing the intensity.  </li>
+<li><strong>Tiled MatMul:</strong> Will look like an EKG heartbeat (a square wave). You will see brief, sharp dips (the spatial cost of fetching a new $B \times B$ tile from the outer orbits), followed by <strong>massive, sustained plateaus of extreme intensity</strong>. While on the plateau, the algorithm performs $O(B^3)$ math operations while only paying a tiny $\lceil\sqrt{B^2}\rceil$ cost to shuffle data within the tile.</li>
+</ul>
+<h3 id="2-cumulative-compute-vs-energy-the-spatial-phase-diagram"><strong>2. Cumulative Compute vs. Energy (The "Spatial Phase Diagram")</strong></h3>
+<p>This creates a macroscopic trend line that ignores clock time entirely. It acts as the continuous geometric equivalent of a Roofline Model.</p>
+<ul>
+<li><strong>The Axes:</strong> <strong>X-axis</strong> \= Cumulative Geometric Fetch Cost ($\sum \lceil\sqrt{d}\rceil$). <strong>Y-axis</strong> \= Cumulative Operations (FLOPs).  </li>
+<li><strong>How to plot:</strong> A parametric line that starts at $(0,0)$ and traces up and to the right as the program executes.  </li>
+<li><strong>What you will see:</strong> The <em>slope</em> of the line at any point is your instantaneous Spatial Arithmetic Intensity.  </li>
+<li><strong>Naive MatMul:</strong> Traces a shallow, straight diagonal line. You pay a huge, constant amount of horizontal X (routing energy) to get a little bit of vertical Y (compute).  </li>
+<li><strong>Tiled MatMul:</strong> Traces a <strong>steep staircase</strong>. It steps horizontally to the right (loading a tile pays spatial energy but yields no compute), and then shoots almost <em>straight up vertically</em> (doing massive compute with near-zero fetch cost). The macroscopic slope is radically steeper.</li>
+</ul>
+<h3 id="3-the-fetch-cost-scatter-plot-the-gravity-well"><strong>3. The Fetch-Cost Scatter Plot (The "Gravity Well")</strong></h3>
+<p>This is a raw, instantaneous visualization of <em>where</em> the ALU is pulling its data from on a tick-by-tick basis.</p>
+<ul>
+<li><strong>The Axes:</strong> <strong>X-axis</strong> \= Execution Time (Op Index). <strong>Y-axis</strong> \= The Geometric Fetch Cost $\lceil\sqrt{d}\rceil$ of the specific operand being read.  </li>
+<li><strong>How to plot:</strong> Plot a single dot (with low opacity, e.g., alpha=0.1) for every operand read. Dense regions will form dark, hot bands.  </li>
+<li><strong>What you will see:</strong> This visualizes the "radius of orbit" of your active data.  </li>
+<li><strong>Naive MatMul:</strong> You will see a dense, dark band smeared high up the Y-axis. This visually proves the ALU is constantly reaching out to the far edges of the silicon die to feed the multipliers.  </li>
+<li><strong>Tiled MatMul:</strong> $95\%$ of the dots will be clustered in a searingly hot, tight band at the very bottom of the Y-axis (fetching from the local tile). Periodically, you will see a faint, sparse vertical spray of dots reaching high into the Y-axis as the ALU reaches out to grab the next tile. It literally translates the abstract concept of "locality" into a picture of 2D data gravity.</li>
+</ul>
+<h3 id="4-the-spatial-locality-cdf-the-compute-fulfillment-profile"><strong>4. The Spatial Locality CDF (The "Compute Fulfillment" Profile)</strong></h3>
+<p>This collapses time entirely to give you a statistical "spatial footprint." It answers the question to a chip architect: <em>If I draw a physical circle around the ALU, how much of the total algorithm gets done strictly inside that circle?</em></p>
+<ul>
+<li><strong>The Axes:</strong> <strong>X-axis</strong> \= Spatial Cost Threshold $C$ (Radius). <strong>Y-axis</strong> \= Cumulative % of total FLOPs where <em>all</em> operands were fetched at a cost $\le C$.  </li>
+<li><strong>What you will see:</strong>  </li>
+<li><strong>Naive MatMul:</strong> The curve will climb slowly and linearly. To reach $90\%$ fulfillment (to capture the data needed to do 90% of your math), you have to expand the radius $C$ to encompass almost the entire $N \times N$ matrix.  </li>
+<li><strong>Tiled MatMul:</strong> The curve will look like a sheer cliff face. It will instantly shoot up to $95\%+$ at a very small radius (the $B \times B$ footprint). It provides undeniable mathematical proof that the algorithm successfully quarantined its working volume near the ALU.</li>
+</ul>
+</body>
+</html>

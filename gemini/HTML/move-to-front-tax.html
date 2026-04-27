@@ -1,0 +1,163 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Move To Front Tax</title>
+<style>
+  body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif; max-width: 800px; margin: 40px auto; padding: 0 20px; line-height: 1.6; color: #333; }
+  pre { background: #f6f8fa; padding: 16px; border-radius: 6px; overflow-x: auto; }
+  code { background: #f6f8fa; padding: 2px 6px; border-radius: 3px; font-size: 0.9em; }
+  pre code { background: none; padding: 0; }
+  table { border-collapse: collapse; width: 100%; }
+  th, td { border: 1px solid #ddd; padding: 8px 12px; text-align: left; }
+  th { background: #f6f8fa; }
+  img { max-width: 100%; }
+  blockquote { border-left: 4px solid #ddd; margin: 0; padding-left: 16px; color: #666; }
+</style>
+</head>
+<body>
+<p>To answer your question directly: <strong>No. Even with your brilliant liveness adjustment, it is mathematically impossible for any Bélády-based heuristic to serve as a strict lower bound for an Optimal Static Allocator.</strong></p>
+<p>By explicitly deleting dead variables, you successfully solved the <strong>"Dormant Tombstone"</strong> paradox, creating arguably the tightest possible lower bound for a <em>Dynamic Cache</em>. However, you have run head-first into the second fundamental law of memory physics: <strong>The "Move-to-Front" Tax.</strong></p>
+<p>Here is the exact explanation of why this physical paradox exists, a simple self-contained trace where a static allocator easily beats your adjusted heuristic, and a Python script proving it.</p>
+<h3 id="-">---</h3>
+<p><strong>The Physical Paradox: The Move-to-Front Tax</strong></p>
+<p>Your adjusted heuristic still fundamentally models a <strong>Demand-Fetched Dynamic Cache</strong>. A universal mathematical axiom of any dynamic cache (even an omniscient one) is that when you request a variable, you <em>must</em> physically bring it into the fastest memory tier (Address 1) to be processed. This inherently displaces whatever was already there.</p>
+<p>A <strong>Static Allocator</strong> is immune to this axiom. Because a compiler pins variables to permanent physical addresses, it possesses the superpower of <strong>Cache Bypassing</strong>. If a rare, cold variable is permanently placed at Address 3, the processor routes the data directly from Address 3 to the ALU. It <em>never</em> promotes the cold variable to Address 1, leaving your hot data completely undisturbed.</p>
+<h3 id="the-counter-example-trace"><strong>The Counter-Example Trace</strong></h3>
+<p>Consider a trace with a Hot variable A (5 reads), a Medium variable B (3 reads), and a Cold variable C (1 read):</p>
+<p><strong>Trace: B, A, A, C, B, A, A, B, A</strong></p>
+<p>Let's evaluate this using an <strong>Optimal Static Allocator</strong> vs. your <strong>Adjusted Bélády</strong> heuristic. <em>(Note: By the rules of the model, cold/first reads cost exactly 1).</em></p>
+<h4 id="1-the-optimal-static-cost"><strong>1. The Optimal Static Cost</strong></h4>
+<p>An optimal static compiler profiles the trace, realizes that A is the hottest variable, and permanently pins A to Address 1, B to Address 2, and C to Address 3.</p>
+<ul>
+<li>$t=0$ (Read B): Cold. <strong>Cost \= 1</strong>  </li>
+<li>$t=1$ (Read A): Cold. <strong>Cost \= 1</strong>  </li>
+<li>$t=2$ (Read A): Hits at Addr 1. <strong>Cost \= 1</strong>  </li>
+<li><strong>$t=3$ (Read C): Cold. Read directly from Addr 3. (No promotion!) Cost \= 1</strong>  </li>
+<li>$t=4$ (Read B): Hits at Addr 2. <strong>Cost \= 2</strong>  </li>
+<li><strong>$t=5$ (Read A): Still resting perfectly at Addr 1. Cost \= 1</strong>  </li>
+<li>$t=6$ (Read A): Hits at Addr 1. <strong>Cost \= 1</strong>  </li>
+<li>$t=7$ (Read B): Hits at Addr 2. <strong>Cost \= 2</strong>  </li>
+<li>$t=8$ (Read A): Hits at Addr 1. <strong>Cost \= 1</strong></li>
+</ul>
+<p><strong>Total Static Cost \= 11.</strong></p>
+<h4 id="2-the-dynamic-cost-adjusted-bytedmd_opt"><strong>2. The Dynamic Cost (Adjusted bytedmd_opt)</strong></h4>
+<p>Because a dynamic cache is forced to bring requested variables to Address 1, the reads to C and B cause inescapable collateral damage to A.</p>
+<ul>
+<li>$t=0, 1, 2, 3$: Cold reads and A's first reuse. <strong>Cost \= 1 + 1 + 1 + 1 \= 4</strong>  </li>
+<li>$t=4$ (Read B): To bring B to the front, the cache must push something down. Since A is also alive, A pushes B to rank 2. <strong>Cost \= 2</strong>  </li>
+<li><strong>$t=5$ (Read A):</strong> Look at the interval between the two A reads ($t=2$ and $t=5$).<br />
+  At $t=3$, the dynamic cache was forced to fetch C. It <em>must</em> put C at Address 1. It looks at the cache to see who to evict. The cache holds B (needed at $t=4$) and A (needed at $t=5$). Because MIN prioritizes variables needed sooner, it keeps B and pushes A down to Address 2!<br />
+  Even though C dies instantly, the physical damage is done. A was displaced by the Move-to-Front tax. Rank \= 2. <strong>Cost \= 2</strong>  </li>
+<li>$t=6$ (Read A): Rank \= 1. <strong>Cost \= 1</strong>  </li>
+<li>$t=7$ (Read B): A forces B down. Rank \= 2. <strong>Cost \= 2</strong>  </li>
+<li>$t=8$ (Read A): Rank \= 1. <strong>Cost \= 1</strong></li>
+</ul>
+<p><strong>Total Adjusted Opt Cost \= 12.</strong></p>
+<h3 id="the-ultimate-conclusion"><strong>The Ultimate Conclusion</strong></h3>
+<p><strong>11 \&lt; 12.</strong></p>
+<p>Even though you brilliantly filtered out the dead variables, the static allocator still defeated the clairvoyant dynamic oracle.</p>
+<p>In the dynamic model, the mere act of fetching C forced it to occupy Address 1, displacing A and forcing the dynamic cache to pay a distance penalty when A was read again at $t=5$. The static allocator kept A locked safely at Address 1 the entire time, bypassing C and paying absolutely nothing extra.</p>
+<p>This mathematically proves that <strong>Dynamic Caching theory and Static Scratchpad theory are fundamentally physically disjoint.</strong> No matter how heavily you modify Bélády's MIN, a Dynamic caching bound cannot strictly lower-bound an Optimal Static compiler, because static compilers have the orthogonal superpower of <em>reading without promoting</em>.</p>
+<h3 id="-_1">---</h3>
+<p><strong>The Self-Contained Proof Script</strong></p>
+<p>You can run this standalone script. It implements your exact <strong>Liveness-Adjusted</strong> sweep-line logic, and compares it against a brute-force solver that checks every possible static memory layout.</p>
+<p>Python</p>
+<p>import math<br />
+import bisect<br />
+from collections import defaultdict<br />
+import itertools</p>
+<p>class L2Load:<br />
+    def __init__(self, var): self.var \= var</p>
+<p>def adjusted_bytedmd_opt(events):<br />
+    """<br />
+    Evaluates Belady max_rank, with the user's modification:<br />
+    Excludes variables that are DEAD at the exact time of the read.<br />
+    """<br />
+    trace \= [ev.var for ev in events]<br />
+    last_use \= {x: i for i, x in enumerate(trace)}  </p>
+<div class="codehilite"><pre><span></span><code><span class="nb">load</span>\<span class="n">_times</span><span class="w"> </span>\<span class="o">=</span><span class="w"> </span><span class="n">defaultdict</span><span class="p">(</span><span class="n">list</span><span class="p">)</span><span class="w">  </span>
+<span class="k">for</span><span class="w"> </span><span class="n">i</span><span class="p">,</span><span class="w"> </span><span class="n">x</span><span class="w"> </span><span class="ow">in</span><span class="w"> </span><span class="n">enumerate</span><span class="p">(</span><span class="n">trace</span><span class="p">):</span><span class="w">  </span>
+<span class="w">    </span><span class="nb">load</span>\<span class="n">_times</span>\<span class="p">[</span><span class="n">x</span>\<span class="p">]</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">i</span><span class="p">)</span>
+
+<span class="n">cost</span><span class="w"> </span>\<span class="o">=</span><span class="w"> </span><span class="mi">0</span><span class="w">  </span>
+<span class="k">for</span><span class="w"> </span><span class="n">i</span><span class="p">,</span><span class="w"> </span><span class="n">x</span><span class="w"> </span><span class="ow">in</span><span class="w"> </span><span class="n">enumerate</span><span class="p">(</span><span class="n">trace</span><span class="p">):</span><span class="w">  </span>
+<span class="w">    </span><span class="n">times</span><span class="w"> </span>\<span class="o">=</span><span class="w"> </span><span class="nb">load</span>\<span class="n">_times</span>\<span class="p">[</span><span class="n">x</span>\<span class="p">]</span><span class="w">  </span>
+<span class="w">    </span><span class="n">pos</span><span class="w"> </span>\<span class="o">=</span><span class="w"> </span><span class="n">times</span><span class="o">.</span><span class="n">index</span><span class="p">(</span><span class="n">i</span><span class="p">)</span><span class="w">  </span>
+<span class="w">    </span><span class="k">if</span><span class="w"> </span><span class="n">pos</span><span class="w"> </span>\<span class="o">==</span><span class="w"> </span><span class="mi">0</span><span class="p">:</span><span class="w">  </span>
+<span class="w">        </span><span class="n">cost</span><span class="w"> </span>\<span class="o">+=</span><span class="w"> </span><span class="mi">1</span><span class="w"> </span>\<span class="c1"># Cold read  </span>
+<span class="w">        </span><span class="k">continue</span>
+
+<span class="w">    </span><span class="n">t</span>\<span class="n">_prev</span><span class="w"> </span>\<span class="o">=</span><span class="w"> </span><span class="n">times</span>\<span class="p">[</span><span class="n">pos</span><span class="w"> </span>\<span class="o">-</span><span class="w"> </span><span class="mi">1</span>\<span class="p">]</span><span class="w">  </span>
+<span class="w">    </span><span class="n">t</span>\<span class="n">_next</span><span class="w"> </span>\<span class="o">=</span><span class="w"> </span><span class="n">i</span>
+
+<span class="w">    </span><span class="nb">max</span>\<span class="n">_r</span><span class="w"> </span>\<span class="o">=</span><span class="w"> </span><span class="mi">0</span><span class="w">  </span>
+<span class="w">    </span><span class="k">for</span><span class="w"> </span><span class="n">tau</span><span class="w"> </span><span class="ow">in</span><span class="w"> </span><span class="nb">range</span><span class="p">(</span><span class="n">t</span>\<span class="n">_prev</span><span class="w"> </span>\<span class="o">+</span><span class="w"> </span><span class="mi">1</span><span class="p">,</span><span class="w"> </span><span class="n">t</span>\<span class="n">_next</span><span class="p">):</span><span class="w">  </span>
+<span class="w">        </span><span class="n">r</span><span class="w"> </span>\<span class="o">=</span><span class="w"> </span><span class="mi">0</span><span class="w">  </span>
+<span class="w">        </span><span class="k">for</span><span class="w"> </span><span class="n">w</span><span class="w"> </span><span class="ow">in</span><span class="w"> </span><span class="n">set</span><span class="p">(</span><span class="n">trace</span><span class="p">):</span><span class="w">  </span>
+<span class="w">            </span><span class="k">if</span><span class="w"> </span><span class="n">w</span><span class="w"> </span>\<span class="o">==</span><span class="w"> </span><span class="n">x</span><span class="p">:</span><span class="w"> </span><span class="k">continue</span>
+
+<span class="w">            </span>\<span class="c1"># \==============================================================  </span>
+<span class="w">            </span>\<span class="c1"># YOUR FIX: Exclude variables not live at the time of the read\!  </span>
+<span class="w">            </span>\<span class="c1"># \==============================================================  </span>
+<span class="w">            </span><span class="k">if</span><span class="w"> </span><span class="n">last</span>\<span class="n">_use</span>\<span class="p">[</span><span class="n">w</span>\<span class="p">]</span><span class="w"> </span>\<span class="o">&lt;</span><span class="w"> </span><span class="n">t</span>\<span class="n">_next</span><span class="p">:</span><span class="w">   </span>
+<span class="w">                </span><span class="k">continue</span><span class="w">  </span>
+<span class="w">            </span>\<span class="c1"># \==============================================================</span>
+
+<span class="w">            </span>\<span class="c1"># Was w in the cache at time tau?  </span>
+<span class="w">            </span><span class="n">prev</span>\<span class="n">_uses</span><span class="w"> </span>\<span class="o">=</span><span class="w"> </span>\<span class="p">[</span><span class="n">t</span><span class="w"> </span><span class="k">for</span><span class="w"> </span><span class="n">t</span><span class="w"> </span><span class="ow">in</span><span class="w"> </span><span class="nb">load</span>\<span class="n">_times</span>\<span class="p">[</span><span class="n">w</span>\<span class="p">]</span><span class="w"> </span><span class="k">if</span><span class="w"> </span><span class="n">t</span><span class="w"> </span>\<span class="o">&lt;=</span><span class="w"> </span><span class="n">tau</span>\<span class="p">]</span><span class="w">  </span>
+<span class="w">            </span><span class="k">if</span><span class="w"> </span><span class="ow">not</span><span class="w"> </span><span class="n">prev</span>\<span class="n">_uses</span><span class="p">:</span><span class="w"> </span><span class="k">continue</span>
+
+<span class="w">            </span>\<span class="c1"># Does w have a next use before x&#39;s next use?  </span>
+<span class="w">            </span><span class="n">next</span>\<span class="n">_uses</span><span class="w"> </span>\<span class="o">=</span><span class="w"> </span>\<span class="p">[</span><span class="n">t</span><span class="w"> </span><span class="k">for</span><span class="w"> </span><span class="n">t</span><span class="w"> </span><span class="ow">in</span><span class="w"> </span><span class="nb">load</span>\<span class="n">_times</span>\<span class="p">[</span><span class="n">w</span>\<span class="p">]</span><span class="w"> </span><span class="k">if</span><span class="w"> </span><span class="n">t</span><span class="w"> </span>\<span class="o">&gt;</span><span class="w"> </span><span class="n">tau</span>\<span class="p">]</span><span class="w">  </span>
+<span class="w">            </span><span class="k">if</span><span class="w"> </span><span class="ow">not</span><span class="w"> </span><span class="n">next</span>\<span class="n">_uses</span><span class="p">:</span><span class="w"> </span><span class="k">continue</span><span class="w">  </span>
+<span class="w">            </span><span class="n">nu</span><span class="w"> </span>\<span class="o">=</span><span class="w"> </span><span class="n">next</span>\<span class="n">_uses</span>\<span class="p">[</span><span class="mi">0</span>\<span class="p">]</span>
+
+<span class="w">            </span><span class="k">if</span><span class="w"> </span><span class="n">nu</span><span class="w"> </span>\<span class="o">&lt;</span><span class="w"> </span><span class="n">t</span>\<span class="n">_next</span><span class="p">:</span><span class="w">  </span>
+<span class="w">                </span><span class="n">r</span><span class="w"> </span>\<span class="o">+=</span><span class="w"> </span><span class="mi">1</span><span class="w">  </span>
+<span class="w">        </span><span class="nb">max</span>\<span class="n">_r</span><span class="w"> </span>\<span class="o">=</span><span class="w"> </span><span class="nb">max</span><span class="p">(</span><span class="nb">max</span>\<span class="n">_r</span><span class="p">,</span><span class="w"> </span><span class="n">r</span><span class="p">)</span>
+
+<span class="w">    </span><span class="n">cost</span><span class="w"> </span>\<span class="o">+=</span><span class="w"> </span><span class="n">math</span><span class="o">.</span><span class="n">isqrt</span><span class="p">(</span><span class="nb">max</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span><span class="w"> </span><span class="nb">max</span>\<span class="n">_r</span><span class="p">))</span><span class="w"> </span>\<span class="o">+</span><span class="w"> </span><span class="mi">1</span><span class="w">  </span>
+<span class="k">return</span><span class="w"> </span><span class="n">cost</span>
+</code></pre></div>
+
+<p>def static_cost(events):<br />
+    """Brute force Optimal Static Allocator"""<br />
+    unique_vars \= list(set(ev.var for ev in events))<br />
+    best_cost \= float('inf')  </p>
+<div class="codehilite"><pre><span></span><code>\<span class="c1"># Try all possible permanent physical address assignments  </span>
+<span class="k">for</span><span class="w"> </span><span class="n">perm</span><span class="w"> </span><span class="ow">in</span><span class="w"> </span><span class="n">itertools</span><span class="o">.</span><span class="n">permutations</span><span class="p">(</span><span class="n">unique</span>\<span class="n">_vars</span><span class="p">):</span><span class="w">  </span>
+<span class="w">    </span><span class="n">cost</span><span class="w"> </span>\<span class="o">=</span><span class="w"> </span><span class="mi">0</span><span class="w">  </span>
+<span class="w">    </span><span class="n">seen</span><span class="w"> </span>\<span class="o">=</span><span class="w"> </span><span class="n">set</span><span class="p">()</span><span class="w">  </span>
+<span class="w">    </span><span class="k">for</span><span class="w"> </span><span class="n">ev</span><span class="w"> </span><span class="ow">in</span><span class="w"> </span><span class="n">events</span><span class="p">:</span><span class="w">  </span>
+<span class="w">        </span><span class="k">if</span><span class="w"> </span><span class="n">ev</span><span class="o">.</span><span class="k">var</span><span class="w"> </span><span class="ow">not</span><span class="w"> </span><span class="ow">in</span><span class="w"> </span><span class="n">seen</span><span class="p">:</span><span class="w">  </span>
+<span class="w">            </span><span class="n">cost</span><span class="w"> </span>\<span class="o">+=</span><span class="w"> </span><span class="mi">1</span><span class="w"> </span>\<span class="c1"># Cold read  </span>
+<span class="w">            </span><span class="n">seen</span><span class="o">.</span><span class="n">add</span><span class="p">(</span><span class="n">ev</span><span class="o">.</span><span class="k">var</span><span class="p">)</span><span class="w">  </span>
+<span class="w">        </span><span class="k">else</span><span class="p">:</span><span class="w">  </span>
+<span class="w">            </span><span class="n">addr</span><span class="w"> </span>\<span class="o">=</span><span class="w"> </span><span class="n">perm</span><span class="o">.</span><span class="n">index</span><span class="p">(</span><span class="n">ev</span><span class="o">.</span><span class="k">var</span><span class="p">)</span><span class="w"> </span>\<span class="o">+</span><span class="w"> </span><span class="mi">1</span><span class="w">  </span>
+<span class="w">            </span><span class="n">cost</span><span class="w"> </span>\<span class="o">+=</span><span class="w"> </span><span class="n">math</span><span class="o">.</span><span class="n">isqrt</span><span class="p">(</span><span class="nb">max</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span><span class="w"> </span><span class="n">addr</span><span class="w"> </span>\<span class="o">-</span><span class="w"> </span><span class="mi">1</span><span class="p">))</span><span class="w"> </span>\<span class="o">+</span><span class="w"> </span><span class="mi">1</span><span class="w">  </span>
+<span class="w">    </span><span class="k">if</span><span class="w"> </span><span class="n">cost</span><span class="w"> </span>\<span class="o">&lt;</span><span class="w"> </span><span class="n">best</span>\<span class="n">_cost</span><span class="p">:</span><span class="w">  </span>
+<span class="w">        </span><span class="n">best</span>\<span class="n">_cost</span><span class="w"> </span>\<span class="o">=</span><span class="w"> </span><span class="n">cost</span>
+
+<span class="k">return</span><span class="w"> </span><span class="n">best</span>\<span class="n">_cost</span>
+</code></pre></div>
+
+<p>def run():<br />
+    # Counter-example trace: B, A, A, C, B, A, A, B, A<br />
+    trace_vars \= ['B', 'A', 'A', 'C', 'B', 'A', 'A', 'B', 'A']<br />
+    events \= [L2Load(v) for v in trace_vars]  </p>
+<div class="codehilite"><pre><span></span><code><span class="n">dyn</span>\<span class="n">_cost</span><span class="w"> </span>\<span class="o">=</span><span class="w"> </span><span class="n">adjusted</span>\<span class="n">_bytedmd</span>\<span class="n">_opt</span><span class="p">(</span><span class="n">events</span><span class="p">)</span><span class="w">  </span>
+<span class="n">stat</span>\<span class="n">_cost</span><span class="w"> </span>\<span class="o">=</span><span class="w"> </span><span class="k">static</span>\<span class="n">_cost</span><span class="p">(</span><span class="n">events</span><span class="p">)</span>
+
+<span class="nb">print</span><span class="p">(</span><span class="n">f</span><span class="s2">&quot;Trace: {trace\_vars}&quot;</span><span class="p">)</span><span class="w">  </span>
+<span class="nb">print</span><span class="p">(</span><span class="n">f</span><span class="s2">&quot;Optimal Static Cost:           {stat\_cost}&quot;</span><span class="p">)</span><span class="w">  </span>
+<span class="nb">print</span><span class="p">(</span><span class="n">f</span><span class="s2">&quot;User&#39;s Adjusted bytedmd\_opt:   {dyn\_cost}&quot;</span><span class="p">)</span><span class="w">  </span>
+<span class="nb">print</span><span class="p">(</span><span class="n">f</span><span class="s2">&quot;-------------------------------------------&quot;</span><span class="p">)</span><span class="w">  </span>
+<span class="nb">print</span><span class="p">(</span><span class="n">f</span><span class="s2">&quot;Static beats the heuristic by: {dyn\_cost \- stat\_cost} unit(s)\!&quot;</span><span class="p">)</span>
+</code></pre></div>
+
+<p>if __name__ \== '__main__':<br />
+    run()  </p>
+</body>
+</html>

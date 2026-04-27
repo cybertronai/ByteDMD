@@ -1,0 +1,66 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Renaming Brainstorming</title>
+<style>
+  body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif; max-width: 800px; margin: 40px auto; padding: 0 20px; line-height: 1.6; color: #333; }
+  pre { background: #f6f8fa; padding: 16px; border-radius: 6px; overflow-x: auto; }
+  code { background: #f6f8fa; padding: 2px 6px; border-radius: 3px; font-size: 0.9em; }
+  pre code { background: none; padding: 0; }
+  table { border-collapse: collapse; width: 100%; }
+  th, td { border: 1px solid #ddd; padding: 8px 12px; text-align: left; }
+  th { background: #f6f8fa; }
+  img { max-width: 100%; }
+  blockquote { border-left: 4px solid #ddd; margin: 0; padding-left: 16px; color: #666; }
+</style>
+</head>
+<body>
+<h1 id="renaming-data-movement-distance-metric">Renaming Data Movement Distance Metric</h1>
+<p>Created with Gemini 3 Deep Think April 8, 2026 at 03:57 PM<br />
+Published April 8, 2026 at 04:03 PM</p>
+<p>Source: https://gemini.google.com/share/af75298aa427</p>
+<hr />
+<h2 id="user">User</h2>
+<p>I want to reuse the idea of data movement distance but maybe relax byte and use something else instead of byteDMD. Brainstorm other potential names I can use in place of ByteDMD. I want to reuse the existing data movement distance, but perhaps emphasize that I'm doing a very concrete count. I'm essentially tightening up their metric, which is meant to be complexity-based, but I want something that has concrete numbers connected to it.</p>
+<h2 id="gemini">Gemini</h2>
+<p>Here are several brainstorming directions for renaming ByteDMD. Since you want to contrast your exact, execution-based tally against Ding and Smith’s theoretical, asymptotic complexity metric, the new name should bridge the "Data Movement" lineage with the idea of a hard numerical score.</p>
+<p>Relaxing the word "Byte" also makes sense, as your metric is highly flexible and operates on logical objects, elements, or multi-byte scalars.</p>
+<ol>
+<li>Emphasizing the "Exact Tally" (Contrasting with Big-O)</li>
+</ol>
+<p>These names highlight that you are providing a concrete integer sum rather than an abstract asymptotic bound.</p>
+<p>ExactDMD: Directly contrasts with the asymptotic bounds of the original paper. It tells the academic/engineering reader immediately: "This is DMD, but calculated exactly."</p>
+<p>TraceDMD: Highlights how you get the concrete number—by dynamically tracing the execution path. It sets your empirical tool apart from static, on-paper analysis.</p>
+<p>CountDMD: Emphasizes the "counting" of discrete operations.</p>
+<p>TallyDMD: "Tally" implies a discrete, running sum, which fits perfectly with how your Python tracer accumulates costs instruction by instruction.</p>
+<p>DiscreteDMD: Highlights the jump from continuous mathematical bounds (like O(N3.5)) to discrete integer steps and ceiling functions (⌈d​⌉).</p>
+<ol>
+<li>Generalizing the Data Unit (Replacing "Byte")</li>
+</ol>
+<p>If you want to keep the <Word>DMD naming convention but make it less inherently tied to 8-bit increments, you can use a broader term for the data being tracked.</p>
+<p>ElementDMD (or ElemDMD): Highly accurate to your computation model. Your README explicitly states: "An idealized processor operates directly on an element-level LRU stack." It scales naturally whether the unit is an 8-bit char or a 64-bit float.</p>
+<p>WordDMD: A classic architecture term that implies a concrete machine fetch without locking you into exactly 8 bits.</p>
+<p>ItemDMD: Friendly, Pythonic, and abstract enough to apply to any data type passing through your _Tracked proxy wrapper.</p>
+<p>UnitDMD: Very flexible. A "unit" could be a byte, a token, or a struct, determined by the bytes_per_element multiplier in your code.</p>
+<ol>
+<li>Evolving the Acronym (Replacing "Distance")</li>
+</ol>
+<p>"Distance" naturally sounds like a continuous, spatial measurement or a theoretical property. If you want to emphasize a final concrete tally, you might replace "Distance" with "Count", "Cost", or "Score", while keeping "Data Movement."</p>
+<p>DMC (Data Movement Cost): A very natural pivot. While DMD represents the spatial distance (d​), the DMC is the actual sum total (∑⌈d​⌉) you pay at the end of the execution.</p>
+<p>DMC (Data Movement Count): Similar to the above, but directly incorporates your desire to emphasize "counting."</p>
+<p>DMS (Data Movement Score): Gives it a benchmarking/leaderboard feel (e.g., "Strassen gets a worse DMS than Naive Matmul").</p>
+<ol>
+<li>Leaning into the Physical Metaphor (VLSI &amp; 2D Routing)</li>
+</ol>
+<p>Since your ceiling and square-root logic is explicitly motivated by "routing wire length on a 2D grid", you could draw naming inspiration from the physical reality it simulates to make the metric feel grounded.</p>
+<p>WireDMD (or WireCost): Highly evocative. "Wire" inherently implies a physical, measurable connection with a finite length, rather than an abstract mathematical distance.</p>
+<p>GridDMD: Evokes the 2D Manhattan distance grid visual you have in your documentation.</p>
+<p>RouteCost: Highlights that you are paying a concrete toll for the routing length required to fetch data to the processor.</p>
+<p>Summary Recommendations</p>
+<p>To emphasize the shift to a concrete number: Go with ExactDMD or TraceDMD. This instantly tells readers of your reports that you are doing concrete execution tracking, not asymptotic math.</p>
+<p>To keep the original rhythm but fix the "byte" issue: Go with ElementDMD. It reads exactly the same as ByteDMD, but perfectly matches the "element-level" phrasing already in your README.</p>
+<p>To make it sound like a true benchmarking metric: Data Movement Cost (DMC) is incredibly clean. You could introduce it as: "While DMD gives us the theoretical spatial penalty, we calculate the concrete Data Movement Cost (DMC) of an algorithm."</p>
+</body>
+</html>

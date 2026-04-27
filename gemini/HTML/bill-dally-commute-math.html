@@ -1,0 +1,49 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Bill Dally Commute Math</title>
+<style>
+  body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif; max-width: 800px; margin: 40px auto; padding: 0 20px; line-height: 1.6; color: #333; }
+  pre { background: #f6f8fa; padding: 16px; border-radius: 6px; overflow-x: auto; }
+  code { background: #f6f8fa; padding: 2px 6px; border-radius: 3px; font-size: 0.9em; }
+  pre code { background: none; padding: 0; }
+  table { border-collapse: collapse; width: 100%; }
+  th, td { border: 1px solid #ddd; padding: 8px 12px; text-align: left; }
+  th { background: #f6f8fa; }
+  img { max-width: 100%; }
+  blockquote { border-left: 4px solid #ddd; margin: 0; padding-left: 16px; color: #666; }
+</style>
+</head>
+<body>
+<p>Based on the provided article by Bill Dally ("On the Model of Computation") and his Stanford AHA Retreat slides, here is the mathematical re-derivation of the heuristic, the core assumptions it relies on, and the broader context of the scenario.<br />
+1. Re-Deriving the Heuristic<br />
+The heuristic "An add is worth 10µm of movement" equates the energy required to perform a basic addition to the energy required to physically move the necessary operands across the chip. The provided documents offer two ways to derive this:<br />
+Derivation A: The Per-Bit Estimate (From Slide 8)<br />
+* Cost of Arithmetic: The energy cost of an addition is approximately $1\text{ fJ/bit}$ (femtojoule per bit).<br />
+* Cost of Communication: On-chip wire movement costs approximately $100\text{ fJ/bit-mm}$.<br />
+* The Math: To find the distance ($d$) at which the communication energy equals the operation energy:<br />
+$$1\text{ fJ/bit} = 100\text{ fJ/bit-mm} \times d$$<br />
+$$d = 0.01\text{ mm} = \mathbf{10\text{ µm}}$$<br />
+Derivation B: The 32-bit Operands Estimate (From the CACM Article, Page 1)<br />
+   * Cost of Arithmetic: A single 32-bit addition operation takes $20\text{ fJ}$.<br />
+   * Cost of Communication: To feed this 2-input operation, you must move two 32-bit words (64 bits total). The article states that moving these 64 bits a distance of 1 mm takes $1.9\text{ pJ}$ ($1,900\text{ fJ}$).<br />
+   * The Math: The cost to move the operands per micrometer is $1,900\text{ fJ} / 1,000\text{ µm} = 1.9\text{ fJ/µm}$. To find the distance equivalent to the $20\text{ fJ}$ operation cost:<br />
+$$d = \frac{20\text{ fJ}}{1.9\text{ fJ/µm}} \approx 10.52\text{ µm} \approx \mathbf{10\text{ µm}}$$<br />
+2. Common Assumptions Made<br />
+To arrive at this specific heuristic, several architectural and physical assumptions are baked in:<br />
+      1. Energy is the Primary Metric: The heuristic equates "worth" with dynamic energy expenditure ($E = \frac{1}{2}CV^2$), rather than time/latency. While latency is mentioned, minimizing energy is the primary bottleneck for scaling modern compute.<br />
+      2. Domain-Specific Architectures (No CPU Overhead): The baseline cost (20 fJ) measures the raw physics of activating the logic gates. It assumes execution on bare-metal hardware or a Domain-Specific Architecture (DSA). A general-purpose CPU introduces immense overhead (instruction fetch, decode, pipeline management). As Dally notes, CPU overhead turns a 20 fJ add into an 80 pJ instruction (or a 250 pJ instruction per Slide 11), which would completely mask the physical gap between math and data movement.<br />
+      3. On-Chip Wire Capacitance: The 10µm distance applies strictly to movement across standard on-chip interconnects. Going off-chip is catastrophically more expensive. As shown on Slide 28, accessing off-chip LPDDR DRAM costs $\sim640\text{ pJ/word}$, which is tens of thousands of times more expensive than an add.<br />
+      4. Moving the Full Payload: The communication cost accounts for routing both operands required to feed the ALU.<br />
+3. More Details of the Scenario<br />
+Bill Dally uses this heuristic to highlight a fundamental crisis in computer science: our traditional models of computation evaluate algorithms incorrectly.<br />
+      * The Flaw in RAM/PRAM Models: For decades, software engineers have used models like RAM (Random-Access Memory) and PRAM (Parallel RAM) to measure asymptotic complexity (Big-O notation). These models assume that an arithmetic operation and a global memory fetch both have a uniform "unit cost" of $O(1)$. Historically, this was a fair approximation. However, as semiconductor technology advanced, the cost of logic shrank by orders of magnitude while the capacitance of wires did not. Today, fetching two 32-bit words from main memory ($1.3\text{ nJ}$) takes 64,000x more energy than the addition itself.<br />
+      * Constant Factors Matter (Store vs. Recompute): Because data movement completely dominates power consumption, constant factors now routinely override asymptotic complexity. Dally highlights neural network back-propagation:<br />
+      * Standard Big-O analysis prefers storing activation layers to off-chip memory ($O(n)$ complexity) to avoid recalculating them ($O(n^2)$ complexity).<br />
+      * However, storing values off-chip costs $640\text{ pJ}$, while recomputing them on-chip costs only $160\text{ fJ/MAC}$. For typical batch sizes (e.g., $n=256$), the $O(n^2)$ recomputation is actually 16x cheaper in energy.<br />
+      * The Proposed Solution (PECM): Dally proposes shifting to the Parallel Explicit Communication Model (PECM). Under PECM, arithmetic operations remain a unit cost, but memory operations are assigned a higher cost proportional to a physical distance function (like Manhattan distance on a 2D chip).<br />
+      * A Prescription for Engineers: To accommodate this reality, hardware and software should be co-designed to minimize movement. As Dally outlines in his slides, this means computing locally (using distributed SRAMs), utilizing smaller data types (quantizing weights to INT8, INT4, or Log numbers so they cost less to transport), and designing networks sparsely.</p>
+</body>
+</html>

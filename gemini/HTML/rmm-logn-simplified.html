@@ -1,0 +1,120 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Rmm Logn Simplified</title>
+<style>
+  body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif; max-width: 800px; margin: 40px auto; padding: 0 20px; line-height: 1.6; color: #333; }
+  pre { background: #f6f8fa; padding: 16px; border-radius: 6px; overflow-x: auto; }
+  code { background: #f6f8fa; padding: 2px 6px; border-radius: 3px; font-size: 0.9em; }
+  pre code { background: none; padding: 0; }
+  table { border-collapse: collapse; width: 100%; }
+  th, td { border: 1px solid #ddd; padding: 8px 12px; text-align: left; }
+  th { background: #f6f8fa; }
+  img { max-width: 100%; }
+  blockquote { border-left: 4px solid #ddd; margin: 0; padding-left: 16px; color: #666; }
+</style>
+</head>
+<body>
+<h1 id="rmm-simplified-the-pyramid-forklift-strategy-and-the-thetan3-log-n-bound">RMM, simplified — the Pyramid / Forklift strategy and the $\Theta(N^3 \log N)$ bound</h1>
+<p>Below is a radically simplified, clean version of the Explicit Recursive<br />
+Matrix Multiplication (RMM) code, followed by a concise walkthrough, the<br />
+Master Theorem proof, and a deep dive into where this exact<br />
+$\Theta(N^3 \log N)$ bound lives in classical computer science<br />
+literature.</p>
+<hr />
+<h2 id="1-the-simplified-code">1. The simplified code</h2>
+<p>By replacing the massive blocks of manually unrolled quadrant math with<br />
+a clean triple loop, the logic now perfectly mirrors standard<br />
+block-matrix multiplication<br />
+($C_{i,j} \mathrel{+}= A_{i,k} \times B_{k,j}$).</p>
+<div class="codehilite"><pre><span></span><code><span class="k">def</span><span class="w"> </span><span class="nf">dma_copy</span><span class="p">(</span><span class="n">alloc</span><span class="p">,</span> <span class="n">src</span><span class="p">,</span> <span class="n">src_stride</span><span class="p">,</span> <span class="n">sr</span><span class="p">,</span> <span class="n">sc</span><span class="p">,</span> <span class="n">dst</span><span class="p">,</span> <span class="n">dst_stride</span><span class="p">,</span> <span class="n">dr</span><span class="p">,</span> <span class="n">dc</span><span class="p">,</span> <span class="n">size</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Software DMA: explicitly copies a 2D block from src to dst.&quot;&quot;&quot;</span>
+    <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">size</span><span class="p">):</span>
+        <span class="k">for</span> <span class="n">j</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">size</span><span class="p">):</span>
+            <span class="n">val</span> <span class="o">=</span> <span class="n">alloc</span><span class="o">.</span><span class="n">read</span><span class="p">(</span><span class="n">src</span> <span class="o">+</span> <span class="p">(</span><span class="n">sr</span> <span class="o">+</span> <span class="n">i</span><span class="p">)</span> <span class="o">*</span> <span class="n">src_stride</span> <span class="o">+</span> <span class="p">(</span><span class="n">sc</span> <span class="o">+</span> <span class="n">j</span><span class="p">))</span>
+            <span class="n">alloc</span><span class="o">.</span><span class="n">write</span><span class="p">(</span><span class="n">dst</span> <span class="o">+</span> <span class="p">(</span><span class="n">dr</span> <span class="o">+</span> <span class="n">i</span><span class="p">)</span> <span class="o">*</span> <span class="n">dst_stride</span> <span class="o">+</span> <span class="p">(</span><span class="n">dc</span> <span class="o">+</span> <span class="n">j</span><span class="p">),</span> <span class="n">val</span><span class="p">)</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">rmm_explicit</span><span class="p">(</span><span class="n">alloc</span><span class="p">,</span> <span class="n">ptrs</span><span class="p">,</span> <span class="n">size</span><span class="p">,</span> <span class="n">pA</span><span class="p">,</span> <span class="n">pB</span><span class="p">,</span> <span class="n">pC</span><span class="p">,</span> <span class="n">stride</span><span class="p">):</span>
+    <span class="c1"># BASE CASE: math executes natively at the absolute fastest physical addresses</span>
+    <span class="k">if</span> <span class="n">size</span> <span class="o">==</span> <span class="mi">1</span><span class="p">:</span>
+        <span class="n">a</span><span class="p">,</span> <span class="n">b</span><span class="p">,</span> <span class="n">c</span> <span class="o">=</span> <span class="n">alloc</span><span class="o">.</span><span class="n">read</span><span class="p">(</span><span class="n">pA</span><span class="p">),</span> <span class="n">alloc</span><span class="o">.</span><span class="n">read</span><span class="p">(</span><span class="n">pB</span><span class="p">),</span> <span class="n">alloc</span><span class="o">.</span><span class="n">read</span><span class="p">(</span><span class="n">pC</span><span class="p">)</span>
+        <span class="n">alloc</span><span class="o">.</span><span class="n">write</span><span class="p">(</span><span class="n">pC</span><span class="p">,</span> <span class="n">c</span> <span class="o">+</span> <span class="n">a</span> <span class="o">*</span> <span class="n">b</span><span class="p">)</span>
+        <span class="k">return</span>
+
+    <span class="n">H</span> <span class="o">=</span> <span class="n">size</span> <span class="o">//</span> <span class="mi">2</span>
+    <span class="n">sA</span><span class="p">,</span> <span class="n">sB</span><span class="p">,</span> <span class="n">sC</span> <span class="o">=</span> <span class="n">ptrs</span><span class="p">[</span><span class="n">H</span><span class="p">][</span><span class="s1">&#39;A&#39;</span><span class="p">],</span> <span class="n">ptrs</span><span class="p">[</span><span class="n">H</span><span class="p">][</span><span class="s1">&#39;B&#39;</span><span class="p">],</span> <span class="n">ptrs</span><span class="p">[</span><span class="n">H</span><span class="p">][</span><span class="s1">&#39;C&#39;</span><span class="p">]</span>  <span class="c1"># &#39;s&#39; = fast scratchpad</span>
+
+    <span class="c1"># Triple loop mapping directly onto the four quadrants of the matrices</span>
+    <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="n">H</span><span class="p">):</span>
+        <span class="k">for</span> <span class="n">j</span> <span class="ow">in</span> <span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="n">H</span><span class="p">):</span>
+            <span class="c1"># 1. DMA-load the C quadrant from the slow parent down to the fast child</span>
+            <span class="n">dma_copy</span><span class="p">(</span><span class="n">alloc</span><span class="p">,</span> <span class="n">pC</span><span class="p">,</span> <span class="n">stride</span><span class="p">,</span> <span class="n">i</span><span class="p">,</span> <span class="n">j</span><span class="p">,</span> <span class="n">sC</span><span class="p">,</span> <span class="n">H</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="n">H</span><span class="p">)</span>
+
+            <span class="k">for</span> <span class="n">k</span> <span class="ow">in</span> <span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="n">H</span><span class="p">):</span>
+                <span class="c1"># 2. DMA-load A and B quadrants down to the fast child</span>
+                <span class="n">dma_copy</span><span class="p">(</span><span class="n">alloc</span><span class="p">,</span> <span class="n">pA</span><span class="p">,</span> <span class="n">stride</span><span class="p">,</span> <span class="n">i</span><span class="p">,</span> <span class="n">k</span><span class="p">,</span> <span class="n">sA</span><span class="p">,</span> <span class="n">H</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="n">H</span><span class="p">)</span>
+                <span class="n">dma_copy</span><span class="p">(</span><span class="n">alloc</span><span class="p">,</span> <span class="n">pB</span><span class="p">,</span> <span class="n">stride</span><span class="p">,</span> <span class="n">k</span><span class="p">,</span> <span class="n">j</span><span class="p">,</span> <span class="n">sB</span><span class="p">,</span> <span class="n">H</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="n">H</span><span class="p">)</span>
+
+                <span class="c1"># 3. Recurse entirely inside the fast child memory</span>
+                <span class="n">rmm_explicit</span><span class="p">(</span><span class="n">alloc</span><span class="p">,</span> <span class="n">ptrs</span><span class="p">,</span> <span class="n">H</span><span class="p">,</span> <span class="n">sA</span><span class="p">,</span> <span class="n">sB</span><span class="p">,</span> <span class="n">sC</span><span class="p">,</span> <span class="n">H</span><span class="p">)</span>
+
+            <span class="c1"># 4. DMA-store the finished C quadrant back up to the slow parent</span>
+            <span class="n">dma_copy</span><span class="p">(</span><span class="n">alloc</span><span class="p">,</span> <span class="n">sC</span><span class="p">,</span> <span class="n">H</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="n">pC</span><span class="p">,</span> <span class="n">stride</span><span class="p">,</span> <span class="n">i</span><span class="p">,</span> <span class="n">j</span><span class="p">,</span> <span class="n">H</span><span class="p">)</span>
+</code></pre></div>
+
+<hr />
+<h2 id="2-walkthrough-the-pyramid-and-the-forklift">2. Walkthrough: the Pyramid and the Forklift</h2>
+<p>If you run standard recursive matrix multiplication on a stationary<br />
+$N \times N$ matrix, the tiny $1 \times 1$ base cases at the bottom of<br />
+the tree are forced to fetch numbers from physical addresses as deep as<br />
+$N^2$. That triggers massive continuous-distance penalties, degrading<br />
+performance to a catastrophic $\mathcal{O}(N^4)$.</p>
+<p>The code above fixes this with a <strong>Pyramid-and-Forklift</strong> strategy:</p>
+<ul>
+<li><strong>The Pyramid</strong> (<code>allocate_hierarchy</code>). It permanently reserves the<br />
+  absolute lowest, fastest physical addresses <em>exclusively</em> for the<br />
+  $1 \times 1$ base cases. Behind those sit the $2 \times 2$ scratchpads,<br />
+  then $4 \times 4$, and so on. The massive input matrices sit at the<br />
+  very end of memory.</li>
+<li><strong>The Forklift</strong> (<code>dma_copy</code>). Before the CPU works on a sub-problem, a<br />
+  software DMA controller physically hauls the required $A$, $B$, and<br />
+  $C$ sub-matrices down from the slower parent memory into the faster<br />
+  child memory.</li>
+<li><strong>Speed of light.</strong> By the time the recursion bottoms out, the<br />
+  required data has been actively relayed all the way down to addresses<br />
+  1, 2, and 3. The actual computational math happens at speed-of-light<br />
+  cost.</li>
+</ul>
+<hr />
+<h2 id="3-the-master-theorem-why-is-it-exactly-thetan3-log-n">3. The Master Theorem: why is it exactly $\Theta(N^3 \log N)$?</h2>
+<p>To understand the bound, evaluate the "overhead" of the DMA forklift at<br />
+a recursion level of size $K$.</p>
+<ul>
+<li><strong>Volume.</strong> The forklift copies sub-matrices of size<br />
+  $\tfrac{K}{2} \times \tfrac{K}{2}$, touching $\Theta(K^2)$ elements.</li>
+<li><strong>Distance penalty.</strong> Because of the pyramid layout, the parent data<br />
+  lives at an address depth proportional to $K^2$. Under the physical<br />
+  model that penalizes reads by $\sqrt{\text{address}}$, the distance<br />
+  penalty is $\sqrt{K^2} = \Theta(K)$.</li>
+<li><strong>Total transfer cost.</strong><br />
+  $\text{Volume} \times \text{Distance penalty} = K^2 \times K = \Theta(K^3)$.</li>
+</ul>
+<p>This gives the classic divide-and-conquer recurrence</p>
+<p>$$<br />
+T(K) = 8\, T(K/2) + \Theta(K^3).<br />
+$$</p>
+<p><strong>The mathematical resonance.</strong> The algorithm splits into 8 branches.<br />
+The volume of the matrix shrinks by a factor of $(2)^3 = 8$. Because the<br />
+branching factor <strong>perfectly matches</strong> the shrinkage, the algorithm sits<br />
+in perfect resonance — every single layer of the recursion tree does the<br />
+exact same amount of data-movement work, $\Theta(N^3)$.</p>
+<p>Because a tree halved at each step has exactly $\log_2 N$ layers,<br />
+multiplying work-per-layer by depth yields the inescapable grand total</p>
+<p>$$<br />
+T(N) = \Theta(N^3 \log N).<br />
+$$</p>
+</body>
+</html>

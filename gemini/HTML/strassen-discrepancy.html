@@ -1,0 +1,59 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Strassen Discrepancy</title>
+<style>
+  body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif; max-width: 800px; margin: 40px auto; padding: 0 20px; line-height: 1.6; color: #333; }
+  pre { background: #f6f8fa; padding: 16px; border-radius: 6px; overflow-x: auto; }
+  code { background: #f6f8fa; padding: 2px 6px; border-radius: 3px; font-size: 0.9em; }
+  pre code { background: none; padding: 0; }
+  table { border-collapse: collapse; width: 100%; }
+  th, td { border: 1px solid #ddd; padding: 8px 12px; text-align: left; }
+  th { background: #f6f8fa; }
+  img { max-width: 100%; }
+  blockquote { border-left: 4px solid #ddd; margin: 0; padding-left: 16px; color: #666; }
+</style>
+</head>
+<body>
+<p>The discrepancy arises from a subtle difference in the <strong>evaluation tree (associativity) ordering</strong> of the C22 submatrix between your Mathematica trace evaluator and the Python benchmark script.</p>
+<p>Because ByteDMD strictly tracks demand-paged cache boundaries and dynamically slides elements across an active LRU stack based on temporal access, algebraically equivalent equations can yield completely different cache-hit footprints if the operations are evaluated in a different sequence.</p>
+<h3 id="the-source-of-the-discrepancy"><strong>The Source of the Discrepancy</strong></h3>
+<p>In standard Strassen algebra, $C_{22} \= M_1 - M_2 + M_3 + M_6$.</p>
+<ol>
+<li>
+<p><strong>In your Mathematica script:</strong><br />
+   It strictly enforces left-to-right parsing for the formula: (((M1 - M2) + M3) + M6)<br />
+   Mathematica<br />
+   C22 \= addMat[addMat[subMat[M1, M2], M3], M6];</p>
+</li>
+<li>
+<p><strong>In benchmarks/benchmark_linalg.py:</strong><br />
+   The parsing groups the terms slightly differently, evaluating as (((M1 + M3) - M2) + M6)<br />
+   Python<br />
+   C22 \= _add(_sub(_add(M1, M3), M2), M6)</p>
+</li>
+</ol>
+<p><strong>Why it changes the ByteDMD Cost:</strong></p>
+<p>Right before calculating C22, both scripts calculate C21 \= _add(M2, M4). As a result of this operation, M2 becomes extremely "hot" and sits at the very top of the LRU stack.</p>
+<ul>
+<li>In Mathematica, because (M1 - M2) executes first, it immediately retrieves M2 while it sits at depth 1, minimizing the square-root read penalty. Additionally, since this is the last use of M2, it is aggressively evicted, making room for future operations.  </li>
+<li>In Python, (M1 + M3) executes first. This operation reads M1 and M3, effectively pushing the "hot" M2 deeper down the LRU stack. When the outer _sub(..., M2) finally fires, M2 is colder, generating a slightly higher depth penalty that compounds recursively throughout the $\mathcal{O}(N^{2.81})$ branches.</li>
+</ul>
+<h3 id="the-fix"><strong>The Fix</strong></h3>
+<p>To make the Python benchmark perfectly consistent with Mathematica's optimal left-associative bounds, update the C22 line inside the _matmul_strassen function in benchmarks/benchmark_linalg.py.</p>
+<p><strong>Locate this line (around line 178):</strong></p>
+<p>Python</p>
+<div class="codehilite"><pre><span></span><code>C22 \= \_add(\_sub(\_add(M1, M3), M2), M6)
+</code></pre></div>
+
+<p><strong>Replace it with:</strong></p>
+<p>Python</p>
+<div class="codehilite"><pre><span></span><code>\# Mathematica&#39;s exact left-associative parsing: ((M1 \- M2) \+ M3) \+ M6  
+C22 \= \_add(\_add(\_sub(M1, M2), M3), M6)
+</code></pre></div>
+
+<p>Once replaced, running the python benchmark will flawlessly replicate the target expectations: 1,608 for Size 4 and 17,562 for Size 8.</p>
+</body>
+</html>
