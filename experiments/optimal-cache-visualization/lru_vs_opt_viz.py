@@ -107,21 +107,40 @@ def extract_positions(results: list[tuple]) -> dict[str, list[float]]:
 
 
 # ── step-function path builder ────────────────────────────────────────────────
-def build_step_path(ys: list[float]) -> tuple[list[float], list[float]]:
-    """Convert per-tick y-values into a step-function (x, y) path.
+DELTA = 0.20   # half-width of diagonal transition (fraction of one time unit)
 
-    Produces a horizontal band for each tick (x in [t, t+0.82]), with a
-    vertical jump at the tick boundary when y changes.
+def build_step_path(ys: list[float]) -> tuple[list[float], list[float]]:
+    """Convert per-tick y-values into a path with diagonal transitions.
+
+    Each tick t is rendered as a horizontal band over [t+DELTA, (t+1)-DELTA].
+    When y changes between consecutive ticks, a diagonal segment connects the
+    band endpoints, spanning [(t+1)-DELTA, (t+1)+DELTA] centered on the tick
+    boundary.  Multiple simultaneous transitions therefore produce distinct
+    crossing diagonals rather than coincident verticals.
     """
+    T = len(ys)
     px: list[float] = []
     py: list[float] = []
-    for t, y in enumerate(ys):
-        if px:
-            # Close horizontal gap to this tick, then jump to new y
-            px.append(float(t))
-            py.append(py[-1])
-        px += [float(t), t + 0.82]
-        py += [y, y]
+
+    for t in range(T):
+        y = ys[t]
+
+        if t == 0:
+            # First tick: no preceding diagonal; start flush at x=0
+            px.append(0.0)
+            py.append(y)
+        # else: path already ends at (t+DELTA, y) from the previous diagonal
+
+        # End of horizontal band for tick t
+        x_end = ((t + 1) - DELTA) if t < T - 1 else (t + 0.82)
+        px.append(x_end)
+        py.append(y)
+
+        # Diagonal to the next tick's y-value (skip for the last tick)
+        if t < T - 1:
+            px.append((t + 1) + DELTA)
+            py.append(ys[t + 1])
+
     return px, py
 
 
@@ -184,10 +203,10 @@ def draw_panel(
         if seg_x:
             _draw_segs(seg_x, seg_y_, cur_in)
 
-        # Hit / miss markers at center of each accessed tick
+        # Hit / miss markers at centre of each accessed tick's horizontal band
         for t, (_, hit, _) in enumerate(results):
             if REFS[t] == v:
-                xm = t + 0.41
+                xm = t + 0.5
                 ym = ys[t]
                 if hit:
                     ax.plot(xm, ym, "o", ms=8, color=color,
