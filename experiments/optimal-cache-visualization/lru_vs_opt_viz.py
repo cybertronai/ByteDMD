@@ -1,16 +1,17 @@
 #!/usr/bin/env python3
 """
-LRU vs Belady OPT cache eviction stack visualization.
+LRU vs MRU vs Belady OPT cache eviction stack visualization.
 
-Classic "LRU killer" example: reference string A B C D repeated 3 times,
-cache size 3.  LRU evicts the least-recently-used item and thrashes
-(12/12 misses).  Belady's OPT evicts the item with the furthest next use
-and achieves 6 hits.
+Classic "LRU killer" trace: A B C D repeated 3 times, cache size 3.
 
-Each colored line traces one variable's slot position over time.
-Slot 0 (bottom) = safest (MRU for LRU / soonest-next-use for OPT).
-Slot 2 (top of cache) = eviction target.
-Items above the dashed boundary have been evicted.
+  LRU: 0/12 hits  — thrashes on every access of the length-4 cycle
+  MRU: 6/12 hits  — matches OPT (on pure cyclic traces, MRU item = furthest next use)
+  OPT: 6/12 hits  — theoretical optimum (Belady's furthest-next-use rule)
+
+Each colored line traces one variable's cache slot across time steps.
+Slot 0 (bottom) = safest under that policy; Slot k-1 = eviction target.
+Lines connect per-tick centers with straight segments (diagonal when the
+slot changes, horizontal when it stays).  Solid = in cache; dashed = evicted.
 
 Usage:
     uv run lru_vs_opt_viz.py
@@ -46,7 +47,9 @@ OUT_DIR    = Path(__file__).parent
 
 # ── LRU simulator ─────────────────────────────────────────────────────────────
 def simulate_lru(refs: list[str], k: int) -> list[tuple]:
-    """Return (cache_ordered_MRU_first, hit, evicted) per step."""
+    """LRU: evict least recently used.
+    Returns (cache ordered MRU-first, hit, evicted) per step.
+    Slot 0 = MRU (safest for LRU); Slot k-1 = LRU (eviction target)."""
     cache: list[str] = []
     out = []
     for ref in refs:
@@ -61,15 +64,35 @@ def simulate_lru(refs: list[str], k: int) -> list[tuple]:
     return out
 
 
+# ── MRU simulator ─────────────────────────────────────────────────────────────
+def simulate_mru(refs: list[str], k: int) -> list[tuple]:
+    """MRU: evict most recently used.
+    Returns (cache ordered LRU-first, hit, evicted) per step.
+    Slot 0 = LRU (safest for MRU); Slot k-1 = MRU (eviction target)."""
+    cache: list[str] = []
+    out = []
+    for ref in refs:
+        hit = ref in cache
+        evicted = None
+        if hit:
+            cache.remove(ref)
+        elif len(cache) == k:
+            evicted = cache.pop()          # evict MRU (tail)
+        cache.append(ref)                  # insert as MRU (tail)
+        out.append((list(cache), hit, evicted))
+    return out
+
+
 # ── Belady OPT simulator ──────────────────────────────────────────────────────
 def simulate_opt(refs: list[str], k: int) -> list[tuple]:
-    """Return (cache_ordered_soonest_first, hit, evicted) per step."""
+    """OPT: evict item with furthest next use (Belady's algorithm).
+    Returns (cache ordered soonest-first, hit, evicted) per step.
+    Slot 0 = soonest next use (safest); Slot k-1 = furthest (eviction target)."""
     n = len(refs)
-    cache: dict[str, float] = {}          # var → next-use index
+    cache: dict[str, float] = {}
 
     out = []
     for i, ref in enumerate(refs):
-        # Next-use index for each variable from position i+1 onward
         future: dict[str, float] = {}
         for j in range(i + 1, n):
             if refs[j] not in future:
@@ -81,13 +104,11 @@ def simulate_opt(refs: list[str], k: int) -> list[tuple]:
             cache[ref] = future.get(ref, math.inf)
         else:
             if len(cache) == k:
-                # Evict item with furthest next use (tie-break: alphabetical)
                 victim = max(cache, key=lambda v: (cache[v], v))
                 del cache[victim]
                 evicted = victim
             cache[ref] = future.get(ref, math.inf)
 
-        # Order ascending by next-use (soonest first = safest = slot 0)
         ordered = sorted(cache, key=lambda v: (cache[v], v))
         out.append((ordered, hit, evicted))
     return out
@@ -95,7 +116,8 @@ def simulate_opt(refs: list[str], k: int) -> list[tuple]:
 
 # ── position extractor ────────────────────────────────────────────────────────
 def extract_positions(results: list[tuple]) -> dict[str, list[float]]:
-    """y-position for each variable at each time step (after the access)."""
+    """y-position for each variable at each time step (after the access).
+    Index in the cache's ordered list maps directly to slot number."""
     pos: dict[str, list[float]] = {v: [] for v in VARS}
     for cache_ordered, *_ in results:
         for v in VARS:
@@ -106,44 +128,6 @@ def extract_positions(results: list[tuple]) -> dict[str, list[float]]:
     return pos
 
 
-# ── step-function path builder ────────────────────────────────────────────────
-DELTA = 0.20   # half-width of diagonal transition (fraction of one time unit)
-
-def build_step_path(ys: list[float]) -> tuple[list[float], list[float]]:
-    """Convert per-tick y-values into a path with diagonal transitions.
-
-    Each tick t is rendered as a horizontal band over [t+DELTA, (t+1)-DELTA].
-    When y changes between consecutive ticks, a diagonal segment connects the
-    band endpoints, spanning [(t+1)-DELTA, (t+1)+DELTA] centered on the tick
-    boundary.  Multiple simultaneous transitions therefore produce distinct
-    crossing diagonals rather than coincident verticals.
-    """
-    T = len(ys)
-    px: list[float] = []
-    py: list[float] = []
-
-    for t in range(T):
-        y = ys[t]
-
-        if t == 0:
-            # First tick: no preceding diagonal; start flush at x=0
-            px.append(0.0)
-            py.append(y)
-        # else: path already ends at (t+DELTA, y) from the previous diagonal
-
-        # End of horizontal band for tick t
-        x_end = ((t + 1) - DELTA) if t < T - 1 else (t + 0.82)
-        px.append(x_end)
-        py.append(y)
-
-        # Diagonal to the next tick's y-value (skip for the last tick)
-        if t < T - 1:
-            px.append((t + 1) + DELTA)
-            py.append(ys[t + 1])
-
-    return px, py
-
-
 # ── draw one panel ─────────────────────────────────────────────────────────────
 def draw_panel(
     ax: matplotlib.axes.Axes,
@@ -151,6 +135,7 @@ def draw_panel(
     pos: dict[str, list[float]],
     policy_name: str,
     policy_note: str,
+    show_yticks: bool = False,
 ) -> None:
     T      = len(REFS)
     bnd    = CACHE_SIZE - 0.5      # cache-boundary y
@@ -158,70 +143,70 @@ def draw_panel(
     # Evicted zone shading + boundary line
     ax.axhspan(bnd, EVICT_Y + 0.38, color="#aaaaaa", alpha=0.10, zorder=0)
     ax.axhline(bnd, color="#444444", lw=1.2, ls="--", zorder=2, alpha=0.75)
-    ax.text(T - 0.12, bnd + 0.07, "eviction boundary",
+    ax.text(T - 1.0, bnd + 0.07, "eviction boundary",
             ha="right", va="bottom", fontsize=7.5, color="#555555")
 
     # Slot ordering note (bottom-left inside plot)
     ax.text(0.01, 0.01, policy_note, transform=ax.transAxes,
             fontsize=7.5, color="#444", va="bottom", style="italic")
 
+    xs = list(range(T))  # one integer x-coordinate per tick
+
     for v in VARS:
         color = COLORS[v]
         ys    = pos[v]
-        px, py = build_step_path(ys)
 
-        # Draw line in two passes: solid (in-cache) and dashed (evicted)
-        # Split px/py into segments that are entirely one or the other
-        def _draw_segs(xs, ys_seg, in_cache: bool) -> None:
+        # Draw piecewise-linear path, split into solid (in-cache) and dashed
+        # (evicted) segments.  A transition between states draws the connecting
+        # diagonal in the destination style.
+        def _draw(sx: list[float], sy: list[float], in_cache: bool) -> None:
+            if len(sx) < 2:
+                return
             ls  = "-"   if in_cache else "--"
-            lw  = 2.3   if in_cache else 1.3
+            lw  = 2.2   if in_cache else 1.3
             alp = 1.0   if in_cache else 0.45
-            ax.plot(xs, ys_seg, color=color, ls=ls, lw=lw, alpha=alp,
+            ax.plot(sx, sy, color=color, ls=ls, lw=lw, alpha=alp,
                     solid_capstyle="round", zorder=3)
 
         seg_x: list[float] = []
-        seg_y_: list[float] = []
+        seg_y: list[float] = []
         cur_in: bool | None = None
         prev_x: float | None = None
-        prev_y_: float | None = None
+        prev_y: float | None = None
 
-        for xi, yi in zip(px, py):
+        for xi, yi in zip(xs, ys):
             in_c = yi < CACHE_SIZE
             if cur_in is None:
                 cur_in = in_c
             if in_c != cur_in:
-                # Transition: flush current segment, start new with overlap
-                _draw_segs(seg_x, seg_y_, cur_in)
+                _draw(seg_x, seg_y, cur_in)
+                # Carry last point into new segment so the diagonal is drawn
                 seg_x  = [prev_x, xi] if prev_x is not None else [xi]
-                seg_y_ = [prev_y_, yi] if prev_y_ is not None else [yi]
+                seg_y  = [prev_y, yi] if prev_y is not None else [yi]
                 cur_in = in_c
             else:
                 seg_x.append(xi)
-                seg_y_.append(yi)
-            prev_x = xi
-            prev_y_ = yi
-        if seg_x:
-            _draw_segs(seg_x, seg_y_, cur_in)
+                seg_y.append(yi)
+            prev_x, prev_y = xi, yi
+        _draw(seg_x, seg_y, cur_in)
 
-        # Hit / miss markers at centre of each accessed tick's horizontal band
+        # Hit / miss markers at each tick center where this variable is accessed
         for t, (_, hit, _) in enumerate(results):
             if REFS[t] == v:
-                xm = t + 0.5
-                ym = ys[t]
                 if hit:
-                    ax.plot(xm, ym, "o", ms=8, color=color,
+                    ax.plot(t, ys[t], "o", ms=8, color=color,
                             mec="white", mew=1.2, zorder=6)
                 else:
-                    ax.plot(xm, ym, "x", ms=10, color=color,
+                    ax.plot(t, ys[t], "x", ms=10, color=color,
                             mew=2.4, zorder=6)
 
-    # Axis labels and ticks
+    # Axis cosmetics
     hits   = sum(h for _, h, _ in results)
     misses = T - hits
     ax.set_title(
         f"{policy_name}\n{hits} hit{'s' if hits != 1 else ''},  "
         f"{misses} miss{'es' if misses != 1 else ''}",
-        fontsize=12, fontweight="bold", pad=9,
+        fontsize=11.5, fontweight="bold", pad=9,
     )
 
     yticks = list(range(CACHE_SIZE)) + [EVICT_Y]
@@ -232,12 +217,15 @@ def draw_panel(
         + ["Evicted"]
     )
     ax.set_yticks(yticks)
-    ax.set_yticklabels(ylabs, fontsize=8.5)
+    if show_yticks:
+        ax.set_yticklabels(ylabs, fontsize=8.5)
+    else:
+        ax.set_yticklabels([])
     ax.set_ylim(-0.6, EVICT_Y + 0.42)
 
     ax.set_xticks(range(T))
     ax.set_xticklabels([f"t={t}\n{REFS[t]}" for t in range(T)], fontsize=7.8)
-    ax.set_xlim(-0.3, T - 0.18)
+    ax.set_xlim(-0.5, T - 0.5)
 
     ax.grid(axis="x", alpha=0.25, zorder=0)
 
@@ -245,26 +233,34 @@ def draw_panel(
 # ── main ──────────────────────────────────────────────────────────────────────
 def main() -> None:
     lru_res = simulate_lru(REFS, CACHE_SIZE)
+    mru_res = simulate_mru(REFS, CACHE_SIZE)
     opt_res = simulate_opt(REFS, CACHE_SIZE)
     lru_pos = extract_positions(lru_res)
+    mru_pos = extract_positions(mru_res)
     opt_pos = extract_positions(opt_res)
 
-    fig, (ax_l, ax_r) = plt.subplots(1, 2, figsize=(15, 6.6), sharey=True)
+    fig, (ax_l, ax_m, ax_r) = plt.subplots(
+        1, 3, figsize=(21, 6.6), sharey=True
+    )
     fig.subplots_adjust(wspace=0.06)
 
     draw_panel(ax_l, lru_res, lru_pos,
                "LRU  (Least Recently Used)",
-               "slot 0 = most recently used")
+               "slot 0 = most recently used",
+               show_yticks=True)
+    draw_panel(ax_m, mru_res, mru_pos,
+               "MRU  (Most Recently Used)",
+               "slot 0 = least recently used")
     draw_panel(ax_r, opt_res, opt_pos,
                "Belady OPT  (Furthest Next Use)",
                "slot 0 = soonest next use")
-    ax_r.set_yticklabels([])          # shared y-axis; hide duplicate labels
 
     fig.text(0.025, 0.5, "Cache slot position", va="center",
              rotation="vertical", fontsize=10)
 
     fig.suptitle(
-        f"LRU vs Belady OPT — reference string  A·B·C·D × 3,  cache size {CACHE_SIZE}",
+        f"LRU vs MRU vs Belady OPT — reference string  A·B·C·D × 3,"
+        f"  cache size {CACHE_SIZE}",
         fontsize=13, fontweight="bold", y=1.04,
     )
 
@@ -285,11 +281,11 @@ def main() -> None:
 
     caption = (
         "Reference string  A B C D · A B C D · A B C D  (length 12, cache size 3). "
-        "LRU never retains the next needed item on this length-4 cycle — every access "
-        "misses (12/12). "
-        "Belady's OPT knows future accesses and always evicts the item with the furthest "
-        "next use, achieving 6/12 hits. "
-        "Lines trace each variable's cache slot over time. "
+        "LRU evicts the least-recently-used item and thrashes on this length-4 cycle (0/12 hits). "
+        "MRU evicts the most-recently-used item — counterintuitively, this achieves "
+        "the same 6/12 hits as Belady's OPT. "
+        "On a pure cyclic trace the MRU item is always the one with the furthest next use, "
+        "so MRU and OPT make identical eviction decisions (the two right panels are the same). "
         "Solid lines = in cache; dashed = evicted. "
         "Dashed horizontal = cache boundary."
     )
