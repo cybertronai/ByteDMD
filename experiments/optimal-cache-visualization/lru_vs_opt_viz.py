@@ -2,11 +2,11 @@
 """
 LRU vs MRU vs Belady OPT cache eviction stack visualization.
 
-Classic "LRU killer" trace: A B C D repeated 3 times, cache size 3.
+Mixed-reuse trace: A B C A D A B C D  (length 9, cache size 3).
 
-  LRU: 0/12 hits  — thrashes on every access of the length-4 cycle
-  MRU: 6/12 hits  — matches OPT (on pure cyclic traces, MRU item = furthest next use)
-  OPT: 6/12 hits  — theoretical optimum (Belady's furthest-next-use rule)
+  LRU: 2/9 hits  — evicts B at t=4 (LRU item), missing B again at t=6
+  MRU: 3/9 hits  — keeps B and C by evicting A right after each use
+  OPT: 4/9 hits  — at t=4 keeps B (next use t=6) over C (next use t=7)
 
 Each colored line traces one variable's cache slot across time steps.
 Slot 0 (bottom) = safest under that policy; Slot k-1 = eviction target.
@@ -37,7 +37,7 @@ matplotlib.rcParams.update(
 )
 
 # ── parameters ────────────────────────────────────────────────────────────────
-REFS       = list("ABCDABCDABCD")
+REFS       = list("ABCADABCD")
 CACHE_SIZE = 3
 VARS       = ["A", "B", "C", "D"]
 COLORS     = {"A": "#1f77b4", "B": "#e07b0d", "C": "#2ca02c", "D": "#c9392b"}
@@ -240,7 +240,7 @@ def main() -> None:
     opt_pos = extract_positions(opt_res)
 
     fig, (ax_l, ax_m, ax_r) = plt.subplots(
-        1, 3, figsize=(21, 6.6), sharey=True
+        1, 3, figsize=(19, 6.6), sharey=True
     )
     fig.subplots_adjust(wspace=0.06)
 
@@ -259,7 +259,7 @@ def main() -> None:
              rotation="vertical", fontsize=10)
 
     fig.suptitle(
-        f"LRU vs MRU vs Belady OPT — reference string  A·B·C·D × 3,"
+        f"LRU vs MRU vs Belady OPT — reference string  A·B·C·A·D·A·B·C·D,"
         f"  cache size {CACHE_SIZE}",
         fontsize=13, fontweight="bold", y=1.04,
     )
@@ -280,13 +280,14 @@ def main() -> None:
                fontsize=9, framealpha=0.92, bbox_to_anchor=(0.5, 1.02))
 
     caption = (
-        "Reference string  A B C D · A B C D · A B C D  (length 12, cache size 3). "
-        "LRU evicts the least-recently-used item and thrashes on this length-4 cycle (0/12 hits). "
-        "MRU evicts the most-recently-used item — counterintuitively, this achieves "
-        "the same 6/12 hits as Belady's OPT. "
-        "On a pure cyclic trace the MRU item is always the one with the furthest next use, "
-        "so MRU and OPT make identical eviction decisions (the two right panels are the same). "
-        "Solid lines = in cache; dashed = evicted. "
+        "Reference string  A B C A D A B C D  (length 9, cache size 3). "
+        "The key decision comes at t=4 (D arrives, cache full with A, B, C): "
+        "LRU evicts B (least recently used, but needed again at t=6), getting only 2/9 hits. "
+        "MRU evicts A (most recently used at t=3), missing A at t=5, but keeps B and C "
+        "for hits at t=6–7 — 3/9 hits. "
+        "OPT evicts C (furthest next use: t=7) over B (t=6) and A (t=5), "
+        "achieving 4/9 hits — the theoretical best. "
+        "Solid lines = in cache; dashed = evicted.  "
         "Dashed horizontal = cache boundary."
     )
     fig.text(0.5, -0.025, caption, ha="center", va="top",

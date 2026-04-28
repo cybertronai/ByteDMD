@@ -1,29 +1,32 @@
 # optimal-cache-visualization
 
 Side-by-side visualization of LRU, MRU, and Belady OPT cache eviction on a
-classic "LRU killer" reference string.
+mixed-reuse reference string that separates all three policies.
 
 ## What it shows
 
-Reference string **A B C D × 3** (length 12), cache size 3.
+Reference string **A B C A D A B C D** (length 9, cache size 3).
 
-| Policy | Hits | Misses |
-|---|---|---|
-| LRU (Least Recently Used) | 0 | 12 |
-| MRU (Most Recently Used) | 6 | 6 |
-| Belady OPT (Furthest Next Use) | 6 | 6 |
+| Policy | Hits | Misses | Why |
+|---|---|---|---|
+| LRU (Least Recently Used) | 2 | 7 | At t=4 evicts B (LRU item), missing it again at t=6 |
+| MRU (Most Recently Used) | 3 | 6 | At t=4 evicts A (MRU item); keeps B and C for hits at t=6–7 |
+| Belady OPT (Furthest Next Use) | 4 | 5 | At t=4 evicts C (next use t=7 > B's t=6 > A's t=5) |
 
-LRU evicts the least-recently-used item. On a cyclic pattern of length
-`k+1` over a cache of size `k`, it thrashes — the next item is always the
-one it just evicted.
+### The key decision: t=4 (D miss, cache full with {A, B, C})
 
-MRU evicts the most-recently-used item. Counterintuitively, on a pure cyclic
-trace MRU matches Belady's OPT exactly: the most recently used item is always
-the one with the furthest next use in the cycle, so MRU and OPT make identical
-eviction decisions (the two right panels are visually the same).
+- **LRU** evicts **B** — B was loaded at t=1 and not used since, so it sits at the LRU
+  position. But B is needed again at t=6, so evicting it now forces an extra miss.
+- **MRU** evicts **A** — A was just used at t=3, making it the MRU item. But A is needed
+  again at t=5, so evicting it costs a miss there. However, MRU keeps B and C (both
+  accessed at t=1 and t=2, "old" by MRU's ordering), which pay off with hits at t=6 and t=7.
+- **OPT** evicts **C** — C's next use is t=7, further than B's t=6 and A's t=5. By keeping
+  the two soonest-needed items (A and B) and discarding the furthest one (C), OPT adds
+  hits at t=5 (A) and t=6 (B) while only paying one extra miss when C is needed at t=7.
 
-Belady's OPT knows future accesses and evicts the item with the furthest
-next use. It is the theoretical lower bound on misses.
+This trace uses a mix of short reuse (A: gap of 2), medium reuse (B, C, D: gap of 5),
+and a single "hot" item (A appears 3×). That mixture prevents MRU from matching OPT
+(as it would on a pure cyclic trace) and gives each policy a distinct eviction sequence.
 
 ## Visualization
 
