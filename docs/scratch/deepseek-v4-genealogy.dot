@@ -1,0 +1,187 @@
+// DeepSeek-V4 Attention Genealogy
+//   solid edges  = direct ancestry
+//   dashed edges = close cousin / partial influence
+//   dotted edges = systems enabler / implementation pressure
+digraph deepseek_v4_genealogy {
+  rankdir=LR;
+  splines=spline;
+  ranksep=0.55;
+  nodesep=0.25;
+  newrank=true;
+  graph [fontname="Helvetica", fontsize=10, bgcolor="white"];
+  node  [fontname="Helvetica", fontsize=9, shape=box,
+         style="rounded,filled", margin="0.12,0.06"];
+  edge  [fontname="Helvetica", fontsize=8, color="#555555", penwidth=1.0];
+
+  // ---------- Timeline anchors (rank=same to align by year) ----------
+  { node [shape=plaintext, style="", fillcolor="white",
+          fontname="Helvetica-Bold", fontsize=11];
+    y2014 [label="2014"];
+    y2015 [label="2015"];
+    y2017 [label="2017"];
+    y2019 [label="2019"];
+    y2020 [label="2020"];
+    y2021 [label="2021"];
+    y2022 [label="2022"];
+    y2023 [label="2023"];
+    y2024 [label="2024"];
+    y2026 [label="2026"];
+  }
+  y2014 -> y2015 -> y2017 -> y2019 -> y2020 -> y2021 ->
+    y2022 -> y2023 -> y2024 -> y2026 [style=invis, weight=100];
+
+  // ---------- Lane: pre-Transformer ----------
+  subgraph cluster_pre {
+    label="Pre-Transformer attention"; style="rounded,filled";
+    color="#e1bee7"; fillcolor="#f3e5f5";
+    N1 [label="Bahdanau attention\n(2014)",       fillcolor="#e1bee7"];
+    N2 [label="Luong / dot-product\n(2015)",      fillcolor="#e1bee7"];
+  }
+
+  // ---------- Lane: core Transformer trunk ----------
+  subgraph cluster_trunk {
+    label="Core Transformer trunk"; style="rounded,filled";
+    color="#90caf9"; fillcolor="#e3f2fd";
+    N3 [label="Transformer / MHSA\n(2017)",       fillcolor="#90caf9", penwidth=2];
+    N4 [label="Transformer-XL\n(2019)",            fillcolor="#bbdefb"];
+    N5 [label="RoPE / RoFormer\n(2021)",           fillcolor="#bbdefb"];
+    N6 [label="ALiBi\n(2021)",                     fillcolor="#bbdefb"];
+  }
+
+  // ---------- Lane: long-context sparsity ----------
+  subgraph cluster_sparse {
+    label="Long-context sparsity"; style="rounded,filled";
+    color="#a5d6a7"; fillcolor="#e8f5e9";
+    N7  [label="Sparse Transformer\n(2019)",       fillcolor="#a5d6a7"];
+    N8  [label="Longformer\n(2020)",               fillcolor="#a5d6a7"];
+    N9  [label="BigBird\n(2020)",                  fillcolor="#a5d6a7"];
+    N10 [label="Routing Transformer\n(2020)",      fillcolor="#a5d6a7"];
+    N11 [label="Reformer (LSH)\n(2020)",           fillcolor="#c8e6c9"];
+    N12 [label="Performer (linear)\n(2020)",       fillcolor="#c8e6c9"];
+  }
+
+  // ---------- Lane: compression / memory ----------
+  subgraph cluster_compress {
+    label="Compression / memory"; style="rounded,filled";
+    color="#ffcc80"; fillcolor="#fff3e0";
+    N13 [label="Compressive Transformer\n(2019)", fillcolor="#ffcc80"];
+    N14 [label="DeepSeek DSA / Lightning Indexer\n(2024, internal)",
+         fillcolor="#ffb74d"];
+  }
+
+  // ---------- Lane: KV-cache / decoding efficiency ----------
+  subgraph cluster_kv {
+    label="KV-cache / decoding efficiency"; style="rounded,filled";
+    color="#f48fb1"; fillcolor="#fce4ec";
+    N15 [label="MQA\n(2019)",                      fillcolor="#f48fb1"];
+    N16 [label="GQA\n(2023)",                      fillcolor="#f48fb1"];
+    N17 [label="DeepSeek-V2 MLA\n(2024)",          fillcolor="#ec407a",
+         fontcolor="white"];
+  }
+
+  // ---------- Lane: systems / kernels ----------
+  subgraph cluster_systems {
+    label="Systems / kernels"; style="rounded,filled";
+    color="#b0bec5"; fillcolor="#eceff1";
+    N18 [label="FlashAttention\n(2022)",           fillcolor="#b0bec5"];
+    N19 [label="FlashAttention-2 /\nblock-sparse kernels\n(2023+)",
+         fillcolor="#b0bec5"];
+    N20 [label="Paged / structured\nKV-cache serving (2023+)",
+         fillcolor="#cfd8dc"];
+  }
+
+  // ---------- Lane: DeepSeek-V4 culmination ----------
+  subgraph cluster_v4 {
+    label="DeepSeek-V4 (2026)"; style="rounded,filled";
+    color="#ce93d8"; fillcolor="#f3e5f5";
+    N21 [label="V4 CSA\n(Compressed Sparse Attn)",
+         fillcolor="#ba68c8", fontcolor="white"];
+    N22 [label="V4 HCA\n(Heavily Compressed Attn)",
+         fillcolor="#ba68c8", fontcolor="white"];
+    N23 [label="V4 hybrid\nlong-context attention",
+         fillcolor="#9c27b0", fontcolor="white"];
+    N24 [label="DeepSeek-V4\nfinal model",
+         fillcolor="#6a1b9a", fontcolor="white", penwidth=2];
+  }
+
+  // ---------- Year-rank constraints ----------
+  { rank=same; y2014; N1; }
+  { rank=same; y2015; N2; }
+  { rank=same; y2017; N3; }
+  { rank=same; y2019; N4; N7; N13; N15; }
+  { rank=same; y2020; N8; N9; N10; N11; N12; }
+  { rank=same; y2021; N5; N6; }
+  { rank=same; y2022; N18; }
+  { rank=same; y2023; N16; N19; N20; }
+  { rank=same; y2024; N14; N17; }
+  { rank=same; y2026; N21; N22; N23; N24; }
+
+  // ---------- Edges ----------
+
+  // Trunk (solid)
+  N1 -> N2 -> N3;
+
+  // Position / length (solid)
+  N3 -> N4;
+  N3 -> N5;
+  N3 -> N6 [style=dashed];   // ALiBi: cousin, not direct V4 ancestor
+
+  // Sparse long-context emissions from trunk (solid for direct, dashed for cousins)
+  N3 -> N8;                   // Longformer: close parent
+  N3 -> N10;                  // Routing: close parent
+  N3 -> N7  [style=dashed];   // Sparse Transformer: cousin
+  N3 -> N9  [style=dashed];   // BigBird: cousin
+  N3 -> N11 [style=dashed];   // Reformer: cousin
+  N3 -> N12 [style=dashed];   // Performer: cousin
+
+  // Compression / memory (solid)
+  N3 -> N13;
+  N4 -> N13;                  // segment recurrence -> compressive memory
+
+  // KV-efficiency (solid)
+  N3  -> N15;
+  N15 -> N16;
+  N16 -> N17;
+  N5  -> N17;                 // RoPE in modern stack with MLA
+
+  // Sparse-selection branch into V4 CSA
+  N8  -> N21;                 // close parent: local exact attn
+  N10 -> N21;                 // close parent: query-dependent sparse routing
+  N14 -> N21;                 // internal predecessor (DSA / Lightning Indexer)
+  N7  -> N21 [style=dashed];  // cousin
+  N9  -> N21 [style=dashed];  // cousin
+
+  // Compressive memory into V4 (solid)
+  N13 -> N21;
+  N13 -> N22;
+
+  // MLA into V4 (solid)
+  N17 -> N23;
+  N17 -> N24;
+
+  // Final V4 composition (solid)
+  N21 -> N23;
+  N22 -> N23;
+  N23 -> N24;
+
+  // Systems enablers (dotted)
+  N18 -> N23 [style=dotted, color="#607d8b"];
+  N18 -> N24 [style=dotted, color="#607d8b"];
+  N19 -> N23 [style=dotted, color="#607d8b"];
+  N20 -> N24 [style=dotted, color="#607d8b",
+              label="contrast / pressure", fontcolor="#607d8b"];
+
+  // ---------- Legend (separate cluster) ----------
+  subgraph cluster_legend {
+    label="Edge style"; style="rounded,filled";
+    color="#cfd8dc"; fillcolor="#fafafa";
+    rank=sink;
+    L_a [label="A", style="invis"]; L_b [label="B", style="invis"];
+    L_c [label="C", style="invis"]; L_d [label="D", style="invis"];
+    L_e [label="E", style="invis"]; L_f [label="F", style="invis"];
+    L_a -> L_b [label="solid: direct ancestry"];
+    L_c -> L_d [style=dashed, label="dashed: cousin / partial"];
+    L_e -> L_f [style=dotted, color="#607d8b",
+                label="dotted: systems enabler"];
+  }
+}
