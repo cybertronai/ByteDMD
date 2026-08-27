@@ -188,6 +188,7 @@ In-depth reports applying ByteDMD to specific algorithms and design questions:
 - [Modern flash attention vs naive attention](docs/report-modern-flash-attention/report.md) — full sweep across sequence length, head dim, and block size showing flash attention's advantage growing as O(sqrt(N/Bk)) under ByteDMD while FLOPs see no benefit. Uses an optimised tracer (`bytedmd_fast.py`).
 - [Antigravity flash attention experiments](docs/report-antigravity-flash-attention/report.md) — alternative flash attention implementations and their ByteDMD costs.
 - [Attention benchmark notes](benchmarks/attention_report.md) — the small-scale flash vs naive results that motivated the modern-attention deep dive.
+- [Grid experiment — allocator lower bounds](https://cybertronai.github.io/ByteDMD/grid.html) — the metrics × algorithms table: `manual`, `global_density` (totally-unimodular LP floor), `local_density`, `polymatroid_lb`, `bytedmd_opt`, `bytedmd_live` and `bytedmd_classic` costs across 45 algorithms, with per-algorithm reuse-distance and working-set charts.
 
 # Python Gotcha's
 The tracer implements ByteDMD by wrapping Python objects. This means that the "Instruction Set" of this metric corresponds to Python built-ins, documented under [docs/instruction_set.md](docs/instruction_set.md).
@@ -196,4 +197,3 @@ Python behavior means this implementation occasionally doesn't match README sema
 
 
 [Original Google Doc](https://docs.google.com/document/d/1sj5NqOg6Yqh10bXzGVEF5uIzSjFWAnqqTE75AMng2-s/edit?tab=t.0#heading=h.ujy6ygk7sjmb)
-

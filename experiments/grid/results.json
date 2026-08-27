@@ -1,0 +1,1525 @@
+{
+  "algorithms": [
+    {
+      "key": "naive-matmul-16",
+      "algorithm": "Naive Matmul",
+      "workload": "16x16",
+      "notes": "standard i-j-k triple loop",
+      "SpaceDMD": 75573,
+      "ByteDMD-live": 119088,
+      "Manual-2D": 138486,
+      "ByteDMD-classic": 178319,
+      "cell_seconds": {
+        "SpaceDMD": 0.0504,
+        "ByteDMD-live": 0.0883,
+        "Manual-2D": 0.0083,
+        "ByteDMD-classic": 0.2248
+      },
+      "max_cell_seconds": 0.2248,
+      "total_traced_seconds": 0.3719
+    },
+    {
+      "key": "tiled-matmul-16",
+      "algorithm": "Tiled Matmul",
+      "workload": "16x16, tile=4",
+      "notes": "one explicit blocking level",
+      "SpaceDMD": 90626,
+      "ByteDMD-live": 89445,
+      "Manual-2D": 82574,
+      "ByteDMD-classic": 141169,
+      "cell_seconds": {
+        "SpaceDMD": 0.0457,
+        "ByteDMD-live": 0.0625,
+        "Manual-2D": 0.0071,
+        "ByteDMD-classic": 0.1872
+      },
+      "max_cell_seconds": 0.1872,
+      "total_traced_seconds": 0.3024
+    },
+    {
+      "key": "rmm-16",
+      "algorithm": "Recursive Matmul",
+      "workload": "16x16",
+      "notes": "8-way cache-oblivious recursion",
+      "SpaceDMD": 104162,
+      "ByteDMD-live": 95371,
+      "Manual-2D": 102056,
+      "ByteDMD-classic": 149081,
+      "cell_seconds": {
+        "SpaceDMD": 0.0505,
+        "ByteDMD-live": 0.0732,
+        "Manual-2D": 0.005,
+        "ByteDMD-classic": 0.1906
+      },
+      "max_cell_seconds": 0.1906,
+      "total_traced_seconds": 0.3194
+    },
+    {
+      "key": "rmm-lex-16",
+      "algorithm": "Recursive In-Place (Lex)",
+      "workload": "16x16",
+      "notes": "manual in-place schedule, lexicographic order",
+      "SpaceDMD": 99017,
+      "ByteDMD-live": 83216,
+      "Manual-2D": 239777,
+      "ByteDMD-classic": 131240,
+      "cell_seconds": {
+        "SpaceDMD": 0.0508,
+        "ByteDMD-live": 0.0586,
+        "Manual-2D": 0.0084,
+        "ByteDMD-classic": 0.1477
+      },
+      "max_cell_seconds": 0.1477,
+      "total_traced_seconds": 0.2656
+    },
+    {
+      "key": "rmm-gray-16",
+      "algorithm": "Recursive In-Place (Gray)",
+      "workload": "16x16",
+      "notes": "manual in-place schedule, Gray-code order",
+      "SpaceDMD": 87471,
+      "ByteDMD-live": 78313,
+      "Manual-2D": 239777,
+      "ByteDMD-classic": 124441,
+      "cell_seconds": {
+        "SpaceDMD": 0.049,
+        "ByteDMD-live": 0.0554,
+        "Manual-2D": 0.0085,
+        "ByteDMD-classic": 0.1469
+      },
+      "max_cell_seconds": 0.1469,
+      "total_traced_seconds": 0.2598
+    },
+    {
+      "key": "strassen-16",
+      "algorithm": "Strassen",
+      "workload": "16x16",
+      "notes": "leaf size 1 to expose temporary traffic",
+      "SpaceDMD": 129252,
+      "ByteDMD-live": 202785,
+      "Manual-2D": 210953,
+      "ByteDMD-classic": 341157,
+      "cell_seconds": {
+        "SpaceDMD": 0.0818,
+        "ByteDMD-live": 0.1498,
+        "Manual-2D": 0.0133,
+        "ByteDMD-classic": 0.5465
+      },
+      "max_cell_seconds": 0.5465,
+      "total_traced_seconds": 0.7914
+    },
+    {
+      "key": "fused-strassen-16",
+      "algorithm": "Fused Strassen",
+      "workload": "16x16, leaf=8",
+      "notes": "zero-allocation virtual sums with direct accumulation into C",
+      "SpaceDMD": 177235,
+      "ByteDMD-live": 183970,
+      "Manual-2D": 147360,
+      "ByteDMD-classic": 310614,
+      "cell_seconds": {
+        "SpaceDMD": 0.0735,
+        "ByteDMD-live": 0.1676,
+        "Manual-2D": 0.0056,
+        "ByteDMD-classic": 0.5484
+      },
+      "max_cell_seconds": 0.5484,
+      "total_traced_seconds": 0.7952
+    },
+    {
+      "key": "naive-attention-32x2",
+      "algorithm": "Naive Attention (d=2)",
+      "workload": "N=32, d=2",
+      "notes": "materializes the full score matrix",
+      "SpaceDMD": 121175,
+      "ByteDMD-live": 182223,
+      "Manual-2D": 419566,
+      "ByteDMD-classic": 273037,
+      "cell_seconds": {
+        "SpaceDMD": 0.0582,
+        "ByteDMD-live": 0.2597,
+        "Manual-2D": 0.0074,
+        "ByteDMD-classic": 0.5321
+      },
+      "max_cell_seconds": 0.5321,
+      "total_traced_seconds": 0.8575
+    },
+    {
+      "key": "flash-attention-32x2-b8",
+      "algorithm": "Flash Attention (Bk=8)",
+      "workload": "N=32, d=2, Bq=8, Bk=8",
+      "notes": "double-tiled Q/KV blocks with wider KV tiles",
+      "SpaceDMD": 79155,
+      "ByteDMD-live": 94106,
+      "Manual-2D": 117651,
+      "ByteDMD-classic": 143791,
+      "cell_seconds": {
+        "SpaceDMD": 0.0638,
+        "ByteDMD-live": 0.0603,
+        "Manual-2D": 0.0075,
+        "ByteDMD-classic": 0.1555
+      },
+      "max_cell_seconds": 0.1555,
+      "total_traced_seconds": 0.287
+    },
+    {
+      "key": "regular-attention-32x4",
+      "algorithm": "Naive Attention (d=4)",
+      "workload": "N=32, d=4",
+      "notes": "materializes the full score matrix",
+      "SpaceDMD": 227596,
+      "ByteDMD-live": 298016,
+      "Manual-2D": 804056,
+      "ByteDMD-classic": 462791,
+      "cell_seconds": {
+        "SpaceDMD": 0.0993,
+        "ByteDMD-live": 0.3564,
+        "Manual-2D": 0.0135,
+        "ByteDMD-classic": 0.8733
+      },
+      "max_cell_seconds": 0.8733,
+      "total_traced_seconds": 1.3425
+    },
+    {
+      "key": "flash-attention-32x4",
+      "algorithm": "Flash Attention",
+      "workload": "N=32, d=4, Bq=8, Bk=4",
+      "notes": "double-tiled Q/KV blocks with snake KV order",
+      "SpaceDMD": 183674,
+      "ByteDMD-live": 195469,
+      "Manual-2D": 286628,
+      "ByteDMD-classic": 317851,
+      "cell_seconds": {
+        "SpaceDMD": 0.1124,
+        "ByteDMD-live": 0.1381,
+        "Manual-2D": 0.014,
+        "ByteDMD-classic": 0.5119
+      },
+      "max_cell_seconds": 0.5119,
+      "total_traced_seconds": 0.7765
+    },
+    {
+      "key": "layernorm-unfused-1024",
+      "algorithm": "LayerNorm (Unfused)",
+      "workload": "N=1024",
+      "notes": "three full vector passes for mean, variance, and normalize",
+      "SpaceDMD": 81500,
+      "ByteDMD-live": 153618,
+      "Manual-2D": 122384,
+      "ByteDMD-classic": 206144,
+      "cell_seconds": {
+        "SpaceDMD": 0.0528,
+        "ByteDMD-live": 0.2226,
+        "Manual-2D": 0.0073,
+        "ByteDMD-classic": 0.4528
+      },
+      "max_cell_seconds": 0.4528,
+      "total_traced_seconds": 0.7354
+    },
+    {
+      "key": "layernorm-fused-1024",
+      "algorithm": "LayerNorm (Fused)",
+      "workload": "N=1024",
+      "notes": "Welford statistics fused into two vector passes",
+      "SpaceDMD": 95319,
+      "ByteDMD-live": 134068,
+      "Manual-2D": 123398,
+      "ByteDMD-classic": 178185,
+      "cell_seconds": {
+        "SpaceDMD": 0.0682,
+        "ByteDMD-live": 0.1859,
+        "Manual-2D": 0.0083,
+        "ByteDMD-classic": 0.3951
+      },
+      "max_cell_seconds": 0.3951,
+      "total_traced_seconds": 0.6575
+    },
+    {
+      "key": "matvec-32",
+      "algorithm": "Matvec",
+      "workload": "32x32 by 32",
+      "notes": "row-wise matrix-vector baseline",
+      "SpaceDMD": 29911,
+      "ByteDMD-live": 36134,
+      "Manual-2D": 29890,
+      "ByteDMD-classic": 39572,
+      "cell_seconds": {
+        "SpaceDMD": 0.0317,
+        "ByteDMD-live": 0.0307,
+        "Manual-2D": 0.0025,
+        "ByteDMD-classic": 0.0352
+      },
+      "max_cell_seconds": 0.0352,
+      "total_traced_seconds": 0.1001
+    },
+    {
+      "key": "vecmat-32",
+      "algorithm": "Vecmat",
+      "workload": "32 by 32x32",
+      "notes": "column-oriented access order",
+      "SpaceDMD": 23195,
+      "ByteDMD-live": 29418,
+      "Manual-2D": 29890,
+      "ByteDMD-classic": 32856,
+      "cell_seconds": {
+        "SpaceDMD": 0.0206,
+        "ByteDMD-live": 0.0319,
+        "Manual-2D": 0.0018,
+        "ByteDMD-classic": 0.0245
+      },
+      "max_cell_seconds": 0.0319,
+      "total_traced_seconds": 0.0788
+    },
+    {
+      "key": "matvec-row-64",
+      "algorithm": "Matvec Row",
+      "workload": "64x64 by 64",
+      "notes": "row-major matrix-vector multiply",
+      "SpaceDMD": 213297,
+      "ByteDMD-live": 244553,
+      "Manual-2D": 213156,
+      "ByteDMD-classic": 262597,
+      "cell_seconds": {
+        "SpaceDMD": 0.3787,
+        "ByteDMD-live": 0.3774,
+        "Manual-2D": 0.0087,
+        "ByteDMD-classic": 0.4199
+      },
+      "max_cell_seconds": 0.4199,
+      "total_traced_seconds": 1.1847
+    },
+    {
+      "key": "matvec-col-64",
+      "algorithm": "Matvec Column",
+      "workload": "64 by 64x64",
+      "notes": "column-major vector-matrix multiply",
+      "SpaceDMD": 157421,
+      "ByteDMD-live": 188677,
+      "Manual-2D": 213156,
+      "ByteDMD-classic": 206721,
+      "cell_seconds": {
+        "SpaceDMD": 0.224,
+        "ByteDMD-live": 0.4255,
+        "Manual-2D": 0.0081,
+        "ByteDMD-classic": 0.2813
+      },
+      "max_cell_seconds": 0.4255,
+      "total_traced_seconds": 0.939
+    },
+    {
+      "key": "matrix-powers-naive-32-s4",
+      "algorithm": "Matrix Powers (Naive)",
+      "workload": "32x32, s=4",
+      "notes": "re-reads A for each successive dense matvec",
+      "SpaceDMD": 107592,
+      "ByteDMD-live": 178637,
+      "Manual-2D": 237120,
+      "ByteDMD-classic": 263206,
+      "cell_seconds": {
+        "SpaceDMD": 0.0584,
+        "ByteDMD-live": 0.2235,
+        "Manual-2D": 0.0073,
+        "ByteDMD-classic": 0.5046
+      },
+      "max_cell_seconds": 0.5046,
+      "total_traced_seconds": 0.7938
+    },
+    {
+      "key": "matrix-powers-ca-32-s4",
+      "algorithm": "Matrix Powers (CA)",
+      "workload": "32x32, s=4, block=4",
+      "notes": "row-blocked communication-avoiding proxy for chained matvecs",
+      "SpaceDMD": 116600,
+      "ByteDMD-live": 144919,
+      "Manual-2D": 211932,
+      "ByteDMD-classic": 197497,
+      "cell_seconds": {
+        "SpaceDMD": 0.0659,
+        "ByteDMD-live": 0.1219,
+        "Manual-2D": 0.0086,
+        "ByteDMD-classic": 0.192
+      },
+      "max_cell_seconds": 0.192,
+      "total_traced_seconds": 0.3884
+    },
+    {
+      "key": "spmv-csr-banded-64",
+      "algorithm": "SpMV CSR (Banded)",
+      "workload": "N=64, bandwidth=3",
+      "notes": "sparse matrix-vector multiply with clustered indirect reads",
+      "SpaceDMD": 9602,
+      "ByteDMD-live": 11410,
+      "Manual-2D": 17869,
+      "ByteDMD-classic": 12270,
+      "cell_seconds": {
+        "SpaceDMD": 0.0084,
+        "ByteDMD-live": 0.0086,
+        "Manual-2D": 0.0009,
+        "ByteDMD-classic": 0.0087
+      },
+      "max_cell_seconds": 0.0087,
+      "total_traced_seconds": 0.0266
+    },
+    {
+      "key": "spmv-csr-random-64",
+      "algorithm": "SpMV CSR (Random)",
+      "workload": "N=64, nnz/row=7",
+      "notes": "sparse matrix-vector multiply with randomized indirect reads",
+      "SpaceDMD": 11005,
+      "ByteDMD-live": 14116,
+      "Manual-2D": 18518,
+      "ByteDMD-classic": 15979,
+      "cell_seconds": {
+        "SpaceDMD": 0.0104,
+        "ByteDMD-live": 0.0118,
+        "Manual-2D": 0.0011,
+        "ByteDMD-classic": 0.0142
+      },
+      "max_cell_seconds": 0.0142,
+      "total_traced_seconds": 0.0375
+    },
+    {
+      "key": "scan-row-64",
+      "algorithm": "Row Scan",
+      "workload": "64x64",
+      "notes": "row-major traversal sum",
+      "SpaceDMD": 180896,
+      "ByteDMD-live": 180896,
+      "Manual-2D": 180960,
+      "ByteDMD-classic": 180896,
+      "cell_seconds": {
+        "SpaceDMD": 0.3476,
+        "ByteDMD-live": 0.3326,
+        "Manual-2D": 0.0051,
+        "ByteDMD-classic": 0.3548
+      },
+      "max_cell_seconds": 0.3548,
+      "total_traced_seconds": 1.04
+    },
+    {
+      "key": "scan-column-64",
+      "algorithm": "Column Scan",
+      "workload": "64x64",
+      "notes": "column-major traversal sum",
+      "SpaceDMD": 125024,
+      "ByteDMD-live": 125024,
+      "Manual-2D": 180960,
+      "ByteDMD-classic": 125024,
+      "cell_seconds": {
+        "SpaceDMD": 0.1877,
+        "ByteDMD-live": 0.4183,
+        "Manual-2D": 0.005,
+        "ByteDMD-classic": 0.1751
+      },
+      "max_cell_seconds": 0.4183,
+      "total_traced_seconds": 0.7861
+    },
+    {
+      "key": "transpose-naive-32",
+      "algorithm": "Transpose (Naive)",
+      "workload": "32x32",
+      "notes": "direct row-major transpose copy",
+      "SpaceDMD": 32980,
+      "ByteDMD-live": 58989,
+      "Manual-2D": 62813,
+      "ByteDMD-classic": 58989,
+      "cell_seconds": {
+        "SpaceDMD": 0.0246,
+        "ByteDMD-live": 0.094,
+        "Manual-2D": 0.0012,
+        "ByteDMD-classic": 0.0833
+      },
+      "max_cell_seconds": 0.094,
+      "total_traced_seconds": 0.2031
+    },
+    {
+      "key": "transpose-blocked-32",
+      "algorithm": "Transpose (Blocked)",
+      "workload": "32x32, block=8",
+      "notes": "blocked transpose copy",
+      "SpaceDMD": 32324,
+      "ByteDMD-live": 58522,
+      "Manual-2D": 62813,
+      "ByteDMD-classic": 58522,
+      "cell_seconds": {
+        "SpaceDMD": 0.0376,
+        "ByteDMD-live": 0.117,
+        "Manual-2D": 0.0021,
+        "ByteDMD-classic": 0.1119
+      },
+      "max_cell_seconds": 0.117,
+      "total_traced_seconds": 0.2687
+    },
+    {
+      "key": "transpose-recursive-32",
+      "algorithm": "Transpose (Recursive)",
+      "workload": "32x32, leaf=8",
+      "notes": "cache-oblivious recursive transpose",
+      "SpaceDMD": 32268,
+      "ByteDMD-live": 58464,
+      "Manual-2D": 62813,
+      "ByteDMD-classic": 58464,
+      "cell_seconds": {
+        "SpaceDMD": 0.0279,
+        "ByteDMD-live": 0.0868,
+        "Manual-2D": 0.0012,
+        "ByteDMD-classic": 0.0879
+      },
+      "max_cell_seconds": 0.0879,
+      "total_traced_seconds": 0.2039
+    },
+    {
+      "key": "fft-iterative-1024",
+      "algorithm": "FFT (Iterative)",
+      "workload": "N=1024",
+      "notes": "iterative radix-2 Cooley-Tukey",
+      "SpaceDMD": 266902,
+      "ByteDMD-live": 410458,
+      "Manual-2D": 467423,
+      "ByteDMD-classic": 602976,
+      "cell_seconds": {
+        "SpaceDMD": 0.0868,
+        "ByteDMD-live": 0.6191,
+        "Manual-2D": 0.0085,
+        "ByteDMD-classic": 1.3538
+      },
+      "max_cell_seconds": 1.3538,
+      "total_traced_seconds": 2.0681
+    },
+    {
+      "key": "fft-recursive-1024",
+      "algorithm": "FFT (Recursive)",
+      "workload": "N=1024",
+      "notes": "recursive radix-2 Cooley-Tukey",
+      "SpaceDMD": 136833,
+      "ByteDMD-live": 213586,
+      "Manual-2D": 467423,
+      "ByteDMD-classic": 311419,
+      "cell_seconds": {
+        "SpaceDMD": 0.091,
+        "ByteDMD-live": 0.3302,
+        "Manual-2D": 0.0095,
+        "ByteDMD-classic": 0.6444
+      },
+      "max_cell_seconds": 0.6444,
+      "total_traced_seconds": 1.0751
+    },
+    {
+      "key": "jacobi-naive-32",
+      "algorithm": "Stencil (Naive)",
+      "workload": "32x32, one sweep",
+      "notes": "row-major Jacobi stencil",
+      "SpaceDMD": 64584,
+      "ByteDMD-live": 91862,
+      "Manual-2D": 142215,
+      "ByteDMD-classic": 118313,
+      "cell_seconds": {
+        "SpaceDMD": 0.0413,
+        "ByteDMD-live": 0.1102,
+        "Manual-2D": 0.0033,
+        "ByteDMD-classic": 0.1969
+      },
+      "max_cell_seconds": 0.1969,
+      "total_traced_seconds": 0.3516
+    },
+    {
+      "key": "jacobi-recursive-32",
+      "algorithm": "Stencil (Recursive)",
+      "workload": "32x32, one sweep, leaf=8",
+      "notes": "tile-recursive Jacobi stencil",
+      "SpaceDMD": 53942,
+      "ByteDMD-live": 83339,
+      "Manual-2D": 142215,
+      "ByteDMD-classic": 108221,
+      "cell_seconds": {
+        "SpaceDMD": 0.0418,
+        "ByteDMD-live": 0.164,
+        "Manual-2D": 0.0035,
+        "ByteDMD-classic": 0.1902
+      },
+      "max_cell_seconds": 0.1902,
+      "total_traced_seconds": 0.3995
+    },
+    {
+      "key": "stencil-time-naive-32-t4",
+      "algorithm": "Stencil (Time-Naive)",
+      "workload": "32x32, T=4",
+      "notes": "four full Jacobi sweeps with fresh intermediate buffers",
+      "SpaceDMD": 290346,
+      "ByteDMD-live": 512219,
+      "Manual-2D": 877793,
+      "ByteDMD-classic": 719588,
+      "cell_seconds": {
+        "SpaceDMD": 0.1287,
+        "ByteDMD-live": 1.2835,
+        "Manual-2D": 0.0135,
+        "ByteDMD-classic": 1.7286
+      },
+      "max_cell_seconds": 1.7286,
+      "total_traced_seconds": 3.1542
+    },
+    {
+      "key": "stencil-time-diamond-32-t4",
+      "algorithm": "Stencil (Time-Diamond)",
+      "workload": "32x32, T=4, block=8",
+      "notes": "space-time tiled Jacobi proxy with per-tile halo reuse",
+      "SpaceDMD": 510495,
+      "ByteDMD-live": 854037,
+      "Manual-2D": 2442625,
+      "ByteDMD-classic": 1441257,
+      "cell_seconds": {
+        "SpaceDMD": 0.3551,
+        "ByteDMD-live": 1.4272,
+        "Manual-2D": 0.0362,
+        "ByteDMD-classic": 4.2869
+      },
+      "max_cell_seconds": 4.2869,
+      "total_traced_seconds": 6.1054
+    },
+    {
+      "key": "conv2d-spatial-16x16-k5",
+      "algorithm": "Spatial Conv (2D, 16x16)",
+      "workload": "16x16, kernel=5x5",
+      "notes": "same-size zero-padded spatial convolution",
+      "SpaceDMD": 83083,
+      "ByteDMD-live": 112862,
+      "Manual-2D": 165557,
+      "ByteDMD-classic": 162940,
+      "cell_seconds": {
+        "SpaceDMD": 0.0519,
+        "ByteDMD-live": 0.0568,
+        "Manual-2D": 0.01,
+        "ByteDMD-classic": 0.1528
+      },
+      "max_cell_seconds": 0.1528,
+      "total_traced_seconds": 0.2715
+    },
+    {
+      "key": "spatial-conv-32x32-k5",
+      "algorithm": "Spatial Conv (2D, 32x32)",
+      "workload": "32x32, kernel=5x5",
+      "notes": "same-size zero-padded spatial convolution",
+      "SpaceDMD": 421216,
+      "ByteDMD-live": 542936,
+      "Manual-2D": 1367491,
+      "ByteDMD-classic": 849599,
+      "cell_seconds": {
+        "SpaceDMD": 0.2788,
+        "ByteDMD-live": 0.3619,
+        "Manual-2D": 0.0511,
+        "ByteDMD-classic": 1.8038
+      },
+      "max_cell_seconds": 1.8038,
+      "total_traced_seconds": 2.4956
+    },
+    {
+      "key": "regular-conv-16x16-k3-c4",
+      "algorithm": "Regular Conv",
+      "workload": "16x16, kernel=3x3, Cin=4, Cout=4",
+      "notes": "direct same-size convolution over 4 input/output channels",
+      "SpaceDMD": 893512,
+      "ByteDMD-live": 994160,
+      "Manual-2D": 1958775,
+      "ByteDMD-classic": 1548723,
+      "cell_seconds": {
+        "SpaceDMD": 0.3804,
+        "ByteDMD-live": 0.684,
+        "Manual-2D": 0.0789,
+        "ByteDMD-classic": 2.9469
+      },
+      "max_cell_seconds": 2.9469,
+      "total_traced_seconds": 4.0901
+    },
+    {
+      "key": "fft-conv-32",
+      "algorithm": "FFT Conv (1D)",
+      "workload": "N=32",
+      "notes": "circular 1D convolution via recursive FFT",
+      "SpaceDMD": 3148,
+      "ByteDMD-live": 5071,
+      "Manual-2D": 5924,
+      "ByteDMD-classic": 6263,
+      "cell_seconds": {
+        "SpaceDMD": 0.0051,
+        "ByteDMD-live": 0.0035,
+        "Manual-2D": 0.0008,
+        "ByteDMD-classic": 0.0045
+      },
+      "max_cell_seconds": 0.0051,
+      "total_traced_seconds": 0.014
+    },
+    {
+      "key": "conv2d-fft-16x16-k5",
+      "algorithm": "FFT Conv (2D)",
+      "workload": "16x16, kernel=5x5, pad=32x32",
+      "notes": "same-size convolution via zero-padded recursive 2D FFT",
+      "SpaceDMD": 193770,
+      "ByteDMD-live": 395662,
+      "Manual-2D": 2812578,
+      "ByteDMD-classic": 644543,
+      "cell_seconds": {
+        "SpaceDMD": 0.1898,
+        "ByteDMD-live": 0.8214,
+        "Manual-2D": 0.0452,
+        "ByteDMD-classic": 1.8652
+      },
+      "max_cell_seconds": 1.8652,
+      "total_traced_seconds": 2.9217
+    },
+    {
+      "key": "mergesort-64",
+      "algorithm": "Mergesort",
+      "workload": "N=64",
+      "notes": "top-down mergesort with tracked comparisons",
+      "SpaceDMD": 2157,
+      "ByteDMD-live": 3410,
+      "Manual-2D": 8574,
+      "ByteDMD-classic": 3977,
+      "cell_seconds": {
+        "SpaceDMD": 0.0034,
+        "ByteDMD-live": 0.0027,
+        "Manual-2D": 0.0007,
+        "ByteDMD-classic": 0.0035
+      },
+      "max_cell_seconds": 0.0035,
+      "total_traced_seconds": 0.0103
+    },
+    {
+      "key": "bitonic-sort-64",
+      "algorithm": "Bitonic Sort",
+      "workload": "N=64",
+      "notes": "data-oblivious sorting network with butterfly compare-swaps",
+      "SpaceDMD": 10283,
+      "ByteDMD-live": 13095,
+      "Manual-2D": 8842,
+      "ByteDMD-classic": 15899,
+      "cell_seconds": {
+        "SpaceDMD": 0.008,
+        "ByteDMD-live": 0.0071,
+        "Manual-2D": 0.0016,
+        "ByteDMD-classic": 0.0102
+      },
+      "max_cell_seconds": 0.0102,
+      "total_traced_seconds": 0.0269
+    },
+    {
+      "key": "lcs-dp-32x32",
+      "algorithm": "LCS DP",
+      "workload": "32x32",
+      "notes": "dynamic programming longest common subsequence",
+      "SpaceDMD": 23238,
+      "ByteDMD-live": 30392,
+      "Manual-2D": 138668,
+      "ByteDMD-classic": 30392,
+      "cell_seconds": {
+        "SpaceDMD": 0.0152,
+        "ByteDMD-live": 0.0744,
+        "Manual-2D": 0.0032,
+        "ByteDMD-classic": 0.0198
+      },
+      "max_cell_seconds": 0.0744,
+      "total_traced_seconds": 0.1126
+    },
+    {
+      "key": "floyd-warshall-naive-32",
+      "algorithm": "Floyd-Warshall (Naive)",
+      "workload": "V=32",
+      "notes": "standard k-i-j all-pairs shortest paths",
+      "SpaceDMD": 1296932,
+      "ByteDMD-live": 1600250,
+      "Manual-2D": 2208605,
+      "ByteDMD-classic": 2467170,
+      "cell_seconds": {
+        "SpaceDMD": 0.5346,
+        "ByteDMD-live": 1.8197,
+        "Manual-2D": 0.0736,
+        "ByteDMD-classic": 4.7897
+      },
+      "max_cell_seconds": 4.7897,
+      "total_traced_seconds": 7.2176
+    },
+    {
+      "key": "floyd-warshall-recursive-32",
+      "algorithm": "Floyd-Warshall (Recursive)",
+      "workload": "V=32, leaf=8",
+      "notes": "recursive blocked APSP over k/i/j ranges",
+      "SpaceDMD": 1289599,
+      "ByteDMD-live": 1528176,
+      "Manual-2D": 2208605,
+      "ByteDMD-classic": 2371997,
+      "cell_seconds": {
+        "SpaceDMD": 0.4741,
+        "ByteDMD-live": 1.8692,
+        "Manual-2D": 0.0705,
+        "ByteDMD-classic": 4.7435
+      },
+      "max_cell_seconds": 4.7435,
+      "total_traced_seconds": 7.1574
+    },
+    {
+      "key": "gaussian-elimination-24",
+      "algorithm": "Gaussian Elimination",
+      "workload": "N=24",
+      "notes": "dense solve without pivoting",
+      "SpaceDMD": 144330,
+      "ByteDMD-live": 174839,
+      "Manual-2D": 149098,
+      "ByteDMD-classic": 264399,
+      "cell_seconds": {
+        "SpaceDMD": 0.0643,
+        "ByteDMD-live": 0.156,
+        "Manual-2D": 0.0098,
+        "ByteDMD-classic": 0.369
+      },
+      "max_cell_seconds": 0.369,
+      "total_traced_seconds": 0.5991
+    },
+    {
+      "key": "gauss-jordan-inverse-16",
+      "algorithm": "Gauss-Jordan Inverse",
+      "workload": "N=16",
+      "notes": "dense matrix inverse without pivoting",
+      "SpaceDMD": 138241,
+      "ByteDMD-live": 291004,
+      "Manual-2D": 197639,
+      "ByteDMD-classic": 447568,
+      "cell_seconds": {
+        "SpaceDMD": 0.0873,
+        "ByteDMD-live": 0.263,
+        "Manual-2D": 0.0172,
+        "ByteDMD-classic": 0.6329
+      },
+      "max_cell_seconds": 0.6329,
+      "total_traced_seconds": 1.0003
+    },
+    {
+      "key": "lu-no-pivot-24",
+      "algorithm": "LU (No Pivot)",
+      "workload": "N=24",
+      "notes": "Doolittle LU without row swaps",
+      "SpaceDMD": 176646,
+      "ByteDMD-live": 183748,
+      "Manual-2D": 152609,
+      "ByteDMD-classic": 285388,
+      "cell_seconds": {
+        "SpaceDMD": 0.0624,
+        "ByteDMD-live": 0.1667,
+        "Manual-2D": 0.01,
+        "ByteDMD-classic": 0.5025
+      },
+      "max_cell_seconds": 0.5025,
+      "total_traced_seconds": 0.7416
+    },
+    {
+      "key": "blocked-lu-24",
+      "algorithm": "LU (Blocked)",
+      "workload": "N=24, block=4",
+      "notes": "panel/TRSM/trailing-update LU without pivoting",
+      "SpaceDMD": 168823,
+      "ByteDMD-live": 205254,
+      "Manual-2D": 152320,
+      "ByteDMD-classic": 292112,
+      "cell_seconds": {
+        "SpaceDMD": 0.063,
+        "ByteDMD-live": 0.3182,
+        "Manual-2D": 0.0075,
+        "ByteDMD-classic": 0.5247
+      },
+      "max_cell_seconds": 0.5247,
+      "total_traced_seconds": 0.9134
+    },
+    {
+      "key": "recursive-lu-24",
+      "algorithm": "LU (Recursive)",
+      "workload": "N=24, leaf=6",
+      "notes": "recursive block LU without pivoting",
+      "SpaceDMD": 143081,
+      "ByteDMD-live": 154745,
+      "Manual-2D": 170273,
+      "ByteDMD-classic": 242879,
+      "cell_seconds": {
+        "SpaceDMD": 0.0547,
+        "ByteDMD-live": 0.154,
+        "Manual-2D": 0.0067,
+        "ByteDMD-classic": 0.4275
+      },
+      "max_cell_seconds": 0.4275,
+      "total_traced_seconds": 0.6428
+    },
+    {
+      "key": "lu-partial-pivot-24",
+      "algorithm": "LU (Partial Pivot)",
+      "workload": "N=24",
+      "notes": "partial pivoting with row-copy traffic",
+      "SpaceDMD": 211252,
+      "ByteDMD-live": 211749,
+      "Manual-2D": 196063,
+      "ByteDMD-classic": 333458,
+      "cell_seconds": {
+        "SpaceDMD": 0.0598,
+        "ByteDMD-live": 0.1967,
+        "Manual-2D": 0.0103,
+        "ByteDMD-classic": 0.5552
+      },
+      "max_cell_seconds": 0.5552,
+      "total_traced_seconds": 0.822
+    },
+    {
+      "key": "cholesky-24",
+      "algorithm": "Cholesky",
+      "workload": "N=24",
+      "notes": "lower-triangular Cholesky factorization",
+      "SpaceDMD": 58449,
+      "ByteDMD-live": 60233,
+      "Manual-2D": 103898,
+      "ByteDMD-classic": 87161,
+      "cell_seconds": {
+        "SpaceDMD": 0.0284,
+        "ByteDMD-live": 0.0402,
+        "Manual-2D": 0.0035,
+        "ByteDMD-classic": 0.0824
+      },
+      "max_cell_seconds": 0.0824,
+      "total_traced_seconds": 0.1544
+    },
+    {
+      "key": "blocked-cholesky-24",
+      "algorithm": "Cholesky (Blocked)",
+      "workload": "N=24, block=4",
+      "notes": "tile-oriented Cholesky factorization",
+      "SpaceDMD": 59135,
+      "ByteDMD-live": 65048,
+      "Manual-2D": 113956,
+      "ByteDMD-classic": 99660,
+      "cell_seconds": {
+        "SpaceDMD": 0.0357,
+        "ByteDMD-live": 0.0595,
+        "Manual-2D": 0.0039,
+        "ByteDMD-classic": 0.1145
+      },
+      "max_cell_seconds": 0.1145,
+      "total_traced_seconds": 0.2137
+    },
+    {
+      "key": "recursive-cholesky-24",
+      "algorithm": "Cholesky (Recursive)",
+      "workload": "N=24, leaf=6",
+      "notes": "recursive block Cholesky factorization",
+      "SpaceDMD": 81590,
+      "ByteDMD-live": 97705,
+      "Manual-2D": 106249,
+      "ByteDMD-classic": 149742,
+      "cell_seconds": {
+        "SpaceDMD": 0.0455,
+        "ByteDMD-live": 0.0819,
+        "Manual-2D": 0.0044,
+        "ByteDMD-classic": 0.1919
+      },
+      "max_cell_seconds": 0.1919,
+      "total_traced_seconds": 0.3237
+    },
+    {
+      "key": "cholesky-right-looking-24",
+      "algorithm": "Cholesky (Right-Looking)",
+      "workload": "N=24",
+      "notes": "eager trailing-update Cholesky for read/write asymmetry comparison",
+      "SpaceDMD": 70155,
+      "ByteDMD-live": 76858,
+      "Manual-2D": 246125,
+      "ByteDMD-classic": 111975,
+      "cell_seconds": {
+        "SpaceDMD": 0.0351,
+        "ByteDMD-live": 0.0668,
+        "Manual-2D": 0.0058,
+        "ByteDMD-classic": 0.1152
+      },
+      "max_cell_seconds": 0.1152,
+      "total_traced_seconds": 0.2229
+    },
+    {
+      "key": "householder-qr-48x12",
+      "algorithm": "Householder QR",
+      "workload": "48x12",
+      "notes": "unblocked Householder QR returning R",
+      "SpaceDMD": 191725,
+      "ByteDMD-live": 235920,
+      "Manual-2D": 210511,
+      "ByteDMD-classic": 372359,
+      "cell_seconds": {
+        "SpaceDMD": 0.0932,
+        "ByteDMD-live": 0.1821,
+        "Manual-2D": 0.0131,
+        "ByteDMD-classic": 0.5031
+      },
+      "max_cell_seconds": 0.5031,
+      "total_traced_seconds": 0.7916
+    },
+    {
+      "key": "blocked-qr-48x12",
+      "algorithm": "Blocked QR",
+      "workload": "48x12, block=4",
+      "notes": "panel-blocked Householder QR with delayed trailing updates",
+      "SpaceDMD": 199250,
+      "ByteDMD-live": 231744,
+      "Manual-2D": 210847,
+      "ByteDMD-classic": 370913,
+      "cell_seconds": {
+        "SpaceDMD": 0.0868,
+        "ByteDMD-live": 0.1709,
+        "Manual-2D": 0.0124,
+        "ByteDMD-classic": 0.4977
+      },
+      "max_cell_seconds": 0.4977,
+      "total_traced_seconds": 0.7678
+    },
+    {
+      "key": "tsqr-48x12",
+      "algorithm": "TSQR",
+      "workload": "48x12, leaf_rows=12",
+      "notes": "tall-skinny recursive QR returning the final R",
+      "SpaceDMD": 200413,
+      "ByteDMD-live": 251200,
+      "Manual-2D": 308395,
+      "ByteDMD-classic": 393651,
+      "cell_seconds": {
+        "SpaceDMD": 0.1242,
+        "ByteDMD-live": 0.1609,
+        "Manual-2D": 0.016,
+        "ByteDMD-classic": 0.4507
+      },
+      "max_cell_seconds": 0.4507,
+      "total_traced_seconds": 0.7517
+    }
+  ],
+  "ranking": [
+    {
+      "metric": "SpaceDMD",
+      "spearman_rho": 0.8481841802266235,
+      "scale_fit": 2.0653612443416764,
+      "scaled_mape": 0.5135143757647928
+    },
+    {
+      "metric": "ByteDMD-live",
+      "spearman_rho": 0.8529470300921917,
+      "scale_fit": 1.7291731316866643,
+      "scaled_mape": 0.5568869643891828
+    },
+    {
+      "metric": "ByteDMD-classic",
+      "spearman_rho": 0.8464883170169135,
+      "scale_fit": 1.127328658799359,
+      "scaled_mape": 0.4631784599099796
+    }
+  ],
+  "metric_columns": [
+    "SpaceDMD",
+    "ByteDMD-live",
+    "Manual-2D",
+    "ByteDMD-classic"
+  ],
+  "traced_columns": [
+    "SpaceDMD",
+    "ByteDMD-live",
+    "Manual-2D",
+    "ByteDMD-classic"
+  ],
+  "overall_max_cell_seconds": 4.7897,
+  "diagnostics": [
+    {
+      "key": "naive-matmul-16",
+      "algorithm": "Naive Matmul",
+      "peak_live": 770,
+      "max_reuse": 768,
+      "median_reuse": 34,
+      "liveset_plot": "diagnostics/naive-matmul-16_liveset.png",
+      "reuse_distance_plot": "diagnostics/naive-matmul-16_reuse_distance.png"
+    },
+    {
+      "key": "tiled-matmul-16",
+      "algorithm": "Tiled Matmul",
+      "peak_live": 771,
+      "max_reuse": 768,
+      "median_reuse": 11,
+      "liveset_plot": "diagnostics/tiled-matmul-16_liveset.png",
+      "reuse_distance_plot": "diagnostics/tiled-matmul-16_reuse_distance.png"
+    },
+    {
+      "key": "rmm-16",
+      "algorithm": "Recursive Matmul",
+      "peak_live": 896,
+      "max_reuse": 768,
+      "median_reuse": 11,
+      "liveset_plot": "diagnostics/rmm-16_liveset.png",
+      "reuse_distance_plot": "diagnostics/rmm-16_reuse_distance.png"
+    },
+    {
+      "key": "rmm-lex-16",
+      "algorithm": "Recursive In-Place (Lex)",
+      "peak_live": 770,
+      "max_reuse": 768,
+      "median_reuse": 6,
+      "liveset_plot": "diagnostics/rmm-lex-16_liveset.png",
+      "reuse_distance_plot": "diagnostics/rmm-lex-16_reuse_distance.png"
+    },
+    {
+      "key": "rmm-gray-16",
+      "algorithm": "Recursive In-Place (Gray)",
+      "peak_live": 770,
+      "max_reuse": 768,
+      "median_reuse": 7,
+      "liveset_plot": "diagnostics/rmm-gray-16_liveset.png",
+      "reuse_distance_plot": "diagnostics/rmm-gray-16_reuse_distance.png"
+    },
+    {
+      "key": "strassen-16",
+      "algorithm": "Strassen",
+      "peak_live": 1194,
+      "max_reuse": 1023,
+      "median_reuse": 13,
+      "liveset_plot": "diagnostics/strassen-16_liveset.png",
+      "reuse_distance_plot": "diagnostics/strassen-16_reuse_distance.png"
+    },
+    {
+      "key": "fused-strassen-16",
+      "algorithm": "Fused Strassen",
+      "peak_live": 774,
+      "max_reuse": 773,
+      "median_reuse": 8,
+      "liveset_plot": "diagnostics/fused-strassen-16_liveset.png",
+      "reuse_distance_plot": "diagnostics/fused-strassen-16_reuse_distance.png"
+    },
+    {
+      "key": "naive-attention-32x2",
+      "algorithm": "Naive Attention (d=2)",
+      "peak_live": 2309,
+      "max_reuse": 2082,
+      "median_reuse": 4,
+      "liveset_plot": "diagnostics/naive-attention-32x2_liveset.png",
+      "reuse_distance_plot": "diagnostics/naive-attention-32x2_reuse_distance.png"
+    },
+    {
+      "key": "flash-attention-32x2-b8",
+      "algorithm": "Flash Attention (Bk=8)",
+      "peak_live": 409,
+      "max_reuse": 343,
+      "median_reuse": 4,
+      "liveset_plot": "diagnostics/flash-attention-32x2-b8_liveset.png",
+      "reuse_distance_plot": "diagnostics/flash-attention-32x2-b8_reuse_distance.png"
+    },
+    {
+      "key": "regular-attention-32x4",
+      "algorithm": "Naive Attention (d=4)",
+      "peak_live": 2565,
+      "max_reuse": 2146,
+      "median_reuse": 4,
+      "liveset_plot": "diagnostics/regular-attention-32x4_liveset.png",
+      "reuse_distance_plot": "diagnostics/regular-attention-32x4_reuse_distance.png"
+    },
+    {
+      "key": "flash-attention-32x4",
+      "algorithm": "Flash Attention",
+      "peak_live": 723,
+      "max_reuse": 593,
+      "median_reuse": 5,
+      "liveset_plot": "diagnostics/flash-attention-32x4_liveset.png",
+      "reuse_distance_plot": "diagnostics/flash-attention-32x4_reuse_distance.png"
+    },
+    {
+      "key": "layernorm-unfused-1024",
+      "algorithm": "LayerNorm (Unfused)",
+      "peak_live": 2057,
+      "max_reuse": 2054,
+      "median_reuse": 4,
+      "liveset_plot": "diagnostics/layernorm-unfused-1024_liveset.png",
+      "reuse_distance_plot": "diagnostics/layernorm-unfused-1024_reuse_distance.png"
+    },
+    {
+      "key": "layernorm-fused-1024",
+      "algorithm": "LayerNorm (Fused)",
+      "peak_live": 2058,
+      "max_reuse": 2055,
+      "median_reuse": 4,
+      "liveset_plot": "diagnostics/layernorm-fused-1024_liveset.png",
+      "reuse_distance_plot": "diagnostics/layernorm-fused-1024_reuse_distance.png"
+    },
+    {
+      "key": "matvec-32",
+      "algorithm": "Matvec",
+      "peak_live": 1090,
+      "max_reuse": 1056,
+      "median_reuse": 25,
+      "liveset_plot": "diagnostics/matvec-32_liveset.png",
+      "reuse_distance_plot": "diagnostics/matvec-32_reuse_distance.png"
+    },
+    {
+      "key": "vecmat-32",
+      "algorithm": "Vecmat",
+      "peak_live": 1090,
+      "max_reuse": 1056,
+      "median_reuse": 13,
+      "liveset_plot": "diagnostics/vecmat-32_liveset.png",
+      "reuse_distance_plot": "diagnostics/vecmat-32_reuse_distance.png"
+    },
+    {
+      "key": "matvec-row-64",
+      "algorithm": "Matvec Row",
+      "peak_live": 4226,
+      "max_reuse": 4160,
+      "median_reuse": 49,
+      "liveset_plot": "diagnostics/matvec-row-64_liveset.png",
+      "reuse_distance_plot": "diagnostics/matvec-row-64_reuse_distance.png"
+    },
+    {
+      "key": "matvec-col-64",
+      "algorithm": "Matvec Column",
+      "peak_live": 4226,
+      "max_reuse": 4160,
+      "median_reuse": 23,
+      "liveset_plot": "diagnostics/matvec-col-64_liveset.png",
+      "reuse_distance_plot": "diagnostics/matvec-col-64_reuse_distance.png"
+    },
+    {
+      "key": "matrix-powers-naive-32-s4",
+      "algorithm": "Matrix Powers (Naive)",
+      "peak_live": 1122,
+      "max_reuse": 1088,
+      "median_reuse": 65,
+      "liveset_plot": "diagnostics/matrix-powers-naive-32-s4_liveset.png",
+      "reuse_distance_plot": "diagnostics/matrix-powers-naive-32-s4_reuse_distance.png"
+    },
+    {
+      "key": "matrix-powers-ca-32-s4",
+      "algorithm": "Matrix Powers (CA)",
+      "peak_live": 1473,
+      "max_reuse": 1024,
+      "median_reuse": 66,
+      "liveset_plot": "diagnostics/matrix-powers-ca-32-s4_liveset.png",
+      "reuse_distance_plot": "diagnostics/matrix-powers-ca-32-s4_reuse_distance.png"
+    },
+    {
+      "key": "spmv-csr-banded-64",
+      "algorithm": "SpMV CSR (Banded)",
+      "peak_live": 567,
+      "max_reuse": 560,
+      "median_reuse": 14,
+      "liveset_plot": "diagnostics/spmv-csr-banded-64_liveset.png",
+      "reuse_distance_plot": "diagnostics/spmv-csr-banded-64_reuse_distance.png"
+    },
+    {
+      "key": "spmv-csr-random-64",
+      "algorithm": "SpMV CSR (Random)",
+      "peak_live": 579,
+      "max_reuse": 569,
+      "median_reuse": 28,
+      "liveset_plot": "diagnostics/spmv-csr-random-64_liveset.png",
+      "reuse_distance_plot": "diagnostics/spmv-csr-random-64_reuse_distance.png"
+    },
+    {
+      "key": "scan-row-64",
+      "algorithm": "Row Scan",
+      "peak_live": 4098,
+      "max_reuse": 4096,
+      "median_reuse": 1,
+      "liveset_plot": "diagnostics/scan-row-64_liveset.png",
+      "reuse_distance_plot": "diagnostics/scan-row-64_reuse_distance.png"
+    },
+    {
+      "key": "scan-column-64",
+      "algorithm": "Column Scan",
+      "peak_live": 4098,
+      "max_reuse": 4096,
+      "median_reuse": 1,
+      "liveset_plot": "diagnostics/scan-column-64_liveset.png",
+      "reuse_distance_plot": "diagnostics/scan-column-64_reuse_distance.png"
+    },
+    {
+      "key": "transpose-naive-32",
+      "algorithm": "Transpose (Naive)",
+      "peak_live": 2048,
+      "max_reuse": 2047,
+      "median_reuse": 836,
+      "liveset_plot": "diagnostics/transpose-naive-32_liveset.png",
+      "reuse_distance_plot": "diagnostics/transpose-naive-32_reuse_distance.png"
+    },
+    {
+      "key": "transpose-blocked-32",
+      "algorithm": "Transpose (Blocked)",
+      "peak_live": 2048,
+      "max_reuse": 2047,
+      "median_reuse": 821,
+      "liveset_plot": "diagnostics/transpose-blocked-32_liveset.png",
+      "reuse_distance_plot": "diagnostics/transpose-blocked-32_reuse_distance.png"
+    },
+    {
+      "key": "transpose-recursive-32",
+      "algorithm": "Transpose (Recursive)",
+      "peak_live": 2048,
+      "max_reuse": 2047,
+      "median_reuse": 832,
+      "liveset_plot": "diagnostics/transpose-recursive-32_liveset.png",
+      "reuse_distance_plot": "diagnostics/transpose-recursive-32_reuse_distance.png"
+    },
+    {
+      "key": "fft-iterative-1024",
+      "algorithm": "FFT (Iterative)",
+      "peak_live": 2051,
+      "max_reuse": 2048,
+      "median_reuse": 3,
+      "liveset_plot": "diagnostics/fft-iterative-1024_liveset.png",
+      "reuse_distance_plot": "diagnostics/fft-iterative-1024_reuse_distance.png"
+    },
+    {
+      "key": "fft-recursive-1024",
+      "algorithm": "FFT (Recursive)",
+      "peak_live": 3073,
+      "max_reuse": 2559,
+      "median_reuse": 3,
+      "liveset_plot": "diagnostics/fft-recursive-1024_liveset.png",
+      "reuse_distance_plot": "diagnostics/fft-recursive-1024_reuse_distance.png"
+    },
+    {
+      "key": "jacobi-naive-32",
+      "algorithm": "Stencil (Naive)",
+      "peak_live": 2049,
+      "max_reuse": 2047,
+      "median_reuse": 9,
+      "liveset_plot": "diagnostics/jacobi-naive-32_liveset.png",
+      "reuse_distance_plot": "diagnostics/jacobi-naive-32_reuse_distance.png"
+    },
+    {
+      "key": "jacobi-recursive-32",
+      "algorithm": "Stencil (Recursive)",
+      "peak_live": 2049,
+      "max_reuse": 2047,
+      "median_reuse": 9,
+      "liveset_plot": "diagnostics/jacobi-recursive-32_liveset.png",
+      "reuse_distance_plot": "diagnostics/jacobi-recursive-32_reuse_distance.png"
+    },
+    {
+      "key": "stencil-time-naive-32-t4",
+      "algorithm": "Stencil (Time-Naive)",
+      "peak_live": 3074,
+      "max_reuse": 2048,
+      "median_reuse": 9,
+      "liveset_plot": "diagnostics/stencil-time-naive-32-t4_liveset.png",
+      "reuse_distance_plot": "diagnostics/stencil-time-naive-32-t4_reuse_distance.png"
+    },
+    {
+      "key": "stencil-time-diamond-32-t4",
+      "algorithm": "Stencil (Time-Diamond)",
+      "peak_live": 2817,
+      "max_reuse": 2385,
+      "median_reuse": 9,
+      "liveset_plot": "diagnostics/stencil-time-diamond-32-t4_liveset.png",
+      "reuse_distance_plot": "diagnostics/stencil-time-diamond-32-t4_reuse_distance.png"
+    },
+    {
+      "key": "conv2d-spatial-16x16-k5",
+      "algorithm": "Spatial Conv (2D, 16x16)",
+      "peak_live": 539,
+      "max_reuse": 537,
+      "median_reuse": 33,
+      "liveset_plot": "diagnostics/conv2d-spatial-16x16-k5_liveset.png",
+      "reuse_distance_plot": "diagnostics/conv2d-spatial-16x16-k5_reuse_distance.png"
+    },
+    {
+      "key": "spatial-conv-32x32-k5",
+      "algorithm": "Spatial Conv (2D, 32x32)",
+      "peak_live": 2075,
+      "max_reuse": 2073,
+      "median_reuse": 34,
+      "liveset_plot": "diagnostics/spatial-conv-32x32-k5_liveset.png",
+      "reuse_distance_plot": "diagnostics/spatial-conv-32x32-k5_reuse_distance.png"
+    },
+    {
+      "key": "regular-conv-16x16-k3-c4",
+      "algorithm": "Regular Conv",
+      "peak_live": 2194,
+      "max_reuse": 2192,
+      "median_reuse": 51,
+      "liveset_plot": "diagnostics/regular-conv-16x16-k3-c4_liveset.png",
+      "reuse_distance_plot": "diagnostics/regular-conv-16x16-k3-c4_reuse_distance.png"
+    },
+    {
+      "key": "fft-conv-32",
+      "algorithm": "FFT Conv (1D)",
+      "peak_live": 225,
+      "max_reuse": 127,
+      "median_reuse": 3,
+      "liveset_plot": "diagnostics/fft-conv-32_liveset.png",
+      "reuse_distance_plot": "diagnostics/fft-conv-32_reuse_distance.png"
+    },
+    {
+      "key": "conv2d-fft-16x16-k5",
+      "algorithm": "FFT Conv (2D)",
+      "peak_live": 5715,
+      "max_reuse": 3096,
+      "median_reuse": 3,
+      "liveset_plot": "diagnostics/conv2d-fft-16x16-k5_liveset.png",
+      "reuse_distance_plot": "diagnostics/conv2d-fft-16x16-k5_reuse_distance.png"
+    },
+    {
+      "key": "mergesort-64",
+      "algorithm": "Mergesort",
+      "peak_live": 192,
+      "max_reuse": 159,
+      "median_reuse": 3,
+      "liveset_plot": "diagnostics/mergesort-64_liveset.png",
+      "reuse_distance_plot": "diagnostics/mergesort-64_reuse_distance.png"
+    },
+    {
+      "key": "bitonic-sort-64",
+      "algorithm": "Bitonic Sort",
+      "peak_live": 130,
+      "max_reuse": 127,
+      "median_reuse": 61,
+      "liveset_plot": "diagnostics/bitonic-sort-64_liveset.png",
+      "reuse_distance_plot": "diagnostics/bitonic-sort-64_reuse_distance.png"
+    },
+    {
+      "key": "lcs-dp-32x32",
+      "algorithm": "LCS DP",
+      "peak_live": 1155,
+      "max_reuse": 1152,
+      "median_reuse": 4,
+      "liveset_plot": "diagnostics/lcs-dp-32x32_liveset.png",
+      "reuse_distance_plot": "diagnostics/lcs-dp-32x32_reuse_distance.png"
+    },
+    {
+      "key": "floyd-warshall-naive-32",
+      "algorithm": "Floyd-Warshall (Naive)",
+      "peak_live": 2050,
+      "max_reuse": 2047,
+      "median_reuse": 4,
+      "liveset_plot": "diagnostics/floyd-warshall-naive-32_liveset.png",
+      "reuse_distance_plot": "diagnostics/floyd-warshall-naive-32_reuse_distance.png"
+    },
+    {
+      "key": "floyd-warshall-recursive-32",
+      "algorithm": "Floyd-Warshall (Recursive)",
+      "peak_live": 2050,
+      "max_reuse": 2047,
+      "median_reuse": 4,
+      "liveset_plot": "diagnostics/floyd-warshall-recursive-32_liveset.png",
+      "reuse_distance_plot": "diagnostics/floyd-warshall-recursive-32_reuse_distance.png"
+    },
+    {
+      "key": "gaussian-elimination-24",
+      "algorithm": "Gaussian Elimination",
+      "peak_live": 1228,
+      "max_reuse": 1200,
+      "median_reuse": 25,
+      "liveset_plot": "diagnostics/gaussian-elimination-24_liveset.png",
+      "reuse_distance_plot": "diagnostics/gaussian-elimination-24_reuse_distance.png"
+    },
+    {
+      "key": "gauss-jordan-inverse-16",
+      "algorithm": "Gauss-Jordan Inverse",
+      "peak_live": 772,
+      "max_reuse": 767,
+      "median_reuse": 44,
+      "liveset_plot": "diagnostics/gauss-jordan-inverse-16_liveset.png",
+      "reuse_distance_plot": "diagnostics/gauss-jordan-inverse-16_reuse_distance.png"
+    },
+    {
+      "key": "lu-no-pivot-24",
+      "algorithm": "LU (No Pivot)",
+      "peak_live": 1431,
+      "max_reuse": 1152,
+      "median_reuse": 29,
+      "liveset_plot": "diagnostics/lu-no-pivot-24_liveset.png",
+      "reuse_distance_plot": "diagnostics/lu-no-pivot-24_reuse_distance.png"
+    },
+    {
+      "key": "blocked-lu-24",
+      "algorithm": "LU (Blocked)",
+      "peak_live": 2710,
+      "max_reuse": 1409,
+      "median_reuse": 10,
+      "liveset_plot": "diagnostics/blocked-lu-24_liveset.png",
+      "reuse_distance_plot": "diagnostics/blocked-lu-24_reuse_distance.png"
+    },
+    {
+      "key": "recursive-lu-24",
+      "algorithm": "LU (Recursive)",
+      "peak_live": 2115,
+      "max_reuse": 1325,
+      "median_reuse": 15,
+      "liveset_plot": "diagnostics/recursive-lu-24_liveset.png",
+      "reuse_distance_plot": "diagnostics/recursive-lu-24_reuse_distance.png"
+    },
+    {
+      "key": "lu-partial-pivot-24",
+      "algorithm": "LU (Partial Pivot)",
+      "peak_live": 1431,
+      "max_reuse": 1151,
+      "median_reuse": 37,
+      "liveset_plot": "diagnostics/lu-partial-pivot-24_liveset.png",
+      "reuse_distance_plot": "diagnostics/lu-partial-pivot-24_reuse_distance.png"
+    },
+    {
+      "key": "cholesky-24",
+      "algorithm": "Cholesky",
+      "peak_live": 604,
+      "max_reuse": 599,
+      "median_reuse": 4,
+      "liveset_plot": "diagnostics/cholesky-24_liveset.png",
+      "reuse_distance_plot": "diagnostics/cholesky-24_reuse_distance.png"
+    },
+    {
+      "key": "blocked-cholesky-24",
+      "algorithm": "Cholesky (Blocked)",
+      "peak_live": 1266,
+      "max_reuse": 1151,
+      "median_reuse": 9,
+      "liveset_plot": "diagnostics/blocked-cholesky-24_liveset.png",
+      "reuse_distance_plot": "diagnostics/blocked-cholesky-24_reuse_distance.png"
+    },
+    {
+      "key": "recursive-cholesky-24",
+      "algorithm": "Cholesky (Recursive)",
+      "peak_live": 1467,
+      "max_reuse": 905,
+      "median_reuse": 13,
+      "liveset_plot": "diagnostics/recursive-cholesky-24_liveset.png",
+      "reuse_distance_plot": "diagnostics/recursive-cholesky-24_reuse_distance.png"
+    },
+    {
+      "key": "cholesky-right-looking-24",
+      "algorithm": "Cholesky (Right-Looking)",
+      "peak_live": 1454,
+      "max_reuse": 1151,
+      "median_reuse": 13,
+      "liveset_plot": "diagnostics/cholesky-right-looking-24_liveset.png",
+      "reuse_distance_plot": "diagnostics/cholesky-right-looking-24_reuse_distance.png"
+    },
+    {
+      "key": "householder-qr-48x12",
+      "algorithm": "Householder QR",
+      "peak_live": 1256,
+      "max_reuse": 1201,
+      "median_reuse": 4,
+      "liveset_plot": "diagnostics/householder-qr-48x12_liveset.png",
+      "reuse_distance_plot": "diagnostics/householder-qr-48x12_reuse_distance.png"
+    },
+    {
+      "key": "blocked-qr-48x12",
+      "algorithm": "Blocked QR",
+      "peak_live": 1349,
+      "max_reuse": 1338,
+      "median_reuse": 4,
+      "liveset_plot": "diagnostics/blocked-qr-48x12_liveset.png",
+      "reuse_distance_plot": "diagnostics/blocked-qr-48x12_reuse_distance.png"
+    },
+    {
+      "key": "tsqr-48x12",
+      "algorithm": "TSQR",
+      "peak_live": 1208,
+      "max_reuse": 719,
+      "median_reuse": 4,
+      "liveset_plot": "diagnostics/tsqr-48x12_liveset.png",
+      "reuse_distance_plot": "diagnostics/tsqr-48x12_reuse_distance.png"
+    }
+  ],
+  "diagnostics_summary_tsv": "diagnostics/diagnostics_summary.tsv"
+}
